@@ -1,0 +1,513 @@
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+from django.db.models import Q, Count
+from django.utils import timezone
+from datetime import timedelta
+import uuid
+
+from .models import (
+    Passage, Question, QuestionOption, User, UserSession,
+    UserProgress, UserAnswer
+)
+from .serializers import (
+    PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
+    QuestionSerializer, UserProgressSerializer, UserProgressSummarySerializer,
+    UserAnswerSerializer, SubmitPassageRequestSerializer, SubmitPassageResponseSerializer,
+    ReviewResponseSerializer, ReviewAnswerSerializer, CreatePassageSerializer
+)
+
+
+class PassageViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for passages endpoints.
+    GET /passages - List all passages
+    GET /passages/:id - Get passage detail
+    GET /passages/:id/questions - Get questions for a passage
+    """
+    queryset = Passage.objects.all()
+    serializer_class = PassageListSerializer
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return PassageDetailSerializer
+        return PassageListSerializer
+    
+    def get_queryset(self):
+        queryset = Passage.objects.annotate(
+            question_count=Count('questions')
+        )
+        difficulty = self.request.query_params.get('difficulty', None)
+        if difficulty:
+            queryset = queryset.filter(difficulty=difficulty)
+        return queryset
+    
+    @action(detail=True, methods=['get'])
+    def questions(self, request, pk=None):
+        """Get questions for a passage without correct answers/explanations"""
+        passage = self.get_object()
+        questions = passage.questions.all().order_by('order')
+        serializer = QuestionListSerializer(questions, many=True)
+        return Response({'questions': serializer.data})
+
+
+class QuestionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for questions endpoints.
+    GET /questions/:id - Get a specific question
+    """
+    queryset = Question.objects.all()
+    serializer_class = QuestionSerializer
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Get question without correct answer for active sessions"""
+        question = self.get_object()
+        serializer = QuestionListSerializer(question)
+        return Response(serializer.data)
+
+
+def get_user_from_request(request):
+    """Helper function to get user from request (for now, support anonymous users)"""
+    # TODO: Implement authentication
+    # For now, return None for anonymous users
+    if request.user.is_authenticated:
+        return request.user
+    return None
+
+
+class ProgressView(APIView):
+    """
+    View for user progress endpoints.
+    GET /progress - Get user's progress across all passages
+    """
+    
+    def get(self, request):
+        """GET /progress - Get user's progress across all passages"""
+        user = get_user_from_request(request)
+        
+        if user:
+            progress_queryset = UserProgress.objects.filter(user=user)
+        else:
+            # For anonymous users, return empty progress
+            progress_queryset = UserProgress.objects.none()
+        
+        completed_passages = list(
+            progress_queryset.filter(is_completed=True).values_list('passage_id', flat=True)
+        )
+        scores = {
+            str(progress.passage_id): progress.score
+            for progress in progress_queryset.filter(is_completed=True, score__isnull=False)
+        }
+        total_passages = Passage.objects.count()
+        completed_count = len(completed_passages)
+        
+        serializer = UserProgressSummarySerializer({
+            'completed_passages': completed_passages,
+            'scores': scores,
+            'total_passages': total_passages,
+            'completed_count': completed_count,
+        })
+        return Response(serializer.data)
+
+
+class PassageProgressView(APIView):
+    """
+    View for passage-specific progress endpoints.
+    GET /progress/passages/:passage_id - Get progress for a specific passage
+    """
+    
+    def get(self, request, passage_id):
+        """GET /progress/passages/:passage_id"""
+        user = get_user_from_request(request)
+        # Convert string to UUID (handles both uppercase and lowercase)
+        try:
+            passage_uuid = uuid.UUID(str(passage_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid passage ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        passage = get_object_or_404(Passage, id=passage_uuid)
+        
+        if user:
+            progress, _ = UserProgress.objects.get_or_create(
+                user=user,
+                passage=passage,
+                defaults={'is_completed': False}
+            )
+        else:
+            # For anonymous users, return default progress
+            progress = UserProgress(
+                user=None,
+                passage=passage,
+                is_completed=False
+            )
+        
+        serializer = UserProgressSerializer(progress)
+        return Response(serializer.data)
+
+
+class StartSessionView(APIView):
+    """
+    View for starting a passage session.
+    POST /progress/passages/:passage_id/start - Start a session
+    """
+    
+    def post(self, request, passage_id):
+        """POST /progress/passages/:passage_id/start"""
+        user = get_user_from_request(request)
+        # Convert string to UUID (handles both uppercase and lowercase)
+        try:
+            passage_uuid = uuid.UUID(str(passage_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid passage ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        passage = get_object_or_404(Passage, id=passage_uuid)
+        
+        # For now, just return a session ID
+        # In a full implementation, you'd create a session record
+        session_id = uuid.uuid4()
+        
+        return Response({
+            'session_id': str(session_id),
+            'passage_id': str(passage.id),
+            'started_at': timezone.now().isoformat(),
+        })
+
+
+class SubmitPassageView(APIView):
+    """
+    View for submitting answers to a passage.
+    POST /progress/passages/:passage_id/submit - Submit answers
+    """
+    
+    def post(self, request, passage_id):
+        """POST /progress/passages/:passage_id/submit"""
+        user = get_user_from_request(request)
+        # Convert string to UUID (handles both uppercase and lowercase)
+        try:
+            passage_uuid = uuid.UUID(str(passage_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid passage ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        passage = get_object_or_404(Passage, id=passage_uuid)
+        
+        serializer = SubmitPassageRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        answers_data = serializer.validated_data['answers']
+        time_spent = serializer.validated_data.get('time_spent_seconds', 0)
+        
+        # Get all questions for the passage
+        questions = passage.questions.all().order_by('order')
+        question_dict = {str(q.id): q for q in questions}
+        
+        # Process answers
+        answer_results = []
+        correct_count = 0
+        total_questions = questions.count()
+        
+        for answer_data in answers_data:
+            question_id = str(answer_data['question_id'])
+            if question_id not in question_dict:
+                continue
+            
+            question = question_dict[question_id]
+            selected_index = answer_data['selected_option_index']
+            is_correct = selected_index == question.correct_answer_index
+            
+            if is_correct:
+                correct_count += 1
+            
+            # Save user answer
+            if user:
+                user_answer, _ = UserAnswer.objects.update_or_create(
+                    user=user,
+                    question=question,
+                    defaults={
+                        'selected_option_index': selected_index,
+                        'is_correct': is_correct,
+                    }
+                )
+            
+            answer_results.append({
+                'question_id': question_id,
+                'selected_option_index': selected_index,
+                'correct_answer_index': question.correct_answer_index,
+                'is_correct': is_correct,
+                'explanation': question.explanation,
+            })
+        
+        # Calculate score
+        score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
+        
+        # Update or create user progress
+        if user:
+            UserProgress.objects.update_or_create(
+                user=user,
+                passage=passage,
+                defaults={
+                    'is_completed': True,
+                    'score': score,
+                    'time_spent_seconds': time_spent,
+                    'completed_at': timezone.now(),
+                }
+            )
+        
+        response_data = {
+            'passage_id': str(passage.id),
+            'score': score,
+            'total_questions': total_questions,
+            'correct_count': correct_count,
+            'is_completed': True,
+            'answers': answer_results,
+            'completed_at': timezone.now().isoformat(),
+        }
+        
+        serializer = SubmitPassageResponseSerializer(response_data)
+        return Response(serializer.data)
+
+
+class ReviewPassageView(APIView):
+    """
+    View for getting review data for a completed passage.
+    GET /progress/passages/:passage_id/review - Get review data
+    """
+    
+    def get(self, request, passage_id):
+        """GET /progress/passages/:passage_id/review"""
+        user = get_user_from_request(request)
+        # Convert string to UUID (handles both uppercase and lowercase)
+        try:
+            passage_uuid = uuid.UUID(str(passage_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid passage ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        passage = get_object_or_404(Passage, id=passage_uuid)
+        
+        # Get user progress
+        if user:
+            try:
+                progress = UserProgress.objects.get(user=user, passage=passage)
+                score = progress.score
+            except UserProgress.DoesNotExist:
+                score = None
+        else:
+            score = None
+        
+        # Get user answers
+        if user:
+            user_answers = {
+                str(ua.question_id): ua
+                for ua in UserAnswer.objects.filter(user=user, question__passage=passage)
+            }
+        else:
+            user_answers = {}
+        
+        # Build review data
+        review_answers = []
+        questions = passage.questions.all().order_by('order')
+        
+        for question in questions:
+            user_answer = user_answers.get(str(question.id))
+            options = [opt.text for opt in question.options.all().order_by('order')]
+            
+            review_answers.append({
+                'question_id': str(question.id),
+                'question_text': question.text,
+                'options': options,
+                'selected_option_index': user_answer.selected_option_index if user_answer else None,
+                'correct_answer_index': question.correct_answer_index,
+                'is_correct': user_answer.is_correct if user_answer else None,
+                'explanation': question.explanation,
+            })
+        
+        response_data = {
+            'passage_id': str(passage.id),
+            'score': score,
+            'answers': review_answers,
+        }
+        
+        serializer = ReviewResponseSerializer(response_data)
+        return Response(serializer.data)
+
+
+class AnswerView(APIView):
+    """
+    View for user answers endpoints.
+    POST /answers - Submit an answer
+    GET /answers/passage/:passage_id - Get all answers for a passage
+    """
+    
+    def post(self, request):
+        """POST /answers - Submit an answer"""
+        user = get_user_from_request(request)
+        
+        question_id = request.data.get('question_id')
+        selected_option_index = request.data.get('selected_option_index')
+        
+        if not question_id or selected_option_index is None:
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'question_id and selected_option_index are required'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            question = Question.objects.get(id=question_id)
+        except Question.DoesNotExist:
+            return Response(
+                {'error': {'code': 'NOT_FOUND', 'message': 'Question not found'}},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        is_correct = selected_option_index == question.correct_answer_index
+        
+        if user:
+            user_answer, created = UserAnswer.objects.update_or_create(
+                user=user,
+                question=question,
+                defaults={
+                    'selected_option_index': selected_option_index,
+                    'is_correct': is_correct,
+                }
+            )
+            serializer = UserAnswerSerializer(user_answer)
+            return Response(serializer.data)
+        else:
+            # For anonymous users, return a response without saving
+            return Response({
+                'id': str(uuid.uuid4()),
+                'question_id': str(question_id),
+                'selected_option_index': selected_option_index,
+                'answered_at': timezone.now().isoformat(),
+            })
+    
+    def get(self, request, passage_id):
+        """GET /answers/passage/:passage_id"""
+        user = get_user_from_request(request)
+        # Convert string to UUID (handles both uppercase and lowercase)
+        try:
+            passage_uuid = uuid.UUID(str(passage_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid passage ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        passage = get_object_or_404(Passage, id=passage_uuid)
+        
+        if user:
+            answers = UserAnswer.objects.filter(user=user, question__passage=passage)
+            serializer = UserAnswerSerializer(answers, many=True)
+            return Response({'answers': serializer.data})
+        else:
+            return Response({'answers': []})
+
+
+class AdminPassageView(APIView):
+    """
+    Admin endpoints for managing passages.
+    POST /admin/passages - Create a passage
+    PUT /admin/passages/:id - Update a passage
+    DELETE /admin/passages/:id - Delete a passage
+    """
+    
+    def post(self, request):
+        """POST /admin/passages"""
+        serializer = CreatePassageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Create passage
+        passage = Passage.objects.create(
+            title=serializer.validated_data['title'],
+            content=serializer.validated_data['content'],
+            difficulty=serializer.validated_data['difficulty'],
+        )
+        
+        # Create questions and options
+        for q_data in serializer.validated_data['questions']:
+            question = Question.objects.create(
+                passage=passage,
+                text=q_data['text'],
+                correct_answer_index=q_data['correct_answer_index'],
+                explanation=q_data.get('explanation'),
+                order=q_data['order'],
+            )
+            
+            # Create options
+            for idx, option_text in enumerate(q_data['options']):
+                QuestionOption.objects.create(
+                    question=question,
+                    text=option_text,
+                    order=idx,
+                )
+        
+        response_serializer = PassageDetailSerializer(passage)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+    
+    def put(self, request, passage_id):
+        """PUT /admin/passages/:id"""
+        # Convert string to UUID (handles both uppercase and lowercase)
+        try:
+            passage_uuid = uuid.UUID(str(passage_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid passage ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        passage = get_object_or_404(Passage, id=passage_uuid)
+        
+        serializer = CreatePassageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Update passage
+        passage.title = serializer.validated_data['title']
+        passage.content = serializer.validated_data['content']
+        passage.difficulty = serializer.validated_data['difficulty']
+        passage.save()
+        
+        # Delete existing questions
+        passage.questions.all().delete()
+        
+        # Create new questions and options
+        for q_data in serializer.validated_data['questions']:
+            question = Question.objects.create(
+                passage=passage,
+                text=q_data['text'],
+                correct_answer_index=q_data['correct_answer_index'],
+                explanation=q_data.get('explanation'),
+                order=q_data['order'],
+            )
+            
+            # Create options
+            for idx, option_text in enumerate(q_data['options']):
+                QuestionOption.objects.create(
+                    question=question,
+                    text=option_text,
+                    order=idx,
+                )
+        
+        response_serializer = PassageDetailSerializer(passage)
+        return Response(response_serializer.data)
+    
+    def delete(self, request, passage_id):
+        """DELETE /admin/passages/:id"""
+        # Convert string to UUID (handles both uppercase and lowercase)
+        try:
+            passage_uuid = uuid.UUID(str(passage_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid passage ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        passage = get_object_or_404(Passage, id=passage_uuid)
+        passage.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
