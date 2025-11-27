@@ -35,19 +35,63 @@ class PassageViewSet(viewsets.ReadOnlyModelViewSet):
             return PassageDetailSerializer
         return PassageListSerializer
     
+    def retrieve(self, request, *args, **kwargs):
+        """Get passage detail with premium check"""
+        passage = self.get_object()
+        user = get_user_from_request(request)
+        
+        # Check if passage is premium and user doesn't have access
+        if passage.tier == 'premium':
+            if not user or not (user.is_premium or user.has_active_subscription):
+                return Response(
+                    {'error': {
+                        'code': 'PREMIUM_REQUIRED',
+                        'message': 'This passage requires a premium subscription',
+                        'upgrade_url': '/web/subscription'
+                    }},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        return super().retrieve(request, *args, **kwargs)
+    
     def get_queryset(self):
         queryset = Passage.objects.annotate(
             question_count=Count('questions')
         )
         difficulty = self.request.query_params.get('difficulty', None)
+        tier = self.request.query_params.get('tier', None)
+        
         if difficulty:
             queryset = queryset.filter(difficulty=difficulty)
+        
+        if tier:
+            queryset = queryset.filter(tier=tier)
+        else:
+            # Filter premium content for non-premium users
+            user = get_user_from_request(self.request)
+            if not user or not (user.is_premium or user.has_active_subscription):
+                queryset = queryset.filter(tier='free')
+        
         return queryset
     
     @action(detail=True, methods=['get'])
     def questions(self, request, pk=None):
         """Get questions for a passage without correct answers/explanations"""
         passage = self.get_object()
+        user = get_user_from_request(request)
+        
+        # Check if passage is premium and user doesn't have access
+        if passage.tier == 'premium':
+            if not user or not (user.is_premium or user.has_active_subscription):
+                return Response(
+                    {'error': {
+                        'code': 'PREMIUM_REQUIRED',
+                        'message': 'This passage requires a premium subscription',
+                        'upgrade_url': '/web/subscription'
+                    }},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
         questions = passage.questions.all().order_by('order')
         serializer = QuestionListSerializer(questions, many=True)
         return Response({'questions': serializer.data})

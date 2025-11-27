@@ -11,11 +11,18 @@ Production: https://your-domain.com/api/v1
 
 ## Authentication
 
-Currently, the API supports **anonymous users**. User authentication is optional and can be added later. For anonymous usage:
+The API supports both **anonymous users** and **authenticated users** with JWT tokens.
 
+### Anonymous Users
 - No authentication headers required
 - User progress and answers are tracked per session (if implemented)
-- For authenticated users, include: `Authorization: Bearer <token>` (when implemented)
+- Can only access free content
+
+### Authenticated Users
+- Include JWT token in requests: `Authorization: Bearer <access_token>`
+- Progress and answers are saved to user account
+- Premium users can access premium content
+- See `AUTHENTICATION_SPEC.md` for complete authentication guide
 
 ## Content Type
 

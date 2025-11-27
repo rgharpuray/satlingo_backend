@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAT Prep Reading Comprehension</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .auth-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+        
+        .passages-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        
+        .passage-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .passage-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .passage-card.premium {
+            border-left: 4px solid #ffc107;
+        }
+        
+        .premium-badge {
+            display: inline-block;
+            background: #ffc107;
+            color: #000;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .error {
+            color: #dc3545;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .user-info {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .subscription-info {
+            padding: 15px;
+            background: #e7f3ff;
+            border-radius: 8px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">📚 SAT Prep Reading</div>
+            <div class="auth-section" id="authSection">
+                <button class="btn btn-primary" onclick="showLoginModal()">Login</button>
+                <button class="btn btn-secondary" onclick="showRegisterModal()">Register</button>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="passages-section">
+                <h2>Reading Passages</h2>
+                <div id="passagesList"></div>
+            </div>
+            
+            <div class="sidebar">
+                <div id="userInfo" class="hidden">
+                    <div class="user-info">
+                        <strong>Logged in as:</strong><br>
+                        <span id="userEmail"></span>
+                    </div>
+                    <div class="subscription-info" id="subscriptionInfo">
+                        <strong>Subscription:</strong><br>
+                        <span id="subscriptionStatus">Free</span><br>
+                        <button class="btn btn-success" onclick="upgradeToPremium()" style="margin-top: 10px; width: 100%;">
+                            Upgrade to Premium ($5/month)
+                        </button>
+                    </div>
+                    <button class="btn btn-secondary" onclick="logout()" style="margin-top: 10px; width: 100%;">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <h2>Login</h2>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" required>
+                </div>
+                <div id="loginError" class="error"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('loginModal')" style="width: 100%; margin-top: 10px;">Cancel</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Register Modal -->
+    <div id="registerModal" class="modal">
+        <div class="modal-content">
+            <h2>Register</h2>
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" required minlength="8">
+                </div>
+                <div id="registerError" class="error"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Register</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('registerModal')" style="width: 100%; margin-top: 10px;">Cancel</button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/v1';
+        let authToken = localStorage.getItem('authToken');
+        let currentUser = null;
+        
+        // Check if user is logged in on load
+        if (authToken) {
+            checkAuth();
+        } else {
+            loadPassages();
+        }
+        
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    currentUser = await response.json();
+                    updateUI();
+                    loadPassages();
+                } else {
+                    localStorage.removeItem('authToken');
+                    authToken = null;
+                    loadPassages();
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                loadPassages();
+            }
+        }
+        
+        async function handleLogin(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    authToken = result.tokens.access;
+                    localStorage.setItem('authToken', authToken);
+                    currentUser = result.user;
+                    closeModal('loginModal');
+                    updateUI();
+                    loadPassages();
+                } else {
+                    document.getElementById('loginError').textContent = result.error?.message || 'Login failed';
+                }
+            } catch (error) {
+                document.getElementById('loginError').textContent = 'Network error. Please try again.';
+            }
+        }
+        
+        async function handleRegister(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    authToken = result.tokens.access;
+                    localStorage.setItem('authToken', authToken);
+                    currentUser = result.user;
+                    closeModal('registerModal');
+                    updateUI();
+                    loadPassages();
+                } else {
+                    document.getElementById('registerError').textContent = result.error?.message || 'Registration failed';
+                }
+            } catch (error) {
+                document.getElementById('registerError').textContent = 'Network error. Please try again.';
+            }
+        }
+        
+        async function loadPassages() {
+            try {
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                const response = await fetch(`${API_BASE}/passages/`, {headers});
+                const data = await response.json();
+                
+                const passagesList = document.getElementById('passagesList');
+                passagesList.innerHTML = '';
+                
+                if (data.results && data.results.length > 0) {
+                    data.results.forEach(passage => {
+                        const card = document.createElement('div');
+                        card.className = `passage-card ${passage.tier === 'premium' ? 'premium' : ''}`;
+                        card.innerHTML = `
+                            <h3>${passage.title} ${passage.tier === 'premium' ? '<span class="premium-badge">PREMIUM</span>' : ''}</h3>
+                            <p>Difficulty: ${passage.difficulty} | Questions: ${passage.question_count}</p>
+                        `;
+                        card.onclick = () => openPassage(passage.id);
+                        passagesList.appendChild(card);
+                    });
+                } else {
+                    passagesList.innerHTML = '<p>No passages available.</p>';
+                }
+            } catch (error) {
+                console.error('Failed to load passages:', error);
+            }
+        }
+        
+        async function openPassage(passageId) {
+            try {
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                const response = await fetch(`${API_BASE}/passages/${passageId}/questions`, {headers});
+                const data = await response.json();
+                
+                if (response.status === 403) {
+                    alert('This passage requires a premium subscription. Please upgrade to access premium content.');
+                    return;
+                }
+                
+                if (response.ok) {
+                    alert(`Passage opened! ${data.questions.length} questions available.`);
+                    // Here you would navigate to the passage view
+                }
+            } catch (error) {
+                console.error('Failed to open passage:', error);
+            }
+        }
+        
+        async function upgradeToPremium() {
+            if (!authToken) {
+                alert('Please login first');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/payments/checkout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert('Failed to create checkout session. Please try again.');
+                }
+            } catch (error) {
+                console.error('Failed to create checkout:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+        
+        function updateUI() {
+            if (currentUser) {
+                document.getElementById('authSection').classList.add('hidden');
+                document.getElementById('userInfo').classList.remove('hidden');
+                document.getElementById('userEmail').textContent = currentUser.email;
+                
+                if (currentUser.is_premium) {
+                    document.getElementById('subscriptionStatus').textContent = 'Premium Active';
+                    document.querySelector('#subscriptionInfo button').textContent = 'Manage Subscription';
+                    document.querySelector('#subscriptionInfo button').onclick = manageSubscription;
+                } else {
+                    document.getElementById('subscriptionStatus').textContent = 'Free';
+                }
+            } else {
+                document.getElementById('authSection').classList.remove('hidden');
+                document.getElementById('userInfo').classList.add('hidden');
+            }
+        }
+        
+        async function manageSubscription() {
+            if (!authToken) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/payments/portal`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.url) {
+                    window.location.href = data.url;
+                }
+            } catch (error) {
+                console.error('Failed to open portal:', error);
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('authToken');
+            authToken = null;
+            currentUser = null;
+            updateUI();
+            loadPassages();
+        }
+        
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.add('active');
+            document.getElementById('loginError').textContent = '';
+        }
+        
+        function showRegisterModal() {
+            document.getElementById('registerModal').classList.add('active');
+            document.getElementById('registerError').textContent = '';
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+        
+        // Close modal on outside click
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+

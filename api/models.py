@@ -81,6 +81,8 @@ class QuestionOption(models.Model):
 class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
+    is_premium = models.BooleanField(default=False)
+    stripe_customer_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
@@ -90,6 +92,47 @@ class User(AbstractUser):
     
     def __str__(self):
         return self.email
+    
+    @property
+    def has_active_subscription(self):
+        """Check if user has an active premium subscription"""
+        return self.subscriptions.filter(status='active').exists()
+
+
+class Subscription(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('canceled', 'Canceled'),
+        ('past_due', 'Past Due'),
+        ('unpaid', 'Unpaid'),
+        ('trialing', 'Trialing'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='subscriptions')
+    stripe_subscription_id = models.CharField(max_length=255, unique=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    current_period_start = models.DateTimeField()
+    current_period_end = models.DateTimeField()
+    cancel_at_period_end = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'subscriptions'
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['stripe_subscription_id']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.status}"
+    
+    def is_active(self):
+        """Check if subscription is currently active"""
+        from django.utils import timezone
+        return self.status == 'active' and self.current_period_end > timezone.now()
 
 
 class UserSession(models.Model):

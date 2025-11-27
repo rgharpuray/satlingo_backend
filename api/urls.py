@@ -1,9 +1,15 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     PassageViewSet, QuestionViewSet, ProgressView,
     PassageProgressView, StartSessionView, SubmitPassageView,
     ReviewPassageView, AnswerView, AdminPassageView
+)
+from .auth_views import register, login, me
+from .stripe_views import (
+    create_checkout_session, create_portal_session,
+    subscription_status, stripe_webhook
 )
 
 router = DefaultRouter()
@@ -28,5 +34,17 @@ urlpatterns = [
     # Admin endpoints
     path('admin/passages', AdminPassageView.as_view(), name='admin-passages'),
     path('admin/passages/<str:passage_id>', AdminPassageView.as_view(), name='admin-passage-detail'),
+    
+    # Authentication endpoints
+    path('auth/register', register, name='register'),
+    path('auth/login', login, name='login'),
+    path('auth/me', me, name='me'),
+    path('auth/refresh', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # Stripe/Payment endpoints
+    path('payments/checkout', create_checkout_session, name='create-checkout'),
+    path('payments/portal', create_portal_session, name='create-portal'),
+    path('payments/subscription', subscription_status, name='subscription-status'),
+    path('payments/webhook', stripe_webhook, name='stripe-webhook'),
 ]
 
