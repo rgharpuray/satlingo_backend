@@ -68,12 +68,38 @@ Get all passages with optional filtering.
 **Query Parameters:**
 - `difficulty` (optional): Filter by difficulty (`Easy`, `Medium`, `Hard`)
 - `tier` (optional): Filter by tier (`free`, `premium`)
+  - **Note**: Non-premium users requesting `tier=premium` will receive an empty result
+  - **Note**: If no `tier` parameter is provided, premium users see all passages, non-premium users only see free passages
 - `limit` (optional): Number of results (default: 50)
 - `offset` (optional): Pagination offset (default: 0)
 
-**Example Request:**
+**Authentication:**
+- **Optional**: Include `Authorization: Bearer <token>` header
+- **Automatic Filtering**: Backend automatically filters based on user's premium status
+  - **Without token**: Only free passages are returned
+  - **With token (free user)**: Only free passages are returned
+  - **With token (premium user)**: Both free and premium passages are returned
+- **No client-side filtering needed**: Just include the token and the backend handles everything
+
+**Example Requests:**
+
 ```bash
+# Get all passages (free users see only free, premium users see all)
+GET /api/v1/passages
+
+# With authentication token (premium user sees all, free user sees only free)
+GET /api/v1/passages
+Authorization: Bearer <access_token>
+
+# Filter by difficulty
 GET /api/v1/passages?difficulty=Medium&limit=10
+
+# Explicitly request free passages only
+GET /api/v1/passages?tier=free
+
+# Request premium passages (only works for premium users)
+GET /api/v1/passages?tier=premium
+Authorization: Bearer <premium_user_token>
 ```
 
 **Example Response:**

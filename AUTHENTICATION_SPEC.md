@@ -864,7 +864,37 @@ After authentication, check `user.is_premium` to determine access level:
 - **Free users**: Can only access `tier: "free"` passages
 - **Premium users**: Can access both `free` and `premium` passages
 
-The API automatically filters premium content for non-premium users, but you can also check the user's premium status in your app to show/hide premium features.
+### Premium Content Filtering
+
+**The backend automatically handles premium filtering - no client-side changes needed!**
+
+The API automatically filters premium content based on the user's authentication status:
+
+1. **Without authentication token**: Only free passages are returned
+2. **With token (free user)**: Only free passages are returned
+3. **With token (premium user)**: Both free and premium passages are returned
+
+**How it works:**
+- Client simply calls `GET /api/v1/passages` with `Authorization: Bearer <token>`
+- Backend automatically checks user's premium status from the token
+- Backend automatically filters the response before sending it
+- Client receives only the passages the user is allowed to see
+
+**Client Implementation:**
+```swift
+// Just call the endpoint normally with the token
+// Backend handles all filtering automatically
+var request = URLRequest(url: URL(string: "\(baseURL)/passages/")!)
+request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+// The response will automatically contain:
+// - Premium users: all passages (free + premium)
+// - Free users: only free passages
+// No client-side filtering needed!
+```
+
+**Optional UI Enhancement:**
+You can check `user.is_premium` from the login response to show/hide premium upgrade prompts in the UI, but the API filtering happens automatically on the backend.
 
 ---
 
@@ -889,4 +919,5 @@ For issues or questions:
 3. Ensure tokens are stored and retrieved correctly
 4. Check network connectivity
 5. Verify API base URL is correct
+
 

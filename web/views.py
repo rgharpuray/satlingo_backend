@@ -21,3 +21,4 @@ def subscription_cancel(request):
     """Stripe checkout cancel page"""
     return render(request, 'web/subscription_cancel.html')
 
+

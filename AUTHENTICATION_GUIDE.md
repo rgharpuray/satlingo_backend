@@ -177,3 +177,4 @@ STRIPE_PRICE_ID=price_...
 
 See `STRIPE_SETUP.md` for detailed Stripe setup instructions.
 
+

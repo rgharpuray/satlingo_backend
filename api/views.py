@@ -64,13 +64,25 @@ class PassageViewSet(viewsets.ReadOnlyModelViewSet):
         if difficulty:
             queryset = queryset.filter(difficulty=difficulty)
         
+        # Get user for premium check
+        user = get_user_from_request(self.request)
+        is_premium_user = user and (user.is_premium or user.has_active_subscription)
+        
+        # Handle tier filtering
         if tier:
-            queryset = queryset.filter(tier=tier)
+            # If explicitly requesting premium tier, check access
+            if tier == 'premium' and not is_premium_user:
+                # Non-premium users requesting premium get empty result
+                queryset = queryset.none()
+            else:
+                queryset = queryset.filter(tier=tier)
         else:
-            # Filter premium content for non-premium users
-            user = get_user_from_request(self.request)
-            if not user or not (user.is_premium or user.has_active_subscription):
+            # No tier filter: automatically filter premium content for non-premium users
+            # Premium users see all passages (free + premium)
+            # Non-premium users only see free passages
+            if not is_premium_user:
                 queryset = queryset.filter(tier='free')
+            # Premium users see all - no additional filter needed
         
         return queryset
     
