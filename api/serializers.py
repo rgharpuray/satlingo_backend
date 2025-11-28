@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
-    UserProgress, UserAnswer
+    UserProgress, UserAnswer, PassageAnnotation
 )
 
 
@@ -38,6 +38,15 @@ class QuestionListSerializer(serializers.ModelSerializer):
         return [opt.text for opt in obj.options.all().order_by('order')]
 
 
+class PassageAnnotationSerializer(serializers.ModelSerializer):
+    """Serializer for passage annotations"""
+    question_id = serializers.UUIDField(source='question.id', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = PassageAnnotation
+        fields = ['id', 'question_id', 'start_char', 'end_char', 'selected_text', 'explanation', 'order']
+
+
 class PassageListSerializer(serializers.ModelSerializer):
     question_count = serializers.SerializerMethodField()
     
@@ -52,10 +61,11 @@ class PassageListSerializer(serializers.ModelSerializer):
 
 class PassageDetailSerializer(serializers.ModelSerializer):
     questions = QuestionSerializer(many=True, read_only=True)
+    annotations = PassageAnnotationSerializer(many=True, read_only=True)
     
     class Meta:
         model = Passage
-        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'questions', 
+        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'questions', 'annotations',
                  'created_at', 'updated_at']
 
 
@@ -78,12 +88,39 @@ class UserProgressSummarySerializer(serializers.Serializer):
 
 class UserAnswerSerializer(serializers.ModelSerializer):
     question_id = serializers.UUIDField(source='question.id', read_only=True)
+    annotations = serializers.SerializerMethodField()  # Annotations for this question
     
     class Meta:
         model = UserAnswer
         fields = ['id', 'question_id', 'selected_option_index', 'is_correct', 
-                 'answered_at', 'created_at', 'updated_at']
+                 'answered_at', 'annotations', 'created_at', 'updated_at']
         read_only_fields = ['id', 'is_correct', 'answered_at', 'created_at', 'updated_at']
+    
+    def get_annotations(self, obj):
+        """Get annotations for this question - always return them if they exist"""
+        if obj.question:
+            # Use prefetched annotations if available, otherwise query
+            if hasattr(obj.question, '_prefetched_objects_cache') and 'annotations' in obj.question._prefetched_objects_cache:
+                annotations = list(obj.question._prefetched_objects_cache['annotations'])
+            else:
+                annotations = list(obj.question.annotations.all())
+            
+            # Order by start_char
+            annotations.sort(key=lambda a: a.start_char)
+            
+            return [
+                {
+                    'id': str(ann.id),
+                    'question_id': str(ann.question_id) if ann.question_id else None,
+                    'start_char': ann.start_char,
+                    'end_char': ann.end_char,
+                    'selected_text': ann.selected_text,
+                    'explanation': ann.explanation,
+                    'order': ann.order,
+                }
+                for ann in annotations
+            ]
+        return []
 
 
 class SubmitAnswerRequestSerializer(serializers.Serializer):
@@ -102,6 +139,7 @@ class AnswerResultSerializer(serializers.Serializer):
     correct_answer_index = serializers.IntegerField()
     is_correct = serializers.BooleanField()
     explanation = serializers.CharField(allow_null=True)
+    annotations = PassageAnnotationSerializer(many=True, required=False)  # Annotations for this question
 
 
 class SubmitPassageResponseSerializer(serializers.Serializer):
@@ -114,14 +152,24 @@ class SubmitPassageResponseSerializer(serializers.Serializer):
     completed_at = serializers.DateTimeField()
 
 
+class ReviewAnnotationSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    start_char = serializers.IntegerField()
+    end_char = serializers.IntegerField()
+    selected_text = serializers.CharField()
+    explanation = serializers.CharField()
+    order = serializers.IntegerField()
+
+
 class ReviewAnswerSerializer(serializers.Serializer):
     question_id = serializers.UUIDField()
     question_text = serializers.CharField()
     options = serializers.ListField(child=serializers.CharField())
     selected_option_index = serializers.IntegerField(allow_null=True)
     correct_answer_index = serializers.IntegerField()
-    is_correct = serializers.BooleanField()
+    is_correct = serializers.BooleanField(allow_null=True)
     explanation = serializers.CharField(allow_null=True)
+    annotations = ReviewAnnotationSerializer(many=True, required=False)
 
 
 class ReviewResponseSerializer(serializers.Serializer):

@@ -190,6 +190,40 @@ Get questions for a passage without correct answers/explanations (for active ses
 
 **Endpoint:** `GET /passages/{passage_id}/questions`
 
+#### 1.4 Get Passage Annotations
+Get text annotations for a passage (for highlighting and explanations).
+
+**Endpoint:** `GET /passages/{passage_id}/annotations`
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>  // Optional, but required for premium passages
+```
+
+**Example Request:**
+```bash
+GET /api/v1/passages/550e8400-e29b-41d4-a716-446655440000/annotations
+Authorization: Bearer <token>
+```
+
+**Example Response:**
+```json
+{
+  "annotations": [
+    {
+      "id": "aa0e8400-e29b-41d4-a716-446655440001",
+      "start_char": 45,
+      "end_char": 67,
+      "selected_text": "phrenology was a",
+      "explanation": "Phrenology is a pseudoscience that attempted to determine personality traits by measuring the skull.",
+      "order": 0
+    }
+  ]
+}
+```
+
+**Note:** Annotations use 0-based character indices. `start_char` and `end_char` mark the text range in the passage content. See `ANNOTATIONS_SPEC.md` for complete implementation guide.
+
 **Example Request:**
 ```bash
 GET /api/v1/passages/550e8400-e29b-41d4-a716-446655440000/questions

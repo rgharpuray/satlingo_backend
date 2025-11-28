@@ -16,7 +16,8 @@ from .serializers import (
     PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
     QuestionSerializer, UserProgressSerializer, UserProgressSummarySerializer,
     UserAnswerSerializer, SubmitPassageRequestSerializer, SubmitPassageResponseSerializer,
-    ReviewResponseSerializer, ReviewAnswerSerializer, CreatePassageSerializer
+    ReviewResponseSerializer, ReviewAnswerSerializer, CreatePassageSerializer,
+    PassageAnnotationSerializer
 )
 
 
@@ -107,6 +108,54 @@ class PassageViewSet(viewsets.ReadOnlyModelViewSet):
         questions = passage.questions.all().order_by('order')
         serializer = QuestionListSerializer(questions, many=True)
         return Response({'questions': serializer.data})
+    
+    @action(detail=True, methods=['get'])
+    def annotations(self, request, pk=None):
+        """
+        Get annotations for a passage.
+        Only returns annotations for questions the user has answered.
+        Use this to get all annotations for a passage after answering multiple questions.
+        """
+        passage = self.get_object()
+        user = get_user_from_request(request)
+        
+        # Check if passage is premium and user doesn't have access
+        if passage.tier == 'premium':
+            if not user or not (user.is_premium or user.has_active_subscription):
+                return Response(
+                    {'error': {
+                        'code': 'PREMIUM_REQUIRED',
+                        'message': 'This passage requires a premium subscription',
+                        'upgrade_url': '/web/subscription'
+                    }},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Get all annotations for this passage
+        all_annotations = passage.annotations.all().select_related('question')
+        
+        # Filter: only show annotations for questions the user has answered
+        if user:
+            # Get all question IDs the user has answered for this passage
+            answered_question_ids = set(
+                UserAnswer.objects.filter(
+                    user=user,
+                    question__passage=passage
+                ).values_list('question_id', flat=True)
+            )
+            
+            # Filter annotations to only those for answered questions
+            # (or annotations with no question_id - show those too)
+            filtered_annotations = [
+                ann for ann in all_annotations
+                if ann.question_id is None or ann.question_id in answered_question_ids
+            ]
+        else:
+            # Anonymous users don't see any annotations
+            filtered_annotations = []
+        
+        serializer = PassageAnnotationSerializer(filtered_annotations, many=True)
+        return Response({'annotations': serializer.data})
 
 
 class QuestionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -292,12 +341,20 @@ class SubmitPassageView(APIView):
                     }
                 )
             
+            # Get annotations for this question (now that user has answered)
+            annotations = []
+            if user:  # Only include annotations if user is authenticated
+                from .serializers import PassageAnnotationSerializer
+                question_annotations = question.annotations.all().order_by('start_char')
+                annotations = PassageAnnotationSerializer(question_annotations, many=True).data
+            
             answer_results.append({
                 'question_id': question_id,
                 'selected_option_index': selected_index,
                 'correct_answer_index': question.correct_answer_index,
                 'is_correct': is_correct,
                 'explanation': question.explanation,
+                'annotations': annotations,  # Include annotations for this question
             })
         
         # Calculate score
@@ -372,9 +429,37 @@ class ReviewPassageView(APIView):
         review_answers = []
         questions = passage.questions.all().order_by('order')
         
+        # Get annotations for answered questions
+        if user:
+            answered_question_ids = set(
+                UserAnswer.objects.filter(
+                    user=user,
+                    question__passage=passage
+                ).values_list('question_id', flat=True)
+            )
+            # Get annotations for answered questions
+            annotations_by_question = {}
+            for ann in passage.annotations.filter(question_id__in=answered_question_ids).select_related('question'):
+                q_id = str(ann.question_id)
+                if q_id not in annotations_by_question:
+                    annotations_by_question[q_id] = []
+                annotations_by_question[q_id].append({
+                    'id': str(ann.id),
+                    'start_char': ann.start_char,
+                    'end_char': ann.end_char,
+                    'selected_text': ann.selected_text,
+                    'explanation': ann.explanation,
+                    'order': ann.order,
+                })
+        else:
+            annotations_by_question = {}
+        
         for question in questions:
             user_answer = user_answers.get(str(question.id))
             options = [opt.text for opt in question.options.all().order_by('order')]
+            
+            # Include annotations for this question if user has answered it
+            question_annotations = annotations_by_question.get(str(question.id), [])
             
             review_answers.append({
                 'question_id': str(question.id),
@@ -384,6 +469,7 @@ class ReviewPassageView(APIView):
                 'correct_answer_index': question.correct_answer_index,
                 'is_correct': user_answer.is_correct if user_answer else None,
                 'explanation': question.explanation,
+                'annotations': question_annotations,  # Annotations for this question
             })
         
         response_data = {
@@ -435,15 +521,19 @@ class AnswerView(APIView):
                     'is_correct': is_correct,
                 }
             )
+            # Fetch with annotations prefetched for serializer
+            user_answer = UserAnswer.objects.select_related('question').prefetch_related('question__annotations').get(pk=user_answer.pk)
+            # Include annotations for this question (now that user has answered)
             serializer = UserAnswerSerializer(user_answer)
             return Response(serializer.data)
         else:
-            # For anonymous users, return a response without saving
+            # For anonymous users, return a response without saving (no annotations)
             return Response({
                 'id': str(uuid.uuid4()),
                 'question_id': str(question_id),
                 'selected_option_index': selected_option_index,
                 'answered_at': timezone.now().isoformat(),
+                'annotations': [],  # No annotations for anonymous users
             })
     
     def get(self, request, passage_id):
@@ -460,7 +550,7 @@ class AnswerView(APIView):
         passage = get_object_or_404(Passage, id=passage_uuid)
         
         if user:
-            answers = UserAnswer.objects.filter(user=user, question__passage=passage)
+            answers = UserAnswer.objects.filter(user=user, question__passage=passage).select_related('question').prefetch_related('question__annotations')
             serializer = UserAnswerSerializer(answers, many=True)
             return Response({'answers': serializer.data})
         else:

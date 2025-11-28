@@ -2,7 +2,28 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 import nested_admin
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation
+
+
+class PassageAnnotationInline(nested_admin.NestedTabularInline):
+    """Inline editor for passage annotations"""
+    model = PassageAnnotation
+    extra = 1  # Show 1 empty annotation form by default
+    fields = ('question', 'start_char', 'end_char', 'selected_text', 'explanation', 'order')
+    ordering = ('question__order', 'start_char',)
+    autocomplete_fields = ['question']  # For easier question selection
+    
+    def get_formset(self, request, obj=None, **kwargs):
+        """Make question field required when creating annotations"""
+        formset = super().get_formset(request, obj, **kwargs)
+        formset.form.base_fields['question'].required = True
+        return formset
+    
+    class Media:
+        css = {
+            'all': ('admin/css/annotation_admin.css',)
+        }
+        js = ('admin/js/annotation_helper.js',)
 
 
 class QuestionOptionInline(nested_admin.NestedTabularInline):
@@ -32,19 +53,19 @@ class QuestionInline(nested_admin.NestedStackedInline):
 
 @admin.register(Passage)
 class PassageAdmin(nested_admin.NestedModelAdmin):
-    """Admin interface for passages with inline questions and options"""
-    list_display = ['title', 'difficulty', 'tier', 'question_count', 'created_at', 'preview_link']
+    """Admin interface for passages with inline questions, options, and annotations"""
+    list_display = ['title', 'difficulty', 'tier', 'question_count', 'annotation_count', 'created_at', 'preview_link']
     list_filter = ['difficulty', 'tier', 'created_at']
     search_fields = ['title', 'content']
-    readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display']
-    inlines = [QuestionInline]
+    readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'annotation_count_display']
+    inlines = [PassageAnnotationInline, QuestionInline]
     
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'title', 'content', 'difficulty', 'tier')
         }),
         ('Metadata', {
-            'fields': ('question_count_display', 'created_at', 'updated_at'),
+            'fields': ('question_count_display', 'annotation_count_display', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
@@ -64,6 +85,21 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
         return "Save passage to add questions"
     question_count_display.short_description = 'Question Count'
     
+    def annotation_count(self, obj):
+        """Display number of annotations for this passage"""
+        if obj.pk:
+            return obj.annotations.count()
+        return 0
+    annotation_count.short_description = 'Annotations'
+    
+    def annotation_count_display(self, obj):
+        """Read-only field showing annotation count"""
+        if obj.pk:
+            count = obj.annotations.count()
+            return f"{count} annotation{'s' if count != 1 else ''}"
+        return "Save passage to add annotations"
+    annotation_count_display.short_description = 'Annotation Count'
+    
     def preview_link(self, obj):
         """Link to preview the passage"""
         if obj.pk:
@@ -76,7 +112,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
         css = {
             'all': ('admin/css/passage_admin.css',)
         }
-        js = ('admin/js/passage_admin.js',)
+        js = ('admin/js/passage_admin.js', 'admin/js/annotation_helper.js',)
 
 
 @admin.register(Question)
@@ -87,6 +123,10 @@ class QuestionAdmin(nested_admin.NestedModelAdmin):
     search_fields = ['text', 'passage__title']
     readonly_fields = ['id', 'created_at', 'updated_at']
     inlines = [QuestionOptionInline]
+    
+    def get_queryset(self, request):
+        """Optimize queryset for list view"""
+        return super().get_queryset(request).select_related('passage')
     
     fieldsets = (
         ('Question Information', {
@@ -254,3 +294,30 @@ class UserAnswerAdmin(admin.ModelAdmin):
             return text[:60] + '...' if len(text) > 60 else text
         return '-'
     question_short.short_description = 'Question'
+
+
+@admin.register(PassageAnnotation)
+class PassageAnnotationAdmin(admin.ModelAdmin):
+    """Admin interface for passage annotations"""
+    list_display = ['passage', 'question', 'selected_text_short', 'start_char', 'end_char', 'order', 'created_at']
+    list_filter = ['passage', 'question', 'created_at']
+    search_fields = ['selected_text', 'explanation', 'passage__title', 'question__text']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    autocomplete_fields = ['question']  # For easier question selection
+    
+    fieldsets = (
+        ('Annotation Information', {
+            'fields': ('id', 'passage', 'question', 'start_char', 'end_char', 'selected_text', 'explanation', 'order')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def selected_text_short(self, obj):
+        """Display truncated selected text"""
+        if obj.selected_text:
+            return obj.selected_text[:50] + '...' if len(obj.selected_text) > 50 else obj.selected_text
+        return '-'
+    selected_text_short.short_description = 'Selected Text'
