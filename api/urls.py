@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     PassageViewSet, QuestionViewSet, ProgressView,
     PassageProgressView, StartSessionView, SubmitPassageView,
-    ReviewPassageView, AnswerView, AdminPassageView
+    ReviewPassageView, AnswerView, AdminPassageView, WordOfTheDayView
 )
 from .auth_views import register, login, me
 from .stripe_views import (
@@ -46,5 +46,8 @@ urlpatterns = [
     path('payments/portal', create_portal_session, name='create-portal'),
     path('payments/subscription', subscription_status, name='subscription-status'),
     path('payments/webhook', stripe_webhook, name='stripe-webhook'),
+    
+    # Word of the Day
+    path('word-of-the-day', WordOfTheDayView.as_view(), name='word-of-the-day'),
 ]
 

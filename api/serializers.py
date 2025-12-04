@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
-    UserProgress, UserAnswer, PassageAnnotation
+    UserProgress, UserAnswer, PassageAnnotation, WordOfTheDay
 )
 
 
@@ -192,4 +192,10 @@ class CreatePassageSerializer(serializers.Serializer):
     content = serializers.CharField()
     difficulty = serializers.ChoiceField(choices=['Easy', 'Medium', 'Hard'])
     questions = CreateQuestionSerializer(many=True)
+
+
+class WordOfTheDaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WordOfTheDay
+        fields = ['id', 'word', 'definition', 'synonyms', 'example_sentence', 'date']
 

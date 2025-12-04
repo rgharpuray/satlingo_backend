@@ -1,8 +1,13 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
+from django import forms
+from django.core.files.uploadedfile import InMemoryUploadedFile
 import nested_admin
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation
+import os
+from django.conf import settings
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion
+from .ingestion_utils import extract_text_from_image, extract_text_from_pdf, parse_passage_with_ai, create_passage_from_parsed_data
 
 
 class PassageAnnotationInline(nested_admin.NestedTabularInline):
@@ -321,3 +326,167 @@ class PassageAnnotationAdmin(admin.ModelAdmin):
             return obj.selected_text[:50] + '...' if len(obj.selected_text) > 50 else obj.selected_text
         return '-'
     selected_text_short.short_description = 'Selected Text'
+
+
+class PassageIngestionForm(forms.ModelForm):
+    """Custom form for file upload"""
+    file = forms.FileField(required=True, help_text="Upload an image (PNG, JPG) or PDF file containing a passage with questions")
+    
+    class Meta:
+        model = PassageIngestion
+        fields = ['file']
+
+
+@admin.register(PassageIngestion)
+class PassageIngestionAdmin(admin.ModelAdmin):
+    """Admin interface for passage ingestion"""
+    form = PassageIngestionForm
+    list_display = ['file_name', 'file_type', 'status', 'created_passage_link', 'created_at', 'process_action']
+    list_filter = ['status', 'file_type', 'created_at']
+    search_fields = ['file_name', 'error_message']
+    readonly_fields = ['id', 'file_path', 'extracted_text_preview', 'status', 'error_message', 'created_passage_link', 'created_at', 'updated_at']
+    actions = ['process_selected']
+    
+    fieldsets = (
+        ('File Upload', {
+            'fields': ('file',)
+        }),
+        ('Processing Status', {
+            'fields': ('id', 'status', 'file_name', 'file_path', 'file_type', 'error_message')
+        }),
+        ('Results', {
+            'fields': ('extracted_text_preview', 'created_passage_link'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def extracted_text_preview(self, obj):
+        """Display preview of extracted text"""
+        if obj.extracted_text:
+            preview = obj.extracted_text[:500] + '...' if len(obj.extracted_text) > 500 else obj.extracted_text
+            return format_html('<pre style="max-height: 200px; overflow: auto;">{}</pre>', preview)
+        return '-'
+    extracted_text_preview.short_description = 'Extracted Text Preview'
+    
+    def created_passage_link(self, obj):
+        """Link to created passage"""
+        if obj.created_passage:
+            url = reverse('admin:api_passage_change', args=[obj.created_passage.pk])
+            return format_html('<a href="{}" target="_blank">{}</a>', url, obj.created_passage.title)
+        return '-'
+    created_passage_link.short_description = 'Created Passage'
+    
+    def process_action(self, obj):
+        """Display process button for manual triggering"""
+        if obj.status in ['pending', 'failed'] and obj.file_path:
+            # Use admin action URL
+            url = reverse('admin:api_passageingestion_changelist')
+            return format_html(
+                '<a class="button" href="{}" onclick="if(confirm(\'Process this ingestion?\\nThis will extract text and create a passage.\')) {{ window.location.href=\'?action=process_selected&_selected_action={}\'; return false; }}">Process Now</a>',
+                url, obj.pk
+            )
+        elif obj.status == 'processing':
+            return format_html('<span style="color: orange;">Processing...</span>')
+        elif obj.status == 'completed':
+            return format_html('<span style="color: green;">✓ Completed</span>')
+        return '-'
+    process_action.short_description = 'Actions'
+    
+    def process_selected(self, request, queryset):
+        """Admin action to process selected ingestions"""
+        processed = 0
+        for ingestion in queryset:
+            if ingestion.status in ['pending', 'failed'] and ingestion.file_path:
+                try:
+                    process_ingestion(ingestion)
+                    processed += 1
+                except Exception as e:
+                    self.message_user(request, f"Failed to process {ingestion.file_name}: {str(e)}", level='ERROR')
+        self.message_user(request, f"Processed {processed} ingestion(s).", level='SUCCESS')
+    process_selected.short_description = 'Process selected ingestions'
+    
+    def save_model(self, request, obj, form, change):
+        """Override save to handle file upload and process ingestion"""
+        # Handle file upload for new objects
+        if not change and 'file' in form.cleaned_data:
+            uploaded_file = form.cleaned_data['file']
+            
+            # Save file to media directory
+            media_dir = settings.MEDIA_ROOT / 'ingestions'
+            media_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate unique filename to avoid conflicts
+            import uuid
+            file_ext = os.path.splitext(uploaded_file.name)[1]
+            unique_filename = f"{uuid.uuid4()}{file_ext}"
+            file_path = media_dir / unique_filename
+            
+            with open(file_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+            
+            obj.file_name = uploaded_file.name
+            obj.file_path = str(file_path)
+            
+            # Determine file type
+            ext = file_ext.lower()
+            if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']:
+                obj.file_type = 'image'
+            elif ext == '.pdf':
+                obj.file_type = 'pdf'
+            else:
+                obj.file_type = 'unknown'
+        
+        super().save_model(request, obj, form, change)
+        
+        # Process ingestion automatically if it's a new object with a file
+        # Note: Processing happens synchronously, so it may take a moment
+        if not change and obj.file_path:
+            # Process in a try-except to handle errors gracefully
+            try:
+                process_ingestion(obj)
+            except Exception as e:
+                obj.status = 'failed'
+                obj.error_message = str(e)
+                obj.save()
+                # Re-raise to show error message to user
+                from django.contrib import messages
+                messages.error(request, f"Ingestion processing failed: {str(e)}")
+
+
+def process_ingestion(ingestion):
+    """Process an ingestion: extract text, parse with AI, create passage"""
+    ingestion.status = 'processing'
+    ingestion.save()
+    
+    try:
+        # Extract text from file
+        if ingestion.file_type == 'image':
+            extracted_text = extract_text_from_image(ingestion.file_path)
+        elif ingestion.file_type == 'pdf':
+            extracted_text = extract_text_from_pdf(ingestion.file_path)
+        else:
+            raise Exception(f"Unsupported file type: {ingestion.file_type}")
+        
+        ingestion.extracted_text = extracted_text
+        ingestion.save()
+        
+        # Parse with AI
+        parsed_data = parse_passage_with_ai(extracted_text)
+        
+        # Create passage
+        passage = create_passage_from_parsed_data(parsed_data)
+        
+        ingestion.created_passage = passage
+        ingestion.status = 'completed'
+        ingestion.save()
+        
+    except Exception as e:
+        ingestion.status = 'failed'
+        ingestion.error_message = str(e)
+        ingestion.save()
+        raise

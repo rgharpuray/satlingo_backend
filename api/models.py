@@ -252,3 +252,53 @@ class UserAnswer(models.Model):
     def __str__(self):
         return f"{self.user.email if self.user else 'Anonymous'} - {self.question}"
 
+
+class WordOfTheDay(models.Model):
+    """Word of the Day feature for vocabulary building"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    word = models.CharField(max_length=100, unique=True)
+    definition = models.TextField()
+    synonyms = models.JSONField(default=list)  # List of synonym strings
+    example_sentence = models.TextField()
+    date = models.DateField(unique=True)  # One word per day
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'word_of_the_day'
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.word} - {self.date}"
+
+
+class PassageIngestion(models.Model):
+    """Track passage ingestion from files/screenshots"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)  # Path to uploaded file
+    file_type = models.CharField(max_length=50)  # image, pdf, etc.
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    extracted_text = models.TextField(null=True, blank=True)  # OCR/extracted text
+    error_message = models.TextField(null=True, blank=True)
+    created_passage = models.ForeignKey(Passage, on_delete=models.SET_NULL, null=True, blank=True, related_name='ingestions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'passage_ingestions'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.file_name} - {self.status}"
+

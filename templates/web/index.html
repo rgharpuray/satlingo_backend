@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,9 +14,10 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f5f5f5;
             min-height: 100vh;
             padding: 20px;
+            color: #000;
         }
         
         .container {
@@ -26,18 +28,39 @@
         header {
             background: white;
             border-radius: 10px;
-            padding: 20px;
+            padding: 24px 30px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         
         .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
+            text-decoration: none;
+            color: #3498DB;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: transform 0.2s ease;
+        }
+        
+        .logo:hover {
+            transform: scale(1.02);
+        }
+        
+        .logo img {
+            height: 60px;
+            width: auto;
+            display: block;
+        }
+        
+        .logo span {
+            font-size: 32px;
+            font-weight: 700;
+            margin-left: 0;
+            letter-spacing: -0.5px;
         }
         
         .auth-section {
@@ -56,22 +79,33 @@
         }
         
         .btn-primary {
-            background: #667eea;
-            color: white;
+            background: #3498DB;
+            color: #fff;
+            font-weight: 500;
         }
         
         .btn-primary:hover {
-            background: #5568d3;
+            background: #2980B9;
         }
         
         .btn-secondary {
-            background: #6c757d;
-            color: white;
+            background: #e0e0e0;
+            color: #000;
+            font-weight: 500;
+        }
+        
+        .btn-secondary:hover {
+            background: #d0d0d0;
         }
         
         .btn-success {
-            background: #28a745;
-            color: white;
+            background: #3498DB;
+            color: #fff;
+            font-weight: 500;
+        }
+        
+        .btn-success:hover {
+            background: #2980B9;
         }
         
         .main-content {
@@ -83,45 +117,73 @@
         .passages-section {
             background: white;
             border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .passages-section h2 {
+            color: #3498DB;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #3498DB;
         }
         
         .sidebar {
             background: white;
             border-radius: 10px;
             padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
             height: fit-content;
         }
         
         .passage-card {
-            border: 1px solid #e0e0e0;
+            border: 1px solid #d0d0d0;
             border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
+            padding: 20px;
+            margin-bottom: 16px;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s ease;
+            background: #ffffff;
         }
         
         .passage-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
             transform: translateY(-2px);
+            border-color: #3498DB;
+        }
+        
+        .passage-card h3 {
+            color: #000;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .passage-card p {
+            color: #666;
+            font-size: 14px;
+            margin: 0;
         }
         
         .passage-card.premium {
-            border-left: 4px solid #ffc107;
+            border-left: 4px solid #3498DB;
         }
         
         .premium-badge {
             display: inline-block;
-            background: #ffc107;
-            color: #000;
-            padding: 4px 8px;
+            background: #3498DB;
+            color: #fff;
+            padding: 4px 10px;
             border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
+            font-size: 11px;
+            font-weight: 600;
             margin-left: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .modal {
@@ -149,6 +211,16 @@
             width: 90%;
             max-height: 90vh;
             overflow-y: auto;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .modal-content h2 {
+            color: #3498DB;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #3498DB;
         }
         
         .form-group {
@@ -157,16 +229,25 @@
         
         .form-group label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             font-weight: 500;
+            color: #000;
         }
         
         .form-group input {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            padding: 12px;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
             font-size: 14px;
+            background: #ffffff;
+            color: #000;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #3498DB;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
         }
         
         .error {
@@ -176,55 +257,561 @@
         }
         
         .user-info {
-            padding: 15px;
-            background: #f8f9fa;
+            padding: 16px;
+            background: #f5f5f5;
             border-radius: 8px;
             margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .user-info strong {
+            color: #000;
+            font-weight: 600;
         }
         
         .subscription-info {
-            padding: 15px;
-            background: #e7f3ff;
+            padding: 16px;
+            background: rgba(52, 152, 219, 0.1);
             border-radius: 8px;
+            border: 1px solid rgba(52, 152, 219, 0.3);
+        }
+        
+        .subscription-info strong {
+            color: #000;
+            font-weight: 600;
+        }
+        
+        .word-of-day {
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .word-of-day h3 {
+            color: #3498DB;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498DB;
+        }
+        
+        .word-of-day .word {
+            font-size: 24px;
+            font-weight: 700;
+            color: #000;
+            margin-bottom: 12px;
+        }
+        
+        .word-of-day .definition {
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        
+        .word-of-day .synonyms {
+            margin-bottom: 12px;
+        }
+        
+        .word-of-day .synonyms-label {
+            font-weight: 600;
+            color: #000;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+        
+        .word-of-day .synonym-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        
+        .word-of-day .synonym-tag {
+            background: rgba(52, 152, 219, 0.1);
+            color: #3498DB;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid rgba(52, 152, 219, 0.3);
+        }
+        
+        .word-of-day .example {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border-left: 3px solid #3498DB;
+        }
+        
+        .word-of-day .example-label {
+            font-weight: 600;
+            color: #000;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+        
+        .word-of-day .example-sentence {
+            color: #333;
+            font-size: 13px;
+            line-height: 1.6;
+            font-style: italic;
+        }
+        
+        .word-of-day .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
         }
         
         .hidden {
             display: none;
+        }
+        
+        /* Landing Page Styles */
+        .landing-page {
+            display: block;
+            animation: fadeIn 0.6s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .landing-page ~ header,
+        .landing-page header {
+            display: none;
+        }
+        
+        body:has(.landing-page:not([style*="display: none"])) header {
+            display: none;
+        }
+        
+        /* Brand Colors */
+        :root {
+            --navy: #1B2A4A;
+            --gold: #F4C441;
+            --blue: #3498DB;
+        }
+        
+        .landing-hero {
+            background: white;
+            border-radius: 16px;
+            padding: 100px 40px;
+            text-align: center;
+            margin-bottom: 60px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+            animation: fadeIn 0.8s ease-in;
+        }
+        
+        .hero-logo {
+            margin-bottom: 24px;
+        }
+        
+        .hero-logo img {
+            height: 120px;
+            width: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        .hero-subtitle {
+            font-size: 20px;
+            color: var(--navy);
+            font-weight: 500;
+            margin-bottom: 32px;
+            font-style: italic;
+        }
+        
+        .landing-hero h1 {
+            font-size: 48px;
+            font-weight: 700;
+            color: #000;
+            margin-bottom: 24px;
+            line-height: 1.2;
+        }
+        
+        .landing-hero p {
+            font-size: 19px;
+            color: #555;
+            margin-bottom: 50px;
+            line-height: 1.7;
+            max-width: 720px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .hero-cta {
+            margin-top: 50px;
+            padding-top: 50px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .hero-cta h2 {
+            color: var(--navy);
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .hero-cta p {
+            font-size: 17px;
+            color: #666;
+            margin-bottom: 32px;
+        }
+        
+        .btn-large {
+            padding: 18px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 12px;
+            background: var(--navy);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(27, 42, 74, 0.2);
+        }
+        
+        .btn-large:hover {
+            transform: scale(1.03) translateY(-2px);
+            box-shadow: 0 6px 20px rgba(27, 42, 74, 0.3);
+            background: #152238;
+        }
+        
+        /* Product Preview Section */
+        .preview-section {
+            margin-bottom: 80px;
+        }
+        
+        .preview-section h3 {
+            text-align: center;
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--navy);
+            margin-bottom: 50px;
+        }
+        
+        .preview-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        
+        .preview-card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            border: 1px solid #e8e8e8;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .preview-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+        
+        .preview-card-icon {
+            font-size: 56px;
+            margin-bottom: 20px;
+        }
+        
+        .preview-card h4 {
+            color: var(--navy);
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .preview-card p {
+            color: #666;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        
+        /* Why Keuwi Section */
+        .why-keuwi {
+            background: linear-gradient(135deg, rgba(27, 42, 74, 0.03) 0%, rgba(52, 152, 219, 0.03) 100%);
+            border-radius: 16px;
+            padding: 50px 40px;
+            margin-bottom: 80px;
+        }
+        
+        .why-keuwi h3 {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--navy);
+            margin-bottom: 40px;
+        }
+        
+        .differentiators {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 16px;
+        }
+        
+        .differentiator-pill {
+            background: white;
+            color: var(--navy);
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 15px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 2px solid #e8e8e8;
+            transition: all 0.2s ease;
+        }
+        
+        .differentiator-pill:hover {
+            border-color: var(--gold);
+            background: rgba(244, 196, 65, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .differentiator-pill .pill-icon {
+            margin-right: 8px;
+            color: var(--gold);
+        }
+        
+        /* Feature Cards - Enhanced */
+        .landing-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 80px;
+        }
+        
+        .feature-card {
+            background: linear-gradient(135deg, rgba(52, 152, 219, 0.02) 0%, rgba(255, 255, 255, 1) 100%);
+            border-radius: 16px;
+            padding: 40px 32px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            border: 1px solid #e8e8e8;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+        
+        .feature-card h3 {
+            color: var(--navy);
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .feature-card p {
+            color: #555;
+            font-size: 16px;
+            line-height: 1.7;
+        }
+        
+        .feature-icon {
+            font-size: 64px;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+        }
+        
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .landing-hero {
+                padding: 60px 24px;
+            }
+            
+            .landing-hero h1 {
+                font-size: 36px;
+            }
+            
+            .preview-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            .differentiators {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                justify-content: flex-start;
+                padding-bottom: 10px;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .differentiator-pill {
+                flex-shrink: 0;
+            }
+            
+            .landing-features {
+                grid-template-columns: 1fr;
+            }
+            
+            .preview-section h3,
+            .why-keuwi h3 {
+                font-size: 28px;
+            }
+        }
+        
+        .passages-view {
+            display: none;
+        }
+        
+        .view-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .view-toggle button {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        .view-toggle button.active {
+            background: #3498DB;
+            color: white;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div class="logo">📚 SAT Prep Reading</div>
+            <a href="#" class="logo" onclick="showLanding(); return false;">
+                <img src="{% static 'web/images/keuvi.png' %}" alt="Keuvi Logo">
+                <span>SAT Passages</span>
+            </a>
             <div class="auth-section" id="authSection">
                 <button class="btn btn-primary" onclick="showLoginModal()">Login</button>
                 <button class="btn btn-secondary" onclick="showRegisterModal()">Register</button>
             </div>
         </header>
         
-        <div class="main-content">
-            <div class="passages-section">
-                <h2>Reading Passages</h2>
-                <div id="passagesList"></div>
+        <!-- Landing Page -->
+        <div class="landing-page" id="landingPage">
+            <div class="landing-hero">
+                <div class="hero-logo">
+                    <img src="{% static 'web/images/keuvi.png' %}" alt="Keuvi Logo">
+                </div>
+                <p class="hero-subtitle">Your SAT reading wingman</p>
+                <h1>Master SAT Reading Comprehension</h1>
+                <p>Level up your reading skills with expertly crafted passages and questions that mirror the real SAT. Start free, unlock premium content when you're ready to go deeper.</p>
+                <div class="hero-cta">
+                    <h2>Ready to Start Practicing?</h2>
+                    <p>Browse our collection of reading passages and begin your SAT prep journey today.</p>
+                    <button class="btn-large" onclick="showPassages()">Try a Free Passage</button>
+                </div>
             </div>
             
-            <div class="sidebar">
-                <div id="userInfo" class="hidden">
-                    <div class="user-info">
-                        <strong>Logged in as:</strong><br>
-                        <span id="userEmail"></span>
+            <!-- Product Preview Section -->
+            <div class="preview-section">
+                <h3>See What's Inside</h3>
+                <div class="preview-cards">
+                    <div class="preview-card" onclick="showPassages()">
+                        <div class="preview-card-icon">📖</div>
+                        <h4>Sample Passage</h4>
+                        <p>Realistic SAT-style reading passages covering diverse topics and difficulty levels</p>
                     </div>
-                    <div class="subscription-info" id="subscriptionInfo">
-                        <strong>Subscription:</strong><br>
-                        <span id="subscriptionStatus">Free</span><br>
-                        <button class="btn btn-success" onclick="upgradeToPremium()" style="margin-top: 10px; width: 100%;">
-                            Upgrade to Premium ($5/month)
+                    <div class="preview-card" onclick="showPassages()">
+                        <div class="preview-card-icon">❓</div>
+                        <h4>Practice Questions</h4>
+                        <p>Multiple-choice questions with detailed explanations to help you understand every answer</p>
+                    </div>
+                    <div class="preview-card" onclick="showPassages()">
+                        <div class="preview-card-icon">📊</div>
+                        <h4>Track Progress</h4>
+                        <p>Monitor your performance and see improvement over time with detailed analytics</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Why Keuwi Section -->
+            <div class="why-keuwi">
+                <h3>Why Keuwi?</h3>
+                <div class="differentiators">
+                    <div class="differentiator-pill">
+                        <span class="pill-icon">✓</span> Realistic SAT-style passages
+                    </div>
+                    <div class="differentiator-pill">
+                        <span class="pill-icon">✓</span> Smart explanations
+                    </div>
+                    <div class="differentiator-pill">
+                        <span class="pill-icon">✓</span> Adaptive difficulty
+                    </div>
+                    <div class="differentiator-pill">
+                        <span class="pill-icon">✓</span> Free to start
+                    </div>
+                    <div class="differentiator-pill">
+                        <span class="pill-icon">✓</span> Updated weekly
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Feature Cards -->
+            <div class="landing-features">
+                <div class="feature-card">
+                    <div class="feature-icon">📚</div>
+                    <h3>Extensive Passage Library</h3>
+                    <p>Access a growing collection of reading passages covering diverse topics and difficulty levels.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">✨</div>
+                    <h3>Free & Premium Content</h3>
+                    <p>Start with free passages, then unlock premium content for advanced practice and detailed explanations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Regular Updates</h3>
+                    <p>New passages and content added regularly to keep your practice fresh and challenging.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Passages View -->
+        <div class="passages-view" id="passagesView">
+            <div class="view-toggle">
+                <button class="btn btn-secondary active" onclick="showPassages()">Passages</button>
+                <button class="btn btn-secondary" onclick="showLanding()">Home</button>
+            </div>
+            
+            <div class="main-content">
+                <div class="passages-section">
+                    <h2>Reading Passages</h2>
+                    <div id="passagesList"></div>
+                </div>
+                
+                <div class="sidebar">
+                    <div class="word-of-day" id="wordOfDay">
+                        <h3>Word of the Day</h3>
+                        <div class="loading">Loading...</div>
+                    </div>
+                    
+                    <div id="userInfo" class="hidden">
+                        <div class="user-info">
+                            <strong>Logged in as:</strong><br>
+                            <span id="userEmail"></span>
+                        </div>
+                        <div class="subscription-info" id="subscriptionInfo">
+                            <strong>Subscription:</strong><br>
+                            <span id="subscriptionStatus">Free</span><br>
+                            <button class="btn btn-success" onclick="upgradeToPremium()" style="margin-top: 10px; width: 100%;">
+                                Upgrade to Premium ($5/month)
+                            </button>
+                        </div>
+                        <button class="btn btn-secondary" onclick="logout()" style="margin-top: 10px; width: 100%;">
+                            Logout
                         </button>
                     </div>
-                    <button class="btn btn-secondary" onclick="logout()" style="margin-top: 10px; width: 100%;">
-                        Logout
-                    </button>
                 </div>
             </div>
         </div>
@@ -275,11 +862,45 @@
         let authToken = localStorage.getItem('authToken');
         let currentUser = null;
         
-        // Check if user is logged in on load
+        // Always start on landing page
+        showLanding();
+        
+        // Check if user is logged in on load (but stay on landing page)
         if (authToken) {
             checkAuth();
-        } else {
-            loadPassages();
+        }
+        
+        // Load word of the day
+        loadWordOfDay();
+        
+        function showLanding() {
+            document.getElementById('landingPage').style.display = 'block';
+            document.getElementById('passagesView').style.display = 'none';
+            // Hide header on landing page
+            document.querySelector('header').style.display = 'none';
+            // Update toggle buttons
+            document.querySelectorAll('.view-toggle button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+        }
+        
+        function showPassages() {
+            document.getElementById('landingPage').style.display = 'none';
+            document.getElementById('passagesView').style.display = 'block';
+            // Show header on passages view
+            document.querySelector('header').style.display = 'flex';
+            // Update toggle buttons
+            document.querySelectorAll('.view-toggle button').forEach(btn => {
+                if (btn.textContent === 'Passages') {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            // Load passages if not already loaded
+            if (document.getElementById('passagesList').innerHTML === '') {
+                loadPassages();
+            }
         }
         
         async function checkAuth() {
@@ -293,7 +914,7 @@
                 if (response.ok) {
                     currentUser = await response.json();
                     updateUI();
-                    loadPassages();
+                    // Keep landing page visible - user can navigate to passages when ready
                 } else {
                     localStorage.removeItem('authToken');
                     authToken = null;
@@ -328,7 +949,7 @@
                     currentUser = result.user;
                     closeModal('loginModal');
                     updateUI();
-                    loadPassages();
+                    // Stay on landing page - user can navigate to passages when ready
                 } else {
                     document.getElementById('loginError').textContent = result.error?.message || 'Login failed';
                 }
@@ -360,7 +981,7 @@
                     currentUser = result.user;
                     closeModal('registerModal');
                     updateUI();
-                    loadPassages();
+                    // Stay on landing page - user can navigate to passages when ready
                 } else {
                     document.getElementById('registerError').textContent = result.error?.message || 'Registration failed';
                 }
@@ -514,6 +1135,50 @@
         
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('active');
+        }
+        
+        async function loadWordOfDay() {
+            try {
+                const response = await fetch(`${API_BASE}/word-of-the-day`);
+                if (response.ok) {
+                    const data = await response.json();
+                    displayWordOfDay(data);
+                } else {
+                    document.getElementById('wordOfDay').innerHTML = `
+                        <h3>Word of the Day</h3>
+                        <div class="loading">Unable to load word of the day</div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to load word of day:', error);
+                document.getElementById('wordOfDay').innerHTML = `
+                    <h3>Word of the Day</h3>
+                    <div class="loading">Unable to load word of the day</div>
+                `;
+            }
+        }
+        
+        function displayWordOfDay(data) {
+            const synonyms = data.synonyms || [];
+            const synonymTags = synonyms.map(syn => 
+                `<span class="synonym-tag">${syn}</span>`
+            ).join('');
+            
+            document.getElementById('wordOfDay').innerHTML = `
+                <h3>Word of the Day</h3>
+                <div class="word">${data.word}</div>
+                <div class="definition">${data.definition}</div>
+                ${synonyms.length > 0 ? `
+                    <div class="synonyms">
+                        <div class="synonyms-label">Synonyms:</div>
+                        <div class="synonym-tags">${synonymTags}</div>
+                    </div>
+                ` : ''}
+                <div class="example">
+                    <div class="example-label">Example:</div>
+                    <div class="example-sentence">"${data.example_sentence}"</div>
+                </div>
+            `;
         }
         
         // Close modal on outside click

@@ -1,6 +1,6 @@
 /**
- * Helper script for creating passage annotations in Django admin
- * Allows easy text selection and automatic character position calculation
+ * Annotation Helper - Clean SAT-style UI
+ * Click-to-select interface for creating passage annotations
  */
 
 (function($) {
@@ -11,80 +11,180 @@
         const contentField = $('#id_content');
         if (!contentField.length) return;
         
-        // Create annotation helper UI
+        // Create clean, professional annotation helper UI
         const helperHTML = `
-            <div id="annotation-helper" style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-                <h4>📝 Annotation Helper</h4>
-                <p style="margin: 5px 0;">Select text in the passage content below, then click "Create Annotation"</p>
-                <div id="selected-text-display" style="margin: 10px 0; padding: 10px; background: white; border: 1px solid #ddd; border-radius: 3px; min-height: 40px;">
-                    <em style="color: #999;">No text selected. Click and drag in the passage content field above to select text.</em>
+            <div id="annotation-helper">
+                <h4>Annotation Helper</h4>
+                <p>Click once in the passage below to set the start position, then click again to set the end position.</p>
+                <div id="selection-status">
+                    <div id="status-message">Step 1: Click in the passage below to set the start position</div>
+                    <div id="selection-info" style="display: none;">
+                        <strong>Selected Text:</strong>
+                        <span id="selected-text-preview"></span>
+                        <span id="char-range"></span>
+                    </div>
                 </div>
-                <button type="button" id="create-annotation-btn" class="button" style="margin-top: 10px;" disabled>
-                    Create Annotation from Selection
-                </button>
-                <button type="button" id="clear-selection-btn" class="button" style="margin-top: 10px; margin-left: 10px;">
-                    Clear Selection
-                </button>
+                <div style="margin-top: 16px;">
+                    <button type="button" id="create-annotation-btn" class="button" disabled>
+                        Fill Annotation Form
+                    </button>
+                    <button type="button" id="clear-selection-btn" class="button">
+                        Clear Selection
+                    </button>
+                </div>
+                <div id="passage-display-container" style="margin-top: 20px;">
+                    <div style="margin-bottom: 12px; font-weight: 600; color: #87CEEB; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Passage Text (Click to Select)
+                    </div>
+                    <div id="passage-display"></div>
+                </div>
             </div>
         `;
         
         // Insert helper after content field
         contentField.after(helperHTML);
         
-        let selectedText = '';
-        let startChar = 0;
-        let endChar = 0;
+        // Get passage content
+        let passageContent = contentField.val() || '';
+        if (!passageContent.trim()) {
+            $('#passage-display').html('<p style="color: #666; text-align: center; padding: 40px;">Enter passage content above to use the annotation helper.</p>');
+            return;
+        }
         
-        // Handle text selection in content field
-        contentField.on('mouseup', function() {
-            const selection = window.getSelection();
-            const text = selection.toString().trim();
+        // State management
+        let selectionState = 'waiting-start';
+        let startChar = null;
+        let endChar = null;
+        let selectedText = '';
+        
+        // Render passage with character tracking
+        function renderPassage() {
+            const passageDisplay = $('#passage-display');
+            const content = passageContent;
             
-            if (text.length > 0) {
-                // Get the selected text and calculate positions
-                const fieldValue = contentField.val();
-                const range = selection.getRangeAt(0);
-                
-                // Calculate character positions
-                // This is approximate - for textarea we need to count from start
-                const textBefore = fieldValue.substring(0, fieldValue.indexOf(text));
-                startChar = textBefore.length;
-                endChar = startChar + text.length;
-                
-                selectedText = text;
-                
-                // Update display
-                $('#selected-text-display').html(`
-                    <strong>Selected Text:</strong><br>
-                    <span style="background: #fff3cd; padding: 2px 4px; border-radius: 2px;">${escapeHtml(text)}</span><br>
-                    <small style="color: #666;">Characters: ${startChar} to ${endChar} (length: ${text.length})</small>
-                `);
-                
-                $('#create-annotation-btn').prop('disabled', false);
+            let html = '';
+            for (let i = 0; i < content.length; i++) {
+                const char = content[i];
+                let displayChar = char;
+                if (char === ' ') {
+                    displayChar = '\u00A0';
+                } else if (char === '\n') {
+                    displayChar = '\n';
+                } else if (char === '\t') {
+                    displayChar = '\u00A0\u00A0\u00A0\u00A0';
+                }
+                const escapedChar = escapeHtml(displayChar);
+                html += `<span class="char-pos" data-char-index="${i}">${escapedChar}</span>`;
             }
-        });
+            
+            passageDisplay.html(html);
+            
+            // Add click handlers
+            passageDisplay.find('.char-pos').on('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const charIndex = parseInt($(this).data('char-index'));
+                handleCharClick(charIndex);
+            });
+            
+            updateHighlighting();
+        }
+        
+        // Handle character click
+        function handleCharClick(charIndex) {
+            if (selectionState === 'waiting-start') {
+                startChar = charIndex;
+                selectionState = 'waiting-end';
+                updateStatusMessage('Step 2: Click again to set the end position');
+                updateHighlighting();
+            } else if (selectionState === 'waiting-end') {
+                if (charIndex === startChar) {
+                    startChar = null;
+                    selectionState = 'waiting-start';
+                    updateStatusMessage('Step 1: Click in the passage below to set the start position');
+                    updateHighlighting();
+                    return;
+                }
+                
+                if (charIndex < startChar) {
+                    endChar = startChar;
+                    startChar = charIndex;
+                } else {
+                    endChar = charIndex + 1;
+                }
+                
+                selectionState = 'complete';
+                selectedText = passageContent.substring(startChar, endChar);
+                updateStatusMessage('Selection complete! Click "Fill Annotation Form" to populate the fields.');
+                updateSelectionInfo();
+                updateHighlighting();
+                $('#create-annotation-btn').prop('disabled', false);
+            } else if (selectionState === 'complete') {
+                startChar = charIndex;
+                endChar = null;
+                selectionState = 'waiting-end';
+                selectedText = '';
+                updateStatusMessage('Step 2: Click again to set the end position');
+                $('#selection-info').hide();
+                $('#create-annotation-btn').prop('disabled', true);
+                updateHighlighting();
+            }
+        }
+        
+        // Update highlighting
+        function updateHighlighting() {
+            const passageDisplay = $('#passage-display');
+            passageDisplay.find('.char-pos').each(function() {
+                const charIndex = parseInt($(this).data('char-index'));
+                $(this).removeClass('char-start char-end char-selected');
+                
+                if (startChar !== null && endChar !== null) {
+                    if (charIndex >= startChar && charIndex < endChar) {
+                        $(this).addClass('char-selected');
+                    } else if (charIndex === startChar) {
+                        $(this).addClass('char-start');
+                    } else if (charIndex === endChar - 1) {
+                        $(this).addClass('char-end');
+                    }
+                } else if (startChar !== null) {
+                    if (charIndex === startChar) {
+                        $(this).addClass('char-start');
+                    }
+                }
+            });
+        }
+        
+        // Update status message
+        function updateStatusMessage(message) {
+            $('#status-message').text(message);
+        }
+        
+        // Update selection info
+        function updateSelectionInfo() {
+            if (startChar !== null && endChar !== null) {
+                $('#selected-text-preview').text(selectedText.substring(0, 100) + (selectedText.length > 100 ? '...' : ''));
+                $('#char-range').html(`<br><small>Characters: ${startChar} to ${endChar} (length: ${endChar - startChar})</small>`);
+                $('#selection-info').show();
+            }
+        }
         
         // Create annotation button
         $('#create-annotation-btn').on('click', function() {
-            if (!selectedText) return;
+            if (!selectedText || startChar === null || endChar === null) return;
             
-            // Find the first empty annotation inline form
             const inlineForms = $('.inline-group .form-row:not(.empty-form)');
             let targetForm = null;
             
-            // Look for an empty form
             inlineForms.each(function() {
                 const startCharField = $(this).find('input[name$="-start_char"]');
                 if (startCharField.length && !startCharField.val()) {
                     targetForm = $(this);
-                    return false; // break
+                    return false;
                 }
             });
             
-            // If no empty form, add a new one
             if (!targetForm || targetForm.length === 0) {
                 $('.add-row a').click();
-                // Wait for form to be added
                 setTimeout(function() {
                     targetForm = $('.inline-group .form-row').last();
                     fillAnnotationForm(targetForm);
@@ -95,7 +195,6 @@
         });
         
         function fillAnnotationForm(form) {
-            // Find fields in the form (handle both nested and regular inlines)
             const startField = form.find('input[name$="-start_char"], input[id*="start_char"]').first();
             const endField = form.find('input[name*="-end_char"], input[id*="end_char"]').first();
             const textField = form.find('input[name*="-selected_text"], textarea[name*="-selected_text"]').first();
@@ -105,13 +204,11 @@
             if (endField.length) endField.val(endChar);
             if (textField.length) textField.val(selectedText);
             
-            // Focus explanation field for user to fill in
             if (explanationField.length) {
                 explanationField.focus();
-                explanationField.val(''); // Clear any existing value
+                explanationField.val('');
             }
             
-            // Clear selection
             clearSelection();
         }
         
@@ -121,12 +218,14 @@
         });
         
         function clearSelection() {
+            startChar = null;
+            endChar = null;
             selectedText = '';
-            startChar = 0;
-            endChar = 0;
-            $('#selected-text-display').html('<em style="color: #999;">No text selected. Click and drag in the passage content field above to select text.</em>');
+            selectionState = 'waiting-start';
+            updateStatusMessage('Step 1: Click in the passage below to set the start position');
+            $('#selection-info').hide();
             $('#create-annotation-btn').prop('disabled', true);
-            window.getSelection().removeAllRanges();
+            updateHighlighting();
         }
         
         function escapeHtml(text) {
@@ -135,31 +234,17 @@
             return div.innerHTML;
         }
         
-        // Also handle textarea selection (for content field)
-        if (contentField.is('textarea')) {
-            contentField.on('select', function() {
-                const textarea = this;
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                const text = textarea.value.substring(start, end);
-                
-                if (text.trim().length > 0) {
-                    selectedText = text.trim();
-                    startChar = start;
-                    endChar = end;
-                    
-                    $('#selected-text-display').html(`
-                        <strong>Selected Text:</strong><br>
-                        <span style="background: #fff3cd; padding: 2px 4px; border-radius: 2px;">${escapeHtml(text.trim())}</span><br>
-                        <small style="color: #666;">Characters: ${start} to ${end} (length: ${text.trim().length})</small>
-                    `);
-                    
-                    $('#create-annotation-btn').prop('disabled', false);
-                }
-            });
-        }
+        // Initialize
+        renderPassage();
+        
+        // Re-render if content changes
+        contentField.on('input change', function() {
+            const newContent = $(this).val() || '';
+            if (newContent !== passageContent && newContent.trim()) {
+                passageContent = newContent;
+                clearSelection();
+                renderPassage();
+            }
+        });
     });
 })(django.jQuery);
-
-
-

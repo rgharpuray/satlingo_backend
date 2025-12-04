@@ -5,19 +5,22 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Count
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date
 import uuid
+import json
+import os
+from django.conf import settings
 
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
-    UserProgress, UserAnswer
+    UserProgress, UserAnswer, WordOfTheDay
 )
 from .serializers import (
     PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
     QuestionSerializer, UserProgressSerializer, UserProgressSummarySerializer,
     UserAnswerSerializer, SubmitPassageRequestSerializer, SubmitPassageResponseSerializer,
     ReviewResponseSerializer, ReviewAnswerSerializer, CreatePassageSerializer,
-    PassageAnnotationSerializer
+    PassageAnnotationSerializer, WordOfTheDaySerializer
 )
 
 
@@ -656,4 +659,118 @@ class AdminPassageView(APIView):
         passage = get_object_or_404(Passage, id=passage_uuid)
         passage.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class WordOfTheDayView(APIView):
+    """
+    GET /word-of-the-day - Get today's word of the day
+    Generates a new word using AI if one doesn't exist for today
+    """
+    
+    def get(self, request):
+        today = date.today()
+        
+        # Try to get today's word
+        word_of_day = WordOfTheDay.objects.filter(date=today).first()
+        
+        if word_of_day:
+            serializer = WordOfTheDaySerializer(word_of_day)
+            return Response(serializer.data)
+        
+        # Generate new word using AI
+        try:
+            word_data = self._generate_word_with_ai()
+            if word_data:
+                word_of_day = WordOfTheDay.objects.create(
+                    word=word_data['word'],
+                    definition=word_data['definition'],
+                    synonyms=word_data['synonyms'],
+                    example_sentence=word_data['example_sentence'],
+                    date=today
+                )
+                serializer = WordOfTheDaySerializer(word_of_day)
+                return Response(serializer.data)
+            else:
+                return Response(
+                    {'error': {'code': 'INTERNAL_ERROR', 'message': 'Failed to generate word of the day'}},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        except Exception as e:
+            # Fallback to a default word if AI fails
+            return Response(
+                {'error': {'code': 'INTERNAL_ERROR', 'message': f'Error generating word: {str(e)}'}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _generate_word_with_ai(self):
+        """Generate word of the day using OpenAI"""
+        api_key = settings.OPENAI_API_KEY
+        
+        if not api_key:
+            # Fallback: return a default word if no API key
+            return {
+                'word': 'Eloquent',
+                'definition': 'Fluent or persuasive in speaking or writing.',
+                'synonyms': ['Articulate', 'Fluent', 'Expressive', 'Well-spoken'],
+                'example_sentence': 'The eloquent speaker captivated the audience with her powerful words.'
+            }
+        
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            
+            prompt = """Generate a SAT-level vocabulary word with the following format (return as JSON):
+{
+  "word": "the vocabulary word",
+  "definition": "a clear, concise definition suitable for SAT prep",
+  "synonyms": ["synonym1", "synonym2", "synonym3", "synonym4"],
+  "example_sentence": "a sentence demonstrating the word's usage in context"
+}
+
+Choose a word that is:
+- Appropriate for SAT vocabulary level (not too easy, not too obscure)
+- Useful for academic reading comprehension
+- Can be clearly defined and has good synonyms
+
+Return ONLY valid JSON, no other text."""
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that generates SAT vocabulary words in JSON format."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=300
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            # Try to parse JSON (might have markdown code blocks)
+            if content.startswith('```'):
+                # Remove markdown code blocks
+                lines = content.split('\n')
+                content = '\n'.join([line for line in lines if not line.strip().startswith('```')])
+            
+            word_data = json.loads(content)
+            
+            # Validate required fields
+            required_fields = ['word', 'definition', 'synonyms', 'example_sentence']
+            if all(field in word_data for field in required_fields):
+                # Ensure synonyms is a list
+                if isinstance(word_data['synonyms'], str):
+                    word_data['synonyms'] = [s.strip() for s in word_data['synonyms'].split(',')]
+                return word_data
+        
+        except Exception as e:
+            # Fallback on any error
+            pass
+        
+        # Fallback word
+        return {
+            'word': 'Eloquent',
+            'definition': 'Fluent or persuasive in speaking or writing.',
+            'synonyms': ['Articulate', 'Fluent', 'Expressive', 'Well-spoken'],
+            'example_sentence': 'The eloquent speaker captivated the audience with her powerful words.'
+        }
 
