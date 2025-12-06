@@ -1,0 +1,77 @@
+{% extends "admin/base.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block title %}Import Passages from JSON | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; <a href="{% url 'admin:api_passageingestion_changelist' %}">Passage ingestions</a>
+&rsaquo; Import Passages
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Import Passages from JSON</h1>
+
+<div style="max-width: 800px; margin: 20px 0;">
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h2 style="margin-top: 0;">Instructions</h2>
+        <ol>
+            <li>Export ingestions using the "Export selected ingestions as JSON" action in the Passage Ingestion list</li>
+            <li>Or use the command: <code>python manage.py export_ingestions --output passages.json</code></li>
+            <li>Upload the JSON file below to import passages into the database</li>
+            <li>Duplicate detection is automatic - existing passages will be skipped</li>
+        </ol>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" style="background: white; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        {% csrf_token %}
+        
+        <div style="margin-bottom: 20px;">
+            <label for="json_file" style="display: block; font-weight: bold; margin-bottom: 8px;">
+                JSON File:
+            </label>
+            <input type="file" name="json_file" id="json_file" accept=".json" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <p style="color: #666; font-size: 12px; margin-top: 4px;">
+                Select a JSON file exported from passage ingestions
+            </p>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 8px;">
+                Database:
+            </label>
+            <div style="padding: 12px; background: #f8f9fa; border-radius: 4px;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="radio" name="use_production_db" value="false" checked style="margin-right: 8px;">
+                    <span>
+                        <strong>Default Database</strong> (Current environment)
+                        <br>
+                        <small style="color: #666;">Uses the database configured in settings (SQLite locally, Postgres on Heroku)</small>
+                    </span>
+                </label>
+            </div>
+            <p style="color: #666; font-size: 12px; margin-top: 8px;">
+                <strong>Note:</strong> To import to production, set <code>DATABASE_URL</code> environment variable to your production database URL, then select "Default Database"
+            </p>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 10px;">
+            <button type="submit" style="background: #417690; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                Import Passages
+            </button>
+            <a href="{% url 'admin:api_passageingestion_changelist' %}" style="background: #ba2121; color: white; padding: 10px 20px; border: none; border-radius: 4px; text-decoration: none; display: inline-block;">
+                Cancel
+            </a>
+        </div>
+    </form>
+
+    <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+        <strong>💡 Tip:</strong> You can also use the command line:
+        <pre style="background: white; padding: 10px; border-radius: 4px; margin-top: 8px; overflow-x: auto;"><code>python manage.py import_passages passages.json</code></pre>
+    </div>
+</div>
+{% endblock %}
+

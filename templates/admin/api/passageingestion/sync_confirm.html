@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+{% load i18n admin_urls static %}
+
+{% block title %}Sync to Production | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; <a href="{% url 'admin:api_passageingestion_changelist' %}">Passage ingestions</a>
+&rsaquo; Sync to Production
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Sync to Production Database</h1>
+
+<div style="max-width: 800px; margin: 20px 0;">
+    <div style="background: #fff3cd; padding: 20px; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 20px;">
+        <h2 style="margin-top: 0; color: #856404;">⚠️ Warning</h2>
+        <p>This will directly create passages in the <strong>production database</strong>.</p>
+        <p><strong>Production Database:</strong> <code>{{ production_db_url }}</code></p>
+        <p><strong>Number of ingestions to sync:</strong> {{ ingestions|length }}</p>
+    </div>
+
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h3>Ingestions to Sync:</h3>
+        <ul>
+            {% for ingestion in ingestions %}
+            <li>{{ ingestion.file_name }} - {{ ingestion.file_type }} ({{ ingestion.status }})</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <form method="post" style="background: white; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        {% csrf_token %}
+        <input type="hidden" name="confirm" value="yes">
+        
+        <div style="margin-top: 30px; display: flex; gap: 10px;">
+            <button type="submit" style="background: #417690; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                ✓ Confirm Sync to Production
+            </button>
+            <a href="{% url 'admin:api_passageingestion_changelist' %}" style="background: #ba2121; color: white; padding: 10px 20px; border: none; border-radius: 4px; text-decoration: none; display: inline-block;">
+                Cancel
+            </a>
+        </div>
+    </form>
+
+    <div style="margin-top: 30px; padding: 15px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px;">
+        <strong>💡 Note:</strong> Make sure <code>PRODUCTION_DATABASE_URL</code> environment variable is set to your production database URL.
+    </div>
+</div>
+{% endblock %}
+
