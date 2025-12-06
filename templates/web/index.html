@@ -186,6 +186,118 @@
             letter-spacing: 0.5px;
         }
         
+        .passage-detail-section {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .passage-content {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            line-height: 1.8;
+            font-size: 16px;
+            color: #000;
+            border: 1px solid #e0e0e0;
+            white-space: pre-wrap;
+        }
+        
+        .question-card {
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #ffffff;
+        }
+        
+        .question-card h4 {
+            color: #000;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .option {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #ffffff;
+        }
+        
+        .option:hover {
+            border-color: #3498DB;
+            background: #f0f8ff;
+        }
+        
+        .option.selected {
+            border-color: #3498DB;
+            background: #e3f2fd;
+        }
+        
+        .option.correct {
+            border-color: #27ae60;
+            background: #d4edda;
+        }
+        
+        .option.incorrect {
+            border-color: #e74c3c;
+            background: #f8d7da;
+        }
+        
+        .option input[type="radio"] {
+            margin-right: 12px;
+            margin-top: 2px;
+            cursor: pointer;
+        }
+        
+        .option-label {
+            flex: 1;
+            color: #000;
+            font-size: 15px;
+        }
+        
+        .explanation {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f0f8ff;
+            border-left: 4px solid #3498DB;
+            border-radius: 4px;
+            color: #000;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .results-summary {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .results-summary h3 {
+            color: #000;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .score {
+            font-size: 32px;
+            font-weight: 700;
+            color: #3498DB;
+            margin: 10px 0;
+        }
+        
         .modal {
             display: none;
             position: fixed;
@@ -785,9 +897,23 @@
             </div>
             
             <div class="main-content">
-                <div class="passages-section">
+                <!-- Passages List View -->
+                <div class="passages-section" id="passagesListSection">
                     <h2>Reading Passages</h2>
                     <div id="passagesList"></div>
+                </div>
+                
+                <!-- Passage Detail View -->
+                <div class="passage-detail-section" id="passageDetailSection" style="display: none;">
+                    <div style="margin-bottom: 20px;">
+                        <button class="btn btn-secondary" onclick="backToPassagesList()">← Back to Passages</button>
+                    </div>
+                    <div id="passageContent"></div>
+                    <div id="questionsContainer"></div>
+                    <div id="submitSection" style="margin-top: 30px;">
+                        <button class="btn btn-primary" onclick="submitAnswers()" id="submitBtn">Submit Answers</button>
+                    </div>
+                    <div id="resultsSection" style="display: none; margin-top: 30px;"></div>
                 </div>
                 
                 <div class="sidebar">
@@ -897,6 +1023,9 @@
                     btn.classList.remove('active');
                 }
             });
+            // Reset to passages list view
+            document.getElementById('passagesListSection').style.display = 'block';
+            document.getElementById('passageDetailSection').style.display = 'none';
             // Load passages if not already loaded
             if (document.getElementById('passagesList').innerHTML === '') {
                 loadPassages();
@@ -1022,28 +1151,319 @@
             }
         }
         
+        let currentPassageId = null;
+        let currentPassageData = null;
+        let userAnswers = {};
+        
         async function openPassage(passageId) {
             try {
+                currentPassageId = passageId;
+                userAnswers = {};
+                
                 const headers = {};
                 if (authToken) {
                     headers['Authorization'] = `Bearer ${authToken}`;
                 }
                 
-                const response = await fetch(`${API_BASE}/passages/${passageId}/questions`, {headers});
-                const data = await response.json();
-                
-                if (response.status === 403) {
+                // Fetch passage detail with content
+                const passageResponse = await fetch(`${API_BASE}/passages/${passageId}`, {headers});
+                if (passageResponse.status === 403) {
                     alert('This passage requires a premium subscription. Please upgrade to access premium content.');
                     return;
                 }
                 
-                if (response.ok) {
-                    alert(`Passage opened! ${data.questions.length} questions available.`);
-                    // Here you would navigate to the passage view
+                if (!passageResponse.ok) {
+                    alert('Failed to load passage. Please try again.');
+                    return;
                 }
+                
+                const passageData = await passageResponse.json();
+                currentPassageData = passageData;
+                
+                // Fetch questions (without answers)
+                const questionsResponse = await fetch(`${API_BASE}/passages/${passageId}/questions`, {headers});
+                if (!questionsResponse.ok) {
+                    alert('Failed to load questions. Please try again.');
+                    return;
+                }
+                
+                const questionsData = await questionsResponse.json();
+                
+                // Display passage
+                displayPassage(passageData, questionsData);
+                
             } catch (error) {
                 console.error('Failed to open passage:', error);
+                alert('Network error. Please try again.');
             }
+        }
+        
+        function displayPassage(passage, questions) {
+            // Hide passages list, show passage detail
+            document.getElementById('passagesListSection').style.display = 'none';
+            document.getElementById('passageDetailSection').style.display = 'block';
+            
+            // Display passage content - preserve paragraph breaks
+            // Convert \n\n to double line breaks and \n to single line breaks
+            const formattedContent = passage.content
+                .replace(/\n\n/g, '<br><br>')
+                .replace(/\n/g, '<br>');
+            
+            document.getElementById('passageContent').innerHTML = `
+                <h2 style="color: #3498DB; margin-bottom: 15px;">${passage.title}</h2>
+                <div class="passage-content">${formattedContent}</div>
+            `;
+            
+            // Display questions
+            const questionsContainer = document.getElementById('questionsContainer');
+            questionsContainer.innerHTML = '';
+            
+            // Debug: log questions to see what we're getting
+            console.log('Questions received:', questions.questions);
+            
+            questions.questions.forEach((question, index) => {
+                // Use question.order if available, otherwise use index + 1
+                const questionNumber = question.order !== undefined ? question.order : (index + 1);
+                const questionCard = document.createElement('div');
+                questionCard.className = 'question-card';
+                questionCard.innerHTML = `
+                    <h4>Question ${questionNumber}</h4>
+                    <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${question.text}</p>
+                    <div class="options-container">
+                        ${question.options && question.options.length > 0 ? question.options.map((option, optIndex) => `
+                            <div class="option" onclick="selectOption('${question.id}', ${optIndex})">
+                                <input type="radio" name="question_${question.id}" value="${optIndex}" id="opt_${question.id}_${optIndex}">
+                                <label class="option-label" for="opt_${question.id}_${optIndex}">
+                                    ${String.fromCharCode(65 + optIndex)}. ${option}
+                                </label>
+                            </div>
+                        `).join('') : '<p style="color: red;">No options available for this question</p>'}
+                    </div>
+                `;
+                questionsContainer.appendChild(questionCard);
+            });
+            
+            // Show submit button, hide results
+            document.getElementById('submitSection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+        
+        function selectOption(questionId, optionIndex) {
+            userAnswers[questionId] = optionIndex;
+            
+            // Update visual selection
+            const questionCard = document.querySelector(`input[name="question_${questionId}"]`).closest('.question-card');
+            questionCard.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
+            questionCard.querySelector(`#opt_${questionId}_${optionIndex}`).closest('.option').classList.add('selected');
+            questionCard.querySelector(`#opt_${questionId}_${optionIndex}`).checked = true;
+        }
+        
+        async function submitAnswers() {
+            if (!currentPassageId) return;
+            
+            // Check if all questions are answered
+            const totalQuestions = currentPassageData.questions.length;
+            if (Object.keys(userAnswers).length < totalQuestions) {
+                if (!confirm(`You have only answered ${Object.keys(userAnswers).length} out of ${totalQuestions} questions. Submit anyway?`)) {
+                    return;
+                }
+            }
+            
+            try {
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                // Convert answers to API format
+                const answers = Object.entries(userAnswers).map(([questionId, selectedIndex]) => ({
+                    question_id: questionId,
+                    selected_option_index: selectedIndex
+                }));
+                
+                // Submit answers
+                const submitResponse = await fetch(`${API_BASE}/progress/passages/${currentPassageId}/submit`, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        answers: answers,
+                        time_spent_seconds: 0 // Could track this if needed
+                    })
+                });
+                
+                if (!submitResponse.ok) {
+                    const error = await submitResponse.json();
+                    alert(error.error?.message || 'Failed to submit answers. Please try again.');
+                    return;
+                }
+                
+                // Get review data
+                const reviewResponse = await fetch(`${API_BASE}/progress/passages/${currentPassageId}/review`, {
+                    headers: authToken ? {'Authorization': `Bearer ${authToken}`} : {}
+                });
+                
+                if (reviewResponse.ok) {
+                    const reviewData = await reviewResponse.json();
+                    displayResults(reviewData);
+                } else {
+                    // Fallback: show results from passage detail (includes correct answers)
+                    displayResultsFromPassage(currentPassageData);
+                }
+                
+            } catch (error) {
+                console.error('Failed to submit answers:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+        
+        function displayResults(reviewData) {
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.style.display = 'block';
+            document.getElementById('submitSection').style.display = 'none';
+            
+            const correctCount = reviewData.correct_count || 0;
+            const totalQuestions = reviewData.total_questions || currentPassageData.questions.length;
+            const percentage = Math.round((correctCount / totalQuestions) * 100);
+            
+            let resultsHTML = `
+                <div class="results-summary">
+                    <h3>Your Results</h3>
+                    <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                </div>
+            `;
+            
+            // Show each question with correct/incorrect status
+            currentPassageData.questions.forEach((question, index) => {
+                const userAnswer = userAnswers[question.id];
+                const isCorrect = userAnswer === question.correct_answer_index;
+                const userOption = question.options[userAnswer];
+                const correctOption = question.options[question.correct_answer_index];
+                
+                // Use question.order if available, otherwise use index + 1
+                const questionNumber = question.order !== undefined ? question.order : (index + 1);
+                
+                resultsHTML += `
+                    <div class="question-card">
+                        <h4>Question ${questionNumber} ${isCorrect ? '✓' : '✗'}</h4>
+                        <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${question.text}</p>
+                        <div class="options-container">
+                            ${question.options.map((option, optIndex) => {
+                                let optionClass = 'option';
+                                if (optIndex === question.correct_answer_index) {
+                                    optionClass += ' correct';
+                                } else if (optIndex === userAnswer && !isCorrect) {
+                                    optionClass += ' incorrect';
+                                }
+                                
+                                // Handle both object format (from passage detail) and string format (from questions endpoint)
+                                const optionText = typeof option === 'string' ? option : option.text;
+                                
+                                return `
+                                    <div class="${optionClass}">
+                                        <input type="radio" disabled ${optIndex === userAnswer ? 'checked' : ''}>
+                                        <label class="option-label">
+                                            ${String.fromCharCode(65 + optIndex)}. ${optionText}
+                                            ${optIndex === question.correct_answer_index ? ' (Correct)' : ''}
+                                            ${optIndex === userAnswer && !isCorrect ? ' (Your Answer)' : ''}
+                                        </label>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                        ${question.explanation ? `
+                            <div class="explanation">
+                                <strong>Explanation:</strong> ${question.explanation}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            resultsSection.innerHTML = resultsHTML;
+            
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function displayResultsFromPassage(passageData) {
+            // Fallback if review endpoint fails - use passage data directly
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.style.display = 'block';
+            document.getElementById('submitSection').style.display = 'none';
+            
+            let correctCount = 0;
+            passageData.questions.forEach(q => {
+                if (userAnswers[q.id] === q.correct_answer_index) {
+                    correctCount++;
+                }
+            });
+            
+            const totalQuestions = passageData.questions.length;
+            const percentage = Math.round((correctCount / totalQuestions) * 100);
+            
+            let resultsHTML = `
+                <div class="results-summary">
+                    <h3>Your Results</h3>
+                    <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                </div>
+            `;
+            
+            passageData.questions.forEach((question, index) => {
+                const userAnswer = userAnswers[question.id];
+                const isCorrect = userAnswer === question.correct_answer_index;
+                
+                // Use question.order if available, otherwise use index + 1
+                const questionNumber = question.order !== undefined ? question.order : (index + 1);
+                
+                resultsHTML += `
+                    <div class="question-card">
+                        <h4>Question ${questionNumber} ${isCorrect ? '✓' : '✗'}</h4>
+                        <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${question.text}</p>
+                        <div class="options-container">
+                            ${question.options.map((option, optIndex) => {
+                                let optionClass = 'option';
+                                if (optIndex === question.correct_answer_index) {
+                                    optionClass += ' correct';
+                                } else if (optIndex === userAnswer && !isCorrect) {
+                                    optionClass += ' incorrect';
+                                }
+                                
+                                // Handle both object format (from passage detail) and string format (from questions endpoint)
+                                const optionText = typeof option === 'string' ? option : option.text;
+                                
+                                return `
+                                    <div class="${optionClass}">
+                                        <input type="radio" disabled ${optIndex === userAnswer ? 'checked' : ''}>
+                                        <label class="option-label">
+                                            ${String.fromCharCode(65 + optIndex)}. ${optionText}
+                                            ${optIndex === question.correct_answer_index ? ' (Correct)' : ''}
+                                            ${optIndex === userAnswer && !isCorrect ? ' (Your Answer)' : ''}
+                                        </label>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                        ${question.explanation ? `
+                            <div class="explanation">
+                                <strong>Explanation:</strong> ${question.explanation}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            resultsSection.innerHTML = resultsHTML;
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function backToPassagesList() {
+            document.getElementById('passagesListSection').style.display = 'block';
+            document.getElementById('passageDetailSection').style.display = 'none';
+            currentPassageId = null;
+            currentPassageData = null;
+            userAnswers = {};
         }
         
         async function upgradeToPremium() {

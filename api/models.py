@@ -1,5 +1,8 @@
 import uuid
+import threading
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 
@@ -285,11 +288,12 @@ class PassageIngestion(models.Model):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    file_name = models.CharField(max_length=255)
-    file_path = models.CharField(max_length=500)  # Path to uploaded file
+    file_name = models.CharField(max_length=255)  # Primary file name or combined name
+    file_path = models.CharField(max_length=500)  # Primary file path (for backward compatibility)
+    file_paths = models.JSONField(default=list, blank=True)  # Multiple file paths (for screenshots of same document)
     file_type = models.CharField(max_length=50)  # image, pdf, etc.
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    extracted_text = models.TextField(null=True, blank=True)  # OCR/extracted text
+    extracted_text = models.TextField(null=True, blank=True)  # OCR/extracted text (combined from all files)
     error_message = models.TextField(null=True, blank=True)
     created_passage = models.ForeignKey(Passage, on_delete=models.SET_NULL, null=True, blank=True, related_name='ingestions')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -301,4 +305,40 @@ class PassageIngestion(models.Model):
     
     def __str__(self):
         return f"{self.file_name} - {self.status}"
+
+
+@receiver(post_save, sender=PassageIngestion)
+def auto_process_ingestion(sender, instance, created, **kwargs):
+    """Automatically process ingestion when saved with pending status and files"""
+    # Only process if:
+    # 1. Has file_path (files are uploaded)
+    # 2. Status is pending or failed (check before we update it)
+    # 3. Not already processing or completed
+    # Use raw status check to avoid signal loop
+    if instance.file_path:
+        current_status = PassageIngestion.objects.filter(pk=instance.pk).values_list('status', flat=True).first()
+        if current_status in ['pending', 'failed']:
+            # Mark as processing immediately (use update to avoid signal loop)
+            PassageIngestion.objects.filter(pk=instance.pk).update(status='processing')
+            
+            # Process in background thread
+            def process_in_background(ingestion_id):
+                from django.db import connection
+                connection.close()
+                from django import db
+                db.connections.close_all()
+                
+                # Import here to avoid circular imports
+                from api.admin import process_ingestion
+                ingestion = PassageIngestion.objects.get(pk=ingestion_id)
+                try:
+                    process_ingestion(ingestion)
+                except Exception as e:
+                    ingestion.status = 'failed'
+                    ingestion.error_message = str(e)
+                    ingestion.save()
+            
+            thread = threading.Thread(target=process_in_background, args=(instance.pk,))
+            thread.daemon = True
+            thread.start()
 
