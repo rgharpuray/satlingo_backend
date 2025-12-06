@@ -3,8 +3,12 @@
 ## Step 1: Add Heroku Postgres Addon
 
 ```bash
-# Add Postgres mini (free tier) to your Heroku app
-heroku addons:create heroku-postgresql:mini --app keuvi
+# Add Postgres essential-0 ($5/month) to your Heroku app
+# Note: mini plan is end-of-life, use essential-0 instead
+heroku addons:create heroku-postgresql:essential-0 --app keuvi
+
+# Check available plans if needed:
+# heroku addons:plans heroku-postgresql
 
 # Verify it was added
 heroku addons --app keuvi

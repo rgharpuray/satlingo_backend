@@ -4,8 +4,8 @@
 echo "🚀 Setting up Heroku Postgres for keuvi app..."
 
 # Step 1: Add Postgres addon
-echo "📦 Adding Heroku Postgres (mini tier)..."
-heroku addons:create heroku-postgresql:mini --app keuvi
+echo "📦 Adding Heroku Postgres (essential-0 tier)..."
+heroku addons:create heroku-postgresql:essential-0 --app keuvi
 
 # Step 2: Verify DATABASE_URL is set
 echo "✅ Verifying DATABASE_URL..."
