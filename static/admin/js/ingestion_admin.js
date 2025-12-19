@@ -83,6 +83,12 @@
     });
     
     // Handle "Process Now" button clicks in list view
+    window.processIngestionNow = function(ingestionId) {
+        // This function can be called directly with just the ID
+        var event = { preventDefault: function() {}, stopPropagation: function() {} };
+        return window.processIngestionClick(event, ingestionId);
+    };
+    
     window.processIngestionClick = function(event, ingestionId) {
         event.preventDefault();
         event.stopPropagation();

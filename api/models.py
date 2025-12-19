@@ -323,22 +323,36 @@ def auto_process_ingestion(sender, instance, created, **kwargs):
             
             # Process in background thread
             def process_in_background(ingestion_id):
+                import traceback
                 from django.db import connection
                 connection.close()
                 from django import db
                 db.connections.close_all()
                 
                 # Import here to avoid circular imports
-                from api.admin import process_ingestion
-                ingestion = PassageIngestion.objects.get(pk=ingestion_id)
+                from api.ingestion_utils import process_ingestion
                 try:
+                    ingestion = PassageIngestion.objects.get(pk=ingestion_id)
                     process_ingestion(ingestion)
                 except Exception as e:
-                    ingestion.status = 'failed'
-                    ingestion.error_message = str(e)
-                    ingestion.save()
+                    # Get full traceback for debugging
+                    error_trace = traceback.format_exc()
+                    try:
+                        ingestion = PassageIngestion.objects.get(pk=ingestion_id)
+                        ingestion.status = 'failed'
+                        ingestion.error_message = f"{str(e)}\n\nTraceback:\n{error_trace}"
+                        ingestion.save()
+                    except Exception as save_error:
+                        # If we can't save the error, log it
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Failed to save error for ingestion {ingestion_id}: {save_error}")
+                        logger.error(f"Original error: {error_trace}")
             
             thread = threading.Thread(target=process_in_background, args=(instance.pk,))
             thread.daemon = True
             thread.start()
+            
+            # Note: On Heroku, daemon threads may be killed when request ends
+            # If processing gets stuck, use: heroku run python manage.py process_ingestions --id <id>
 

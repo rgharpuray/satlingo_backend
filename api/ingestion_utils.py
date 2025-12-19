@@ -311,3 +311,111 @@ def create_passage_from_parsed_data(parsed_data):
     
     return passage
 
+
+def process_ingestion(ingestion):
+    """Process an ingestion: extract text, parse with AI, create passage - ensures only ONE passage per ingestion"""
+    # Prevent duplicate processing
+    ingestion.refresh_from_db()
+    if ingestion.status == 'processing':
+        # Check if it's been processing too long (might be stuck)
+        # If error_message contains progress, it's actively processing
+        if not ingestion.error_message or 'Step' not in ingestion.error_message:
+            # Might be stuck, allow reprocessing
+            pass
+        else:
+            # Already processing, skip
+            return
+    if ingestion.status == 'completed' and ingestion.created_passage:
+        # Already completed with a passage, skip to prevent duplicates
+        return
+    
+    ingestion.status = 'processing'
+    ingestion.error_message = 'Step 1/4: Starting processing...'
+    ingestion.save()
+    
+    try:
+        # Check if we have multiple files (screenshots of the same document)
+        file_paths = ingestion.file_paths if hasattr(ingestion, 'file_paths') and ingestion.file_paths else []
+        is_multiple_screenshots = len(file_paths) > 1
+        
+        # Step 2: Extract text from file(s)
+        ingestion.error_message = f'Step 2/4: Extracting text from {ingestion.file_type} file(s)...'
+        ingestion.save()
+        
+        if ingestion.file_type == 'image':
+            if is_multiple_screenshots:
+                # Multiple screenshots - combine them
+                ingestion.error_message = f'Step 2/4: Extracting text from {len(file_paths)} images...'
+                ingestion.save()
+                extracted_text = extract_text_from_multiple_images(file_paths)
+            else:
+                # Single image
+                extracted_text = extract_text_from_image(ingestion.file_path)
+        elif ingestion.file_type == 'pdf':
+            extracted_text = extract_text_from_pdf(ingestion.file_path)
+        elif ingestion.file_type == 'docx':
+            # For documents, if multiple files, combine them
+            if is_multiple_screenshots:
+                ingestion.error_message = f'Step 2/4: Extracting text from {len(file_paths)} document files...'
+                ingestion.save()
+                text_parts = []
+                for idx, file_path in enumerate(file_paths, 1):
+                    ingestion.error_message = f'Step 2/4: Processing document {idx}/{len(file_paths)}...'
+                    ingestion.save()
+                    text = extract_text_from_docx(file_path)
+                    if text:
+                        text_parts.append(text)
+                extracted_text = "\n\n---DOCUMENT BREAK---\n\n".join(text_parts)
+            else:
+                extracted_text = extract_text_from_docx(ingestion.file_path)
+        elif ingestion.file_type == 'txt':
+            # For text files, if multiple files, combine them
+            if is_multiple_screenshots:
+                ingestion.error_message = f'Step 2/4: Extracting text from {len(file_paths)} text files...'
+                ingestion.save()
+                text_parts = []
+                for idx, file_path in enumerate(file_paths, 1):
+                    ingestion.error_message = f'Step 2/4: Processing text file {idx}/{len(file_paths)}...'
+                    ingestion.save()
+                    text = extract_text_from_txt(file_path)
+                    if text:
+                        text_parts.append(text)
+                extracted_text = "\n\n---DOCUMENT BREAK---\n\n".join(text_parts)
+            else:
+                extracted_text = extract_text_from_txt(ingestion.file_path)
+        else:
+            raise Exception(f"Unsupported file type: {ingestion.file_type}")
+        
+        ingestion.extracted_text = extracted_text
+        ingestion.error_message = f'Step 2/4: Text extraction complete. Extracted {len(extracted_text)} characters.'
+        ingestion.save()
+        
+        # Step 3: Parse with AI - pass context about multiple screenshots
+        ingestion.error_message = 'Step 3/4: Parsing text with AI to extract passage and questions...'
+        ingestion.save()
+        parsed_data = parse_passage_with_ai(extracted_text, is_multiple_screenshots=is_multiple_screenshots)
+        
+        ingestion.error_message = f'Step 3/4: AI parsing complete. Found {len(parsed_data.get("questions", []))} questions.'
+        ingestion.save()
+        
+        # Step 4: Create passage
+        ingestion.error_message = 'Step 4/4: Creating passage and questions in database...'
+        ingestion.save()
+        
+        # Ensure only ONE passage is created per ingestion
+        # If a passage already exists, don't create another
+        if not ingestion.created_passage:
+            # Create passage - this function creates exactly ONE passage
+            passage = create_passage_from_parsed_data(parsed_data)
+            ingestion.created_passage = passage
+        
+        ingestion.status = 'completed'
+        ingestion.error_message = f'✓ Successfully created passage "{parsed_data.get("title", "Untitled")}" with {len(parsed_data.get("questions", []))} questions.'
+        ingestion.save()
+        
+    except Exception as e:
+        ingestion.status = 'failed'
+        ingestion.error_message = f'✗ Error at {ingestion.error_message if "Step" in str(ingestion.error_message) else "processing"}: {str(e)}'
+        ingestion.save()
+        raise
+
