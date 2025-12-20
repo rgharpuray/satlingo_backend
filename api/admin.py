@@ -7,6 +7,7 @@ from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 import nested_admin
 import os
+import json
 import threading
 from django.conf import settings
 from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion
