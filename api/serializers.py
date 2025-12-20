@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
-    UserProgress, UserAnswer, PassageAnnotation, WordOfTheDay
+    UserProgress, UserAnswer, PassageAnnotation, WordOfTheDay,
+    Lesson, LessonQuestion, LessonQuestionOption
 )
 
 
@@ -257,4 +258,38 @@ class WordOfTheDaySerializer(serializers.ModelSerializer):
     class Meta:
         model = WordOfTheDay
         fields = ['id', 'word', 'definition', 'synonyms', 'example_sentence', 'date']
+
+
+# Lesson serializers
+class LessonQuestionOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LessonQuestionOption
+        fields = ['id', 'text', 'order']
+
+
+class LessonQuestionSerializer(serializers.ModelSerializer):
+    options = LessonQuestionOptionSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = LessonQuestion
+        fields = ['id', 'text', 'options', 'correct_answer_index', 'explanation', 'order', 'chunk_index']
+
+
+class LessonListSerializer(serializers.ModelSerializer):
+    question_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Lesson
+        fields = ['id', 'lesson_id', 'title', 'difficulty', 'tier', 'question_count', 'created_at']
+    
+    def get_question_count(self, obj):
+        return obj.questions.count()
+
+
+class LessonDetailSerializer(serializers.ModelSerializer):
+    questions = LessonQuestionSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Lesson
+        fields = ['id', 'lesson_id', 'title', 'chunks', 'content', 'difficulty', 'tier', 'questions', 'created_at', 'updated_at']
 

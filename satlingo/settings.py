@@ -91,7 +91,7 @@ if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
     DATABASES['default']['OPTIONS'] = {
         'timeout': 20,  # Wait up to 20 seconds for database to unlock
         'check_same_thread': False,  # Allow connections from different threads
-    }
+}
 
 
 # Password validation

@@ -13,14 +13,16 @@ from django.conf import settings
 
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
-    UserProgress, UserAnswer, WordOfTheDay, PassageAttempt
+    UserProgress, UserAnswer, WordOfTheDay, PassageAttempt,
+    Lesson, LessonQuestion, LessonQuestionOption
 )
 from .serializers import (
     PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
     QuestionSerializer, UserProgressSerializer, UserProgressSummarySerializer,
     UserAnswerSerializer, SubmitPassageRequestSerializer, SubmitPassageResponseSerializer,
     ReviewResponseSerializer, ReviewAnswerSerializer, CreatePassageSerializer,
-    PassageAnnotationSerializer, WordOfTheDaySerializer
+    PassageAnnotationSerializer, WordOfTheDaySerializer,
+    LessonListSerializer, LessonDetailSerializer, LessonQuestionSerializer
 )
 
 
@@ -740,6 +742,48 @@ class PassageAttemptsView(APIView):
             })
         serializer = PassageAttemptSerializer(attempts_data, many=True)
         return Response(serializer.data)
+
+
+class LessonViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for lessons endpoints.
+    GET /lessons - List all lessons
+    GET /lessons/:id - Get lesson detail
+    """
+    queryset = Lesson.objects.all()
+    serializer_class = LessonListSerializer
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return LessonDetailSerializer
+        return LessonListSerializer
+    
+    def get_queryset(self):
+        queryset = Lesson.objects.annotate(
+            question_count=Count('questions')
+        )
+        difficulty = self.request.query_params.get('difficulty', None)
+        tier = self.request.query_params.get('tier', None)
+        
+        if difficulty:
+            queryset = queryset.filter(difficulty=difficulty)
+        
+        # Get user for premium check
+        user = get_user_from_request(self.request)
+        is_premium_user = user and (user.is_premium or user.has_active_subscription)
+        
+        # Handle tier filtering
+        if tier:
+            if tier == 'premium' and not is_premium_user:
+                queryset = queryset.none()
+            else:
+                queryset = queryset.filter(tier=tier)
+        else:
+            # No tier filter: automatically filter premium content for non-premium users
+            if not is_premium_user:
+                queryset = queryset.filter(tier='free')
+        
+        return queryset
 
 
 class WordOfTheDayView(APIView):

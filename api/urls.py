@@ -5,7 +5,7 @@ from .views import (
     PassageViewSet, QuestionViewSet, ProgressView,
     PassageProgressView, StartSessionView, SubmitPassageView,
     ReviewPassageView, AnswerView, AdminPassageView, WordOfTheDayView,
-    PassageAttemptsView
+    PassageAttemptsView, LessonViewSet
 )
 from .auth_views import register, login, me
 from .stripe_views import (
@@ -16,6 +16,7 @@ from .stripe_views import (
 router = DefaultRouter()
 router.register(r'passages', PassageViewSet, basename='passage')
 router.register(r'questions', QuestionViewSet, basename='question')
+router.register(r'lessons', LessonViewSet, basename='lesson')
 
 urlpatterns = [
     # Passages and Questions (handled by router)

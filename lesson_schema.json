@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Lesson",
+  "type": "object",
+  "required": ["lesson_id", "title", "chunks"],
+  "properties": {
+    "lesson_id": {
+      "type": "string",
+      "description": "Unique identifier for the lesson"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable lesson title"
+    },
+    "chunks": {
+      "type": "array",
+      "description": "Ordered list of lesson content blocks",
+      "items": {
+        "$ref": "#/definitions/chunk"
+      }
+    }
+  },
+
+  "definitions": {
+    "chunk": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "header",
+            "paragraph",
+            "example",
+            "example_correct",
+            "example_incorrect",
+            "rule",
+            "definition",
+            "list",
+            "bullet_list",
+            "question",
+            "note",
+            "warning",
+            "summary"
+          ]
+        },
+
+        "level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Header depth (only valid when type = header)"
+        },
+
+        "text": {
+          "type": "string",
+          "description": "Primary textual content of the chunk"
+        },
+
+        "term": {
+          "type": "string",
+          "description": "Term being defined (only for definition chunks)"
+        },
+
+        "items": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List or bullet items"
+        },
+
+        "question_type": {
+          "type": "string",
+          "enum": ["multiple_choice"],
+          "description": "Type of question"
+        },
+
+        "prompt": {
+          "type": "string",
+          "description": "Question stem"
+        },
+
+        "choices": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Answer choices for multiple choice questions"
+        },
+
+        "correct_answer_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Index of correct answer in choices array (optional)"
+        }
+      },
+
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "header" } }
+          },
+          "then": {
+            "required": ["level", "text"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "question" } }
+          },
+          "then": {
+            "required": ["question_type", "prompt", "choices"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "definition" } }
+          },
+          "then": {
+            "required": ["term", "text"]
+          }
+        }
+      ]
+    }
+  }
+}
+

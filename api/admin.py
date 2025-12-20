@@ -9,12 +9,13 @@ import nested_admin
 import os
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
     parse_passage_with_ai, create_passage_from_parsed_data, process_ingestion
 )
+from .lesson_ingestion_utils import process_lesson_ingestion
 
 
 class MultipleFileInput(forms.Widget):
@@ -796,3 +797,273 @@ class PassageIngestionAdmin(admin.ModelAdmin):
                 messages.info(request, "Processing started automatically in the background.")
         else:
             super().save_model(request, obj, form, change)
+
+
+class LessonIngestionForm(forms.ModelForm):
+    """Custom form for JSON file upload"""
+    file = forms.FileField(
+        required=True,
+        help_text="Upload a JSON file containing lesson data (e.g., commas.json). The file should follow the lesson schema.",
+        widget=forms.FileInput(attrs={'accept': '.json,application/json'})
+    )
+    
+    class Meta:
+        model = LessonIngestion
+        fields = ['file']
+    
+    def clean_file(self):
+        """Validate that uploaded file is JSON"""
+        data = self.cleaned_data.get('file')
+        if data:
+            # Check file extension
+            if not data.name.lower().endswith('.json'):
+                raise forms.ValidationError('File must be a JSON file (.json)')
+            
+            # Try to parse JSON to validate
+            try:
+                data.seek(0)
+                json.loads(data.read().decode('utf-8'))
+                data.seek(0)  # Reset for later use
+            except json.JSONDecodeError as e:
+                raise forms.ValidationError(f'Invalid JSON file: {str(e)}')
+            except UnicodeDecodeError:
+                raise forms.ValidationError('File must be valid UTF-8 encoded JSON')
+        
+        return data
+
+
+@admin.register(LessonIngestion)
+class LessonIngestionAdmin(admin.ModelAdmin):
+    """Admin interface for lesson ingestion from JSON files"""
+    form = LessonIngestionForm
+    list_display = ['file_name', 'status', 'created_lesson_link', 'created_at', 'process_action']
+    list_filter = ['status', 'created_at']
+    search_fields = ['file_name', 'error_message']
+    readonly_fields = ['id', 'file_name', 'file_path', 'status', 'parsed_data_preview', 'error_message', 'created_lesson_link', 'created_at', 'updated_at']
+    actions = ['process_selected']
+    
+    fieldsets = (
+        ('File Upload', {
+            'fields': ('file',),
+            'description': 'Upload a JSON file containing lesson data. The file should follow the lesson schema with lesson_id, title, and chunks array.'
+        }),
+        ('Processing Status', {
+            'fields': ('id', 'status', 'file_path', 'error_message')
+        }),
+        ('Results', {
+            'fields': ('parsed_data_preview', 'created_lesson_link'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def parsed_data_preview(self, obj):
+        """Display preview of parsed JSON data"""
+        if obj.parsed_data:
+            preview = json.dumps(obj.parsed_data, indent=2)[:1000] + '...' if len(json.dumps(obj.parsed_data)) > 1000 else json.dumps(obj.parsed_data, indent=2)
+            return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        return '-'
+    parsed_data_preview.short_description = 'Parsed Data Preview'
+    
+    def created_lesson_link(self, obj):
+        """Link to created lesson"""
+        if obj.created_lesson:
+            url = reverse('admin:api_lesson_change', args=[obj.created_lesson.pk])
+            return format_html('<a href="{}">{}</a>', url, obj.created_lesson.title)
+        return '-'
+    created_lesson_link.short_description = 'Created Lesson'
+    
+    def process_action(self, obj):
+        """Display process button for each row"""
+        if obj.status in ['pending', 'failed'] or (obj.status == 'processing' and not obj.created_lesson):
+            url = reverse('admin:api_lessoningestion_process', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 5px 10px; background: #417690; color: white; text-decoration: none; border-radius: 3px;">Process Now</a>',
+                url
+            )
+        return '-'
+    process_action.short_description = 'Actions'
+    process_action.allow_tags = True
+    
+    def process_selected(self, request, queryset):
+        """Admin action to process selected ingestions"""
+        from .lesson_ingestion_utils import process_lesson_ingestion
+        processed = 0
+        for ingestion in queryset:
+            if ingestion.status in ['pending', 'failed'] or (ingestion.status == 'processing' and not ingestion.created_lesson):
+                try:
+                    process_lesson_ingestion(ingestion)
+                    processed += 1
+                except Exception as e:
+                    self.message_user(request, f'Error processing {ingestion.file_name}: {str(e)}', level='ERROR')
+        
+        if processed > 0:
+            self.message_user(request, f'Successfully processed {processed} ingestion(s).', level='SUCCESS')
+        else:
+            self.message_user(request, 'No ingestions to process. Only pending or failed ingestions can be processed.', level='WARNING')
+    process_selected.short_description = 'Process selected lesson ingestions'
+    
+    def get_urls(self):
+        """Add custom URL for processing"""
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<uuid:ingestion_id>/process/',
+                self.admin_site.admin_view(self.process_ingestion_view),
+                name='api_lessoningestion_process',
+            ),
+        ]
+        return custom_urls + urls
+    
+    def process_ingestion_view(self, request, ingestion_id):
+        """Custom view to process a single ingestion"""
+        from django.shortcuts import get_object_or_404, redirect
+        from django.contrib import messages
+        from .lesson_ingestion_utils import process_lesson_ingestion
+        
+        ingestion = get_object_or_404(LessonIngestion, pk=ingestion_id)
+        
+        if ingestion.status not in ['pending', 'failed'] and (ingestion.status != 'processing' or ingestion.created_lesson):
+            messages.warning(request, 'This ingestion has already been processed.')
+            return redirect('admin:api_lessoningestion_changelist')
+        
+        try:
+            process_lesson_ingestion(ingestion)
+            messages.success(request, f'Successfully processed {ingestion.file_name}.')
+        except Exception as e:
+            messages.error(request, f'Error processing {ingestion.file_name}: {str(e)}')
+        
+        return redirect('admin:api_lessoningestion_changelist')
+    
+    def save_model(self, request, obj, form, change):
+        """Handle file upload and save ingestion"""
+        if not change:  # Only on create
+            uploaded_file = request.FILES.get('file')
+            if uploaded_file:
+                import uuid
+                from pathlib import Path
+                
+                # Create media directory if it doesn't exist
+                media_dir = Path(settings.MEDIA_ROOT)
+                media_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Save file
+                file_ext = os.path.splitext(uploaded_file.name)[1]
+                unique_filename = f"{uuid.uuid4()}{file_ext}"
+                file_path = media_dir / unique_filename
+                
+                with open(file_path, 'wb+') as destination:
+                    for chunk in uploaded_file.chunks():
+                        destination.write(chunk)
+                
+                obj.file_name = uploaded_file.name
+                obj.file_path = str(file_path)
+                
+                # Parse JSON and store in parsed_data
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        obj.parsed_data = json.load(f)
+                except Exception as e:
+                    obj.status = 'failed'
+                    obj.error_message = f'Failed to parse JSON: {str(e)}'
+                
+                # Save ingestion
+                obj.save()
+                
+                # Process in background
+                if obj.status != 'failed':
+                    from .lesson_ingestion_utils import process_lesson_ingestion
+                    
+                    def process_in_background(ingestion_id):
+                        import traceback
+                        from django.db import connection
+                        connection.close()
+                        from django import db
+                        db.connections.close_all()
+                        from .models import LessonIngestion
+                        ingestion = LessonIngestion.objects.get(pk=ingestion_id)
+                        try:
+                            process_lesson_ingestion(ingestion)
+                        except Exception as e:
+                            ingestion.status = 'failed'
+                            ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
+                            ingestion.save()
+                    
+                    # Mark as processing
+                    LessonIngestion.objects.filter(pk=obj.pk).update(status='processing')
+                    
+                    thread = threading.Thread(target=process_in_background, args=(obj.pk,))
+                    thread.daemon = True
+                    thread.start()
+                    
+                    from django.contrib import messages
+                    messages.info(request, "Processing started automatically in the background.")
+        else:
+            super().save_model(request, obj, form, change)
+
+
+@admin.register(Lesson)
+class LessonAdmin(nested_admin.NestedModelAdmin):
+    """Admin interface for lessons"""
+    list_display = ['title', 'lesson_id', 'difficulty', 'tier', 'question_count', 'created_at']
+    list_filter = ['difficulty', 'tier', 'created_at']
+    search_fields = ['title', 'lesson_id', 'content']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display']
+    inlines = []
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'lesson_id', 'title', 'difficulty', 'tier')
+        }),
+        ('Content', {
+            'fields': ('chunks', 'content'),
+        }),
+        ('Metadata', {
+            'fields': ('question_count_display', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def question_count(self, obj):
+        """Display number of questions for this lesson"""
+        if obj.pk:
+            return obj.questions.count()
+        return 0
+    question_count.short_description = 'Questions'
+    
+    def question_count_display(self, obj):
+        """Read-only field showing question count"""
+        if obj.pk:
+            count = obj.questions.count()
+            return f"{count} question{'s' if count != 1 else ''}"
+        return "Save lesson to see question count"
+    question_count_display.short_description = 'Question Count'
+
+
+@admin.register(LessonQuestion)
+class LessonQuestionAdmin(nested_admin.NestedModelAdmin):
+    """Admin interface for lesson questions"""
+    list_display = ['text_short', 'lesson', 'order', 'correct_answer_index']
+    list_filter = ['lesson', 'created_at']
+    search_fields = ['text', 'lesson__title']
+    inlines = []
+    
+    def text_short(self, obj):
+        return obj.text[:100] + '...' if len(obj.text) > 100 else obj.text
+    text_short.short_description = 'Question'
+
+
+@admin.register(LessonQuestionOption)
+class LessonQuestionOptionAdmin(admin.ModelAdmin):
+    """Admin interface for lesson question options"""
+    list_display = ['text_short', 'question', 'order']
+    list_filter = ['question__lesson', 'created_at']
+    search_fields = ['text', 'question__text']
+    
+    def text_short(self, obj):
+        return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
+    text_short.short_description = 'Option'

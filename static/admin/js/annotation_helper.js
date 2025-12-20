@@ -27,10 +27,10 @@
                 <div style="margin-top: 16px;">
                     <button type="button" id="create-annotation-btn" class="button" disabled>
                         Fill Annotation Form
-                    </button>
+                </button>
                     <button type="button" id="clear-selection-btn" class="button">
-                        Clear Selection
-                    </button>
+                    Clear Selection
+                </button>
                 </div>
                 <div id="passage-display-container" style="margin-top: 20px;">
                     <div style="margin-bottom: 12px; font-weight: 600; color: #87CEEB; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -244,7 +244,7 @@
                 passageContent = newContent;
                 clearSelection();
                 renderPassage();
-            }
-        });
+                }
+            });
     });
 })(django.jQuery);

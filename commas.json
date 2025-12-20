@@ -1,0 +1,540 @@
+{
+    "lesson_id": "commas",
+    "title": "Commas",
+    "chunks": [
+      {
+        "type": "header",
+        "level": 1,
+        "text": "Commas"
+      },
+      {
+        "type": "paragraph",
+        "text": "Commas probably show up on the test more frequently than any other grammar topic."
+      },
+      {
+        "type": "paragraph",
+        "text": "Luckily, all of the commas used on the test boil down to three basic uses."
+      },
+      {
+        "type": "paragraph",
+        "text": "We'll see commas used to separate items in lists, to mark off dependent clauses, and to connect independent clauses."
+      },
+  
+      {
+        "type": "header",
+        "level": 2,
+        "text": "Lists"
+      },
+      {
+        "type": "paragraph",
+        "text": "We use commas between each of the items in a list:"
+      },
+      {
+        "type": "example",
+        "text": "I had to buy apples, bananas, and cucumbers."
+      },
+      {
+        "type": "paragraph",
+        "text": "The test defaults to the Oxford comma, the one right before the and."
+      },
+      {
+        "type": "paragraph",
+        "text": "It’s a good idea to do the same on the essay section, just to be safe."
+      },
+  
+      {
+        "type": "header",
+        "level": 3,
+        "text": "Multiple Choice"
+      },
+      {
+        "type": "question",
+        "question_type": "multiple_choice",
+        "prompt": "I did my laundry made my bed and performed my nightly breathing exercises.",
+        "choices": [
+          "NO CHANGE",
+          "I did, my laundry, made, my bed, and performed, my nightly breathing exercises.",
+          "I did my laundry, made my bed, and performed my nightly breathing exercises.",
+          "I did, my laundry, made my bed, and performed my nightly breathing exercises."
+        ]
+      },
+  
+      {
+        "type": "header",
+        "level": 2,
+        "text": "Dependent Clauses"
+      },
+      {
+        "type": "paragraph",
+        "text": "We use commas to separate dependent clauses from the independent clauses they modify."
+      },
+      {
+        "type": "paragraph",
+        "text": "An independent clause has a subject, a verb, and a fully fleshed out thought."
+      },
+      {
+        "type": "paragraph",
+        "text": "It's independent because it can stand alone as its own sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "A dependent clause, on the other hand, is a word or phrase which doesn’t amount to a full sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "It can't stand on its own; therefore, it is dependent on another clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "Basically, we can add a dependent clause to an independent one if we put commas around the dependent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "The dependent clause can go at the beginning, middle, or end of the sentence."
+      },
+  
+      {
+        "type": "header",
+        "level": 3,
+        "text": "Introductions"
+      },
+      {
+        "type": "paragraph",
+        "text": "Dependent clauses at the beginning of sentences serve as introductions."
+      },
+      {
+        "type": "paragraph",
+        "text": "They typically provide us with some kind of setting for the rest of the sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "These introductory clauses can stretch from one word all the way to long, mellifluous phrases."
+      },
+      {
+        "type": "example",
+        "text": "First, I drove to the store."
+      },
+      {
+        "type": "example",
+        "text": "As rain lashed against my windows and wind tore the trees out of the ground, I drove to the store."
+      },
+  
+      {
+        "type": "example",
+        "text": "First, I drove to the store."
+      },
+      {
+        "type": "paragraph",
+        "text": "In this sentence, First is our dependent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "It gives us the context for the rest of the sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "I drove to the store is our independent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "It could stand alone as a full sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "We separate the dependent clause from the independent one with a comma."
+      },
+      {
+        "type": "paragraph",
+        "text": "We should be able to take everything before the comma (First) out and still enough for a sentence (I drove to the store)."
+      },
+  
+      {
+        "type": "example",
+        "text": "As rain lashed against my windows and wind tore the trees out of the ground, I drove to the store."
+      },
+      {
+        "type": "paragraph",
+        "text": "As rain lashed against my windows and wind tore the trees out of the ground is our dependent clause here."
+      },
+      {
+        "type": "paragraph",
+        "text": "Even though it's a much longer descriptive phrase than First, this string of words still doesn't have enough to stand on its own as a sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "I drove to the store is our independent clause again."
+      },
+      {
+        "type": "paragraph",
+        "text": "We use a comma to mark the end of the dependent clause and the beginning of the independent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "If we were to take out the dependent clause, we’d still be left with a perfectly fine sentence."
+      },
+  
+      {
+        "type": "header",
+        "level": 3,
+        "text": "Multiple Choice"
+      },
+      {
+        "type": "question",
+        "question_type": "multiple_choice",
+        "prompt": "Although I didn't know how to get there I was too proud to ask for directions.",
+        "choices": [
+          "NO CHANGE",
+          "how, to get there, I was too",
+          "how to get there, I was too",
+          "how to get there I was too,"
+        ]
+      },
+  
+      {
+        "type": "header",
+        "level": 3,
+        "text": "Interruptions"
+      },
+      {
+        "type": "paragraph",
+        "text": "We can move the dependent clause to the middle of the sentence, interrupting the independent clause with important details."
+      },
+      {
+        "type": "paragraph",
+        "text": "We put commas at the beginning and at the end of the dependent clause to set it apart from the independent one."
+      },
+      {
+        "type": "example",
+        "text": "Michael Jordan, therefore, is widely regarded as the greatest basketball player of all time."
+      },
+      {
+        "type": "example",
+        "text": "Michael Jordan, who played his college basketball at the University of North Carolina, is widely regarded as the greatest basketball player of all time."
+      },
+  
+      {
+        "type": "example",
+        "text": "Michael Jordan, therefore, is widely regarded as the greatest basketball player of all time."
+      },
+      {
+        "type": "paragraph",
+        "text": "In this sentence, therefore serves as our interrupting dependent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "It ties our present sentence back to the previous one (which presumably detailed Jordan's many accomplishments)."
+      },
+      {
+        "type": "paragraph",
+        "text": "Michael Jordan is widely regarded as the greatest basketball player of all time is the (interrupted) independent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "We put commas before and after therefore."
+      },
+      {
+        "type": "paragraph",
+        "text": "We should be able to momentarily lift the material in between the commas out and still have enough material for a full sentence (Michael Jordan is widely regarded as the greatest basketball player of all time)."
+      },
+  
+      {
+        "type": "example",
+        "text": "Michael Jordan, who played his college basketball at the University of North Carolina, is widely regarded as the greatest basketball player of all time."
+      },
+      {
+        "type": "paragraph",
+        "text": "Here, the dependent clause is who played his college basketball at the University of North Carolina."
+      },
+      {
+        "type": "paragraph",
+        "text": "It provides an important descriptive detail."
+      },
+      {
+        "type": "paragraph",
+        "text": "Michael Jordan is widely regarded as the greatest basketball player of all time is our independent clause again."
+      },
+      {
+        "type": "paragraph",
+        "text": "We put commas around who played his college basketball at the University of North Carolina to mark it off from the rest of the sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "If we took the words between the commas out, we'd still have a full independent clause."
+      },
+  
+      {
+        "type": "question",
+        "question_type": "multiple_choice",
+        "prompt": "My car, which has a leaky gas tank, ran out of fuel.",
+        "choices": [
+          "NO CHANGE",
+          "My car which has a leaky gas tank ran out of fuel.",
+          "My car, which has a leaky gas tank ran out of fuel.",
+          "My car which has a leaky gas tank, ran out of fuel."
+        ]
+      },
+  
+      {
+        "type": "header",
+        "level": 2,
+        "text": "Conclusions"
+      },
+      {
+        "type": "paragraph",
+        "text": "We can also add dependent clauses at the end of sentences, concluding the sentence with a new piece of information."
+      },
+      {
+        "type": "example",
+        "text": "Virginia Woolf wrote several beloved works of fiction and nonfiction, even though women faced countless obstacles to writing and publishing books during her lifetime."
+      },
+  
+      {
+        "type": "example",
+        "text": "Virginia Woolf wrote several beloved works of fiction and nonfiction, even though women faced countless obstacles to writing and publishing books during her lifetime."
+      },
+      {
+        "type": "paragraph",
+        "text": "Here, our dependent clause is even though women faced countless obstacles to writing and publishing books during her lifetime."
+      },
+      {
+        "type": "paragraph",
+        "text": "This detail complicates the information that came before it."
+      },
+      {
+        "type": "paragraph",
+        "text": "Our independent clause is Virginia Woolf wrote several beloved works of fiction and nonfiction, which could stand as its own sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "We put a comma before the dependent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "If we lift the string of words after the comma out, we still have a functional sentence."
+      },
+  
+      {
+        "type": "question",
+        "question_type": "multiple_choice",
+        "prompt": "I kept driving straight even though I suspected that I was just going further and further away from my destination.",
+        "choices": [
+          "NO CHANGE",
+          "I kept driving straight, even though I suspected that I was just going further and further away from my destination.",
+          "I kept driving straight, even though, I suspected that I was just going further and further away from my destination.",
+          "I kept driving straight even though, I suspected that I was just going further and further away from my destination."
+        ]
+      },
+  
+      {
+        "type": "header",
+        "level": 2,
+        "text": "Independent Clauses"
+      },
+      {
+        "type": "paragraph",
+        "text": "Finally, we can use a comma and a coordinating conjunction to connect two fully independent clauses."
+      },
+      {
+        "type": "paragraph",
+        "text": "We can remember the coordinating conjunctions using the acronym FANBOYS:"
+      },
+      {
+        "type": "list",
+        "items": ["For", "And", "Nor", "But", "Or", "Yet", "So"]
+      },
+  
+      {
+        "type": "example",
+        "text": "I tore myself away from the dinner table, for I had already consumed more calories than an Olympic swimmer."
+      },
+      {
+        "type": "example",
+        "text": "We shared a pizza, and I ate a meatball sandwich, a bag of chips, and an entire order of buffalo wings on my own."
+      },
+  
+      {
+        "type": "example",
+        "text": "I tore myself away from the dinner table, for I had already consumed more calories than an Olympic swimmer."
+      },
+      {
+        "type": "paragraph",
+        "text": "I tore myself away from the dinner table is our first independent clause: it could stand alone as its own sentence."
+      },
+      {
+        "type": "paragraph",
+        "text": "We use a comma to mark the end of this first clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "Then, we add for to connect the two ideas."
+      },
+      {
+        "type": "paragraph",
+        "text": "For indicates cause-and-effect."
+      },
+      {
+        "type": "paragraph",
+        "text": "We always want to make sure that the FANBOYS we’re using to connect the clauses itself makes sense."
+      },
+      {
+        "type": "paragraph",
+        "text": "We want to make sure it’s indicating the right connection."
+      },
+      {
+        "type": "paragraph",
+        "text": "I had already consumed more calories than an Olympic swimmer is our second independent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "We always want to make sure that we have full independent clauses on both sides of the FANBOYS."
+      },
+  
+      {
+        "type": "example",
+        "text": "We shared a pizza, and I ate a meatball sandwich, a bag of chips, and an entire order of buffalo wings on my own."
+      },
+      {
+        "type": "paragraph",
+        "text": "We shared a pizza can stand as its own independent clause."
+      },
+      {
+        "type": "paragraph",
+        "text": "We mark the end of that phrase with a comma, then add and to connect the two ideas."
+      },
+      {
+        "type": "paragraph",
+        "text": "And makes a lot of sense here: we’re just adding the two ideas (what they shared plus what the speaker ate alone) together."
+      },
+      {
+        "type": "paragraph",
+        "text": "I ate a meatball sandwich, a bag of chips, and an entire order of buffalo wings on my own is also a perfectly fine independent clause, though it’s a terrible dietary plan."
+      },
+  
+      {
+        "type": "header",
+        "level": 3,
+        "text": "Common Mistakes"
+      },
+      {
+        "type": "example_incorrect",
+        "text": "I knew every subject on the test, I was sure to get an A."
+      },
+      {
+        "type": "paragraph",
+        "text": "This construction is incorrect because it just smushes two independent clauses together with no FANBOYS."
+      },
+      {
+        "type": "paragraph",
+        "text": "We can never connect two independent clauses together with just a comma."
+      },
+      {
+        "type": "example_correct",
+        "text": "I knew all of the subjects on the test, so I was sure to get an A."
+      },
+      {
+        "type": "example_incorrect",
+        "text": "I knew all of the subjects on the test, therefore, I was sure to get an A."
+      },
+      {
+        "type": "paragraph",
+        "text": "Therefore isn't a FANBOYS."
+      },
+      {
+        "type": "paragraph",
+        "text": "Therefore is actually a transitional expression."
+      },
+      {
+        "type": "paragraph",
+        "text": "We can't use transitional expressions (like therefore, thus, however, etc.) to connect two independent clauses like this."
+      },
+      {
+        "type": "paragraph",
+        "text": "Transitional expressions act as their own little dependent clauses (that's why we put commas on both sides of therefore)."
+      },
+      {
+        "type": "paragraph",
+        "text": "If we lift therefore out of the sentence, we're left with two independent clauses jammed together: I knew all of the subjects on the test I was sure to get an A."
+      },
+      {
+        "type": "paragraph",
+        "text": "We could fix this by replacing therefore (along with the comma right after it) with a FANBOYS."
+      },
+  
+      {
+        "type": "question",
+        "question_type": "multiple_choice",
+        "prompt": "Which version works?",
+        "choices": [
+          "I wanted to go to the beach, but couldn’t find my towel.",
+          "I wanted to go to the beach, but I couldn’t find my towel."
+        ]
+      },
+      {
+        "type": "question",
+        "question_type": "multiple_choice",
+        "prompt": "Which version works?",
+        "choices": [
+          "I wanted to play some basketball, but my ball was flat.",
+          "I wanted to play some basketball, so my ball was flat."
+        ]
+      },
+  
+      {
+        "type": "header",
+        "level": 2,
+        "text": "Review"
+      },
+      {
+        "type": "paragraph",
+        "text": "Comma questions on the test will task us with correctly placing commas in lists, around dependent clauses, and in between independent clauses."
+      },
+      {
+        "type": "header",
+        "level": 3,
+        "text": "Lists"
+      },
+      {
+        "type": "paragraph",
+        "text": "We use commas to separate items in a list."
+      },
+      {
+        "type": "example",
+        "text": "In order to make dinner tonight, I needed to buy pasta, diced tomatoes, cream, and bread."
+      },
+      {
+        "type": "header",
+        "level": 3,
+        "text": "Dependent clauses"
+      },
+      {
+        "type": "paragraph",
+        "text": "We can also use commas to set a dependent clause apart from the beginning, middle, or end of an independent clause."
+      },
+      {
+        "type": "example",
+        "text": "First, I left to go to the grocery store."
+      },
+      {
+        "type": "example",
+        "text": "I realized, however, that I’d locked my keys inside my house."
+      },
+      {
+        "type": "example",
+        "text": "I had to break in through the window, even though it’s my own house."
+      },
+      {
+        "type": "header",
+        "level": 3,
+        "text": "Independent Clauses"
+      },
+      {
+        "type": "paragraph",
+        "text": "Finally, we can use a comma and an appropriate FANBOYS to connect two independent clauses that are related to each other."
+      },
+      {
+        "type": "example",
+        "text": "A policeman saw me trying to smash my window, and he arrested me for trespassing."
+      }
+    ]
+  }
+  

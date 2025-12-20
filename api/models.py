@@ -336,6 +336,143 @@ class PassageIngestion(models.Model):
         return f"{self.file_name} - {self.status}"
 
 
+class Lesson(models.Model):
+    """Lessons with structured content chunks and embedded questions"""
+    DIFFICULTY_CHOICES = [
+        ('Easy', 'Easy'),
+        ('Medium', 'Medium'),
+        ('Hard', 'Hard'),
+    ]
+    
+    TIER_CHOICES = [
+        ('free', 'Free'),
+        ('premium', 'Premium'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lesson_id = models.CharField(max_length=255, unique=True, help_text="Unique identifier from JSON (e.g., 'commas')")
+    title = models.CharField(max_length=255)
+    chunks = models.JSONField(default=list, help_text="Structured content chunks from JSON")
+    content = models.TextField(blank=True, help_text="Rendered/flattened content for display")
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='Medium')
+    tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'lessons'
+        indexes = [
+            models.Index(fields=['lesson_id']),
+            models.Index(fields=['difficulty']),
+            models.Index(fields=['tier']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.title
+
+
+class LessonQuestion(models.Model):
+    """Questions for lessons - extracted from question chunks"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='questions')
+    text = models.TextField(help_text="Question prompt")
+    correct_answer_index = models.IntegerField(validators=[MinValueValidator(0)])
+    explanation = models.TextField(null=True, blank=True)
+    order = models.IntegerField(help_text="Order in the lesson (based on chunk position)")
+    chunk_index = models.IntegerField(help_text="Index of the question chunk in the chunks array")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'lesson_questions'
+        indexes = [
+            models.Index(fields=['lesson']),
+            models.Index(fields=['order']),
+            models.Index(fields=['chunk_index']),
+        ]
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.lesson.title} - Q{self.order}"
+
+
+class LessonQuestionOption(models.Model):
+    """Options for lesson questions"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    question = models.ForeignKey(LessonQuestion, on_delete=models.CASCADE, related_name='options')
+    text = models.TextField()
+    order = models.IntegerField(validators=[MinValueValidator(0)])
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'lesson_question_options'
+        indexes = [
+            models.Index(fields=['question']),
+            models.Index(fields=['order']),
+        ]
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.question} - Option {self.order}"
+
+
+class LessonIngestion(models.Model):
+    """Track lesson ingestion from JSON files"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    parsed_data = models.JSONField(null=True, blank=True)  # Store parsed JSON data
+    error_message = models.TextField(null=True, blank=True)
+    created_lesson = models.ForeignKey(Lesson, on_delete=models.SET_NULL, null=True, blank=True, related_name='ingestions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'lesson_ingestions'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.file_name} - {self.status}"
+
+
+@receiver(post_save, sender=LessonIngestion)
+def auto_process_lesson_ingestion(sender, instance, created, **kwargs):
+    """Automatically process lesson ingestion when saved with pending status"""
+    if created and instance.status == 'pending' and instance.file_path:
+        # Mark as processing immediately (use update to avoid signal loop)
+        LessonIngestion.objects.filter(pk=instance.pk).update(status='processing')
+        
+        # Process in background thread
+        def process_in_background(ingestion_id):
+            import traceback
+            from django.db import connection
+            connection.close()
+            from django import db
+            db.connections.close_all()
+            from .models import LessonIngestion
+            from .lesson_ingestion_utils import process_lesson_ingestion
+            ingestion = LessonIngestion.objects.get(pk=ingestion_id)
+            try:
+                process_lesson_ingestion(ingestion)
+            except Exception as e:
+                ingestion.status = 'failed'
+                ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
+                ingestion.save()
+        
+        thread = threading.Thread(target=process_in_background, args=(instance.pk,))
+        thread.daemon = True
+        thread.start()
+
+
 @receiver(post_save, sender=PassageIngestion)
 def auto_process_ingestion(sender, instance, created, **kwargs):
     """Automatically process ingestion when saved with pending status and files"""
