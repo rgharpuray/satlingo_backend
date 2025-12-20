@@ -980,24 +980,32 @@
             </div>
             
             <div class="main-content">
-                <!-- Passages List View -->
-                <div class="passages-section" id="passagesListSection">
-                    <h2>Reading Passages</h2>
-                    <div id="passagesList"></div>
-                </div>
-                
-                <!-- Passage Detail View -->
-                <div class="passage-detail-section" id="passageDetailSection" style="display: none;">
-                    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-                        <button class="btn btn-secondary" onclick="backToPassagesList()">← Back to Passages</button>
-                        <span id="attemptHistoryButtonContainer"></span>
+                <div class="content-column">
+                    <!-- Lessons List View -->
+                    <div class="passages-section" id="lessonsListSection" style="margin-bottom: 40px;">
+                        <h2>Lessons</h2>
+                        <div id="lessonsList"></div>
                     </div>
-                    <div id="passageContent"></div>
-                    <div id="questionsContainer"></div>
-                    <div id="submitSection" style="margin-top: 30px;">
-                        <button class="btn btn-primary" onclick="submitAnswers()" id="submitBtn">Submit Answers</button>
+                    
+                    <!-- Passages List View -->
+                    <div class="passages-section" id="passagesListSection">
+                        <h2>Reading Passages</h2>
+                        <div id="passagesList"></div>
                     </div>
-                    <div id="resultsSection" style="display: none; margin-top: 30px;"></div>
+                    
+                    <!-- Passage/Lesson Detail View -->
+                    <div class="passage-detail-section" id="passageDetailSection" style="display: none;">
+                        <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                            <button class="btn btn-secondary" onclick="backToPassagesList()">← Back</button>
+                            <span id="attemptHistoryButtonContainer"></span>
+                        </div>
+                        <div id="passageContent"></div>
+                        <div id="questionsContainer"></div>
+                        <div id="submitSection" style="margin-top: 30px;">
+                            <button class="btn btn-primary" onclick="submitAnswers()" id="submitBtn">Submit Answers</button>
+                        </div>
+                        <div id="resultsSection" style="display: none; margin-top: 30px;"></div>
+                    </div>
                 </div>
                 
                 <div class="sidebar">
@@ -1110,7 +1118,10 @@
             // Reset to passages list view
             document.getElementById('passagesListSection').style.display = 'block';
             document.getElementById('passageDetailSection').style.display = 'none';
-            // Load passages if not already loaded
+            // Load lessons and passages if not already loaded
+            if (document.getElementById('lessonsList').innerHTML === '') {
+                loadLessons();
+            }
             if (document.getElementById('passagesList').innerHTML === '') {
                 loadPassages();
             }
@@ -1224,6 +1235,40 @@
             }
         }
         
+        async function loadLessons() {
+            try {
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                const response = await fetch(`${API_BASE}/lessons/`, {headers});
+                const data = await response.json();
+                
+                const lessonsList = document.getElementById('lessonsList');
+                lessonsList.innerHTML = '';
+                
+                if (data.results && data.results.length > 0) {
+                    data.results.forEach(lesson => {
+                        const card = document.createElement('div');
+                        card.className = `passage-card ${lesson.tier === 'premium' ? 'premium' : ''}`;
+                        card.innerHTML = `
+                            <h3>${lesson.title} ${lesson.tier === 'premium' ? '<span class="premium-badge">PREMIUM</span>' : ''}</h3>
+                            <p>Difficulty: ${lesson.difficulty} | Questions: ${lesson.question_count || 0}</p>
+                        `;
+                        card.onclick = () => openLesson(lesson.id);
+                        lessonsList.appendChild(card);
+                    });
+                } else {
+                    lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
+                }
+            } catch (error) {
+                console.error('Failed to load lessons:', error);
+                const lessonsList = document.getElementById('lessonsList');
+                lessonsList.innerHTML = '<p style="color: #999;">Unable to load lessons.</p>';
+            }
+        }
+        
         async function loadPassages() {
             try {
                 const headers = {};
@@ -1295,7 +1340,119 @@
         
         let currentPassageId = null;
         let currentPassageData = null;
+        let currentLessonId = null;
+        let currentLessonData = null;
         let userAnswers = {};
+        
+        async function openLesson(lessonId) {
+            try {
+                currentLessonId = lessonId;
+                currentPassageId = null; // Clear passage data
+                currentPassageData = null;
+                userAnswers = {};
+                
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                // Fetch lesson detail
+                const lessonResponse = await fetch(`${API_BASE}/lessons/${lessonId}`, {headers});
+                if (lessonResponse.status === 403) {
+                    alert('This lesson requires a premium subscription. Please upgrade to access premium content.');
+                    return;
+                }
+                
+                if (!lessonResponse.ok) {
+                    alert('Failed to load lesson. Please try again.');
+                    return;
+                }
+                
+                const lessonData = await lessonResponse.json();
+                currentLessonData = lessonData;
+                
+                // Display lesson
+                displayLesson(lessonData);
+                
+            } catch (error) {
+                console.error('Failed to open lesson:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+        
+        function displayLesson(lesson) {
+            // Hide passages list and lessons list, show detail view
+            document.getElementById('passagesListSection').style.display = 'none';
+            document.getElementById('lessonsListSection').style.display = 'none';
+            document.getElementById('passageDetailSection').style.display = 'block';
+            
+            // Clear attempt history button
+            document.getElementById('attemptHistoryButtonContainer').innerHTML = '';
+            
+            // Render lesson content from chunks
+            let contentHTML = `<h2 style="color: #3498DB; margin-bottom: 15px;">${escapeHtml(lesson.title)}</h2>`;
+            contentHTML += '<div class="lesson-content" style="max-width: 800px; margin: 0 auto;">';
+            
+            lesson.chunks.forEach((chunk, chunkIdx) => {
+                const chunkType = chunk.type;
+                
+                if (chunkType === 'header') {
+                    const level = chunk.level || 1;
+                    const text = chunk.text || '';
+                    const tag = `h${Math.min(level + 1, 6)}`;
+                    contentHTML += `<${tag} style="color: #3498DB; margin-top: 20px; margin-bottom: 10px;">${escapeHtml(text)}</${tag}>`;
+                } else if (chunkType === 'paragraph') {
+                    contentHTML += `<p style="margin-bottom: 15px; line-height: 1.6; color: #000;">${escapeHtml(chunk.text || '')}</p>`;
+                } else if (chunkType === 'example') {
+                    contentHTML += `<div style="background: #f0f8ff; border-left: 4px solid #3498DB; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">${escapeHtml(chunk.text || '')}</div>`;
+                } else if (chunkType === 'example_correct') {
+                    contentHTML += `<div style="background: #f0fff0; border-left: 4px solid #28a745; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✓ ${escapeHtml(chunk.text || '')}</div>`;
+                } else if (chunkType === 'example_incorrect') {
+                    contentHTML += `<div style="background: #fff0f0; border-left: 4px solid #dc3545; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✗ ${escapeHtml(chunk.text || '')}</div>`;
+                } else if (chunkType === 'rule') {
+                    contentHTML += `<div style="background: #fff9e6; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; font-weight: bold; color: #000;">Rule: ${escapeHtml(chunk.text || '')}</div>`;
+                } else if (chunkType === 'definition') {
+                    contentHTML += `<div style="margin: 15px 0;"><strong style="color: #3498DB;">${escapeHtml(chunk.term || '')}:</strong> <span style="color: #000;">${escapeHtml(chunk.text || '')}</span></div>`;
+                } else if (chunkType === 'list' || chunkType === 'bullet_list') {
+                    const items = chunk.items || [];
+                    const listType = chunkType === 'bullet_list' ? 'ul' : 'ol';
+                    contentHTML += `<${listType} style="margin: 15px 0; padding-left: 30px; color: #000;">`;
+                    items.forEach(item => {
+                        contentHTML += `<li style="margin-bottom: 8px;">${escapeHtml(item)}</li>`;
+                    });
+                    contentHTML += `</${listType}>`;
+                } else if (chunkType === 'question') {
+                    // Render question directly from chunk (questions are embedded in chunks)
+                    contentHTML += `<div class="question-card" style="margin: 20px 0; padding: 15px; border: 2px solid #3498DB; border-radius: 8px; background: #f9f9f9;">`;
+                    contentHTML += `<h4 style="color: #000; margin-bottom: 10px;">${escapeHtml(chunk.prompt || '')}</h4>`;
+                    contentHTML += `<div class="options-container">`;
+                    (chunk.choices || []).forEach((choice, idx) => {
+                        contentHTML += `
+                            <div class="option" style="margin-bottom: 8px;">
+                                <label style="color: #000; cursor: pointer; display: block; padding: 8px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='transparent'">${String.fromCharCode(65 + idx)}. ${escapeHtml(choice)}</label>
+                            </div>
+                        `;
+                    });
+                    contentHTML += `</div>`;
+                    contentHTML += `</div>`;
+                } else if (chunkType === 'note') {
+                    contentHTML += `<div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 10px 15px; margin: 15px 0; color: #000;">📝 Note: ${escapeHtml(chunk.text || '')}</div>`;
+                } else if (chunkType === 'warning') {
+                    contentHTML += `<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; color: #000;">⚠️ Warning: ${escapeHtml(chunk.text || '')}</div>`;
+                } else if (chunkType === 'summary') {
+                    contentHTML += `<div style="background: #f0f0f0; border: 2px solid #666; padding: 15px; margin: 20px 0; border-radius: 8px; color: #000;"><strong>Summary:</strong> ${escapeHtml(chunk.text || '')}</div>`;
+                }
+            });
+            
+            contentHTML += '</div>';
+            
+            document.getElementById('passageContent').innerHTML = contentHTML;
+            
+            // Hide questions container and submit section for lessons (questions are inline)
+            document.getElementById('questionsContainer').innerHTML = '';
+            document.getElementById('submitSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+        }
         
         async function openPassage(passageId) {
             try {
@@ -1466,8 +1623,9 @@
         }
         
         async function displayPassage(passage, questions) {
-            // Hide passages list, show passage detail
+            // Hide passages list and lessons list, show passage detail
             document.getElementById('passagesListSection').style.display = 'none';
+            document.getElementById('lessonsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Show attempt history button if user is logged in
@@ -1817,9 +1975,12 @@
         
         function backToPassagesList() {
             document.getElementById('passagesListSection').style.display = 'block';
+            document.getElementById('lessonsListSection').style.display = 'block';
             document.getElementById('passageDetailSection').style.display = 'none';
             currentPassageId = null;
             currentPassageData = null;
+            currentLessonId = null;
+            currentLessonData = null;
             userAnswers = {};
             lastAttemptData = null;
         }
