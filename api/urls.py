@@ -4,7 +4,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     PassageViewSet, QuestionViewSet, ProgressView,
     PassageProgressView, StartSessionView, SubmitPassageView,
-    ReviewPassageView, AnswerView, AdminPassageView, WordOfTheDayView
+    ReviewPassageView, AnswerView, AdminPassageView, WordOfTheDayView,
+    PassageAttemptsView
 )
 from .auth_views import register, login, me
 from .stripe_views import (
@@ -26,6 +27,7 @@ urlpatterns = [
     path('progress/passages/<str:passage_id>/start', StartSessionView.as_view(), name='progress-start'),
     path('progress/passages/<str:passage_id>/submit', SubmitPassageView.as_view(), name='progress-submit'),
     path('progress/passages/<str:passage_id>/review', ReviewPassageView.as_view(), name='progress-review'),
+    path('progress/passages/<str:passage_id>/attempts', PassageAttemptsView.as_view(), name='progress-attempts'),
     
     # Answers endpoints
     path('answers', AnswerView.as_view(), name='answers'),

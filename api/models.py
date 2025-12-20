@@ -227,10 +227,38 @@ class UserProgress(models.Model):
             models.Index(fields=['user']),
             models.Index(fields=['passage']),
         ]
-        unique_together = [['user', 'passage']]
+        # Removed unique_together to allow multiple attempts
     
     def __str__(self):
         return f"{self.user.email if self.user else 'Anonymous'} - {self.passage.title}"
+
+
+class PassageAttempt(models.Model):
+    """Store individual attempts at passages with full answer details"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='passage_attempts', null=True, blank=True)
+    passage = models.ForeignKey(Passage, on_delete=models.CASCADE, related_name='attempts')
+    score = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)])
+    correct_count = models.IntegerField()
+    total_questions = models.IntegerField()
+    time_spent_seconds = models.IntegerField(null=True, blank=True)
+    completed_at = models.DateTimeField(auto_now_add=True)
+    # Store answers as JSON for full history
+    answers_data = models.JSONField(default=list)  # List of {question_id, selected_option_index, is_correct, etc.}
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'passage_attempts'
+        indexes = [
+            models.Index(fields=['user', 'passage']),
+            models.Index(fields=['user']),
+            models.Index(fields=['passage']),
+            models.Index(fields=['completed_at']),
+        ]
+        ordering = ['-completed_at']
+    
+    def __str__(self):
+        return f"{self.user.email if self.user else 'Anonymous'} - {self.passage.title} - {self.score}% ({self.completed_at})"
 
 
 class UserAnswer(models.Model):
@@ -249,8 +277,9 @@ class UserAnswer(models.Model):
             models.Index(fields=['user', 'question']),
             models.Index(fields=['user']),
             models.Index(fields=['question']),
+            models.Index(fields=['answered_at']),
         ]
-        unique_together = [['user', 'question']]
+        # Removed unique_together to allow multiple attempts per question
     
     def __str__(self):
         return f"{self.user.email if self.user else 'Anonymous'} - {self.question}"

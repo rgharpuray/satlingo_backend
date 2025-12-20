@@ -49,14 +49,58 @@ class PassageAnnotationSerializer(serializers.ModelSerializer):
 
 class PassageListSerializer(serializers.ModelSerializer):
     question_count = serializers.SerializerMethodField()
+    attempt_count = serializers.SerializerMethodField()
+    attempt_summary = serializers.SerializerMethodField()
     
     class Meta:
         model = Passage
-        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'question_count', 
+        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'question_count', 'attempt_count', 'attempt_summary',
                  'created_at', 'updated_at']
     
     def get_question_count(self, obj):
         return obj.questions.count()
+    
+    def get_attempt_count(self, obj):
+        """Get number of attempts for the current user"""
+        request = self.context.get('request')
+        if request:
+            # Use the same method as views to get user (supports JWT)
+            from .views import get_user_from_request
+            user = get_user_from_request(request)
+            if user:
+                from .models import PassageAttempt
+                return PassageAttempt.objects.filter(user=user, passage=obj).count()
+        return 0
+    
+    def get_attempt_summary(self, obj):
+        """Get summary of attempts (best score, latest score, recent attempts)"""
+        request = self.context.get('request')
+        if request:
+            # Use the same method as views to get user (supports JWT)
+            from .views import get_user_from_request
+            user = get_user_from_request(request)
+            if user:
+                from .models import PassageAttempt
+                attempts = PassageAttempt.objects.filter(user=user, passage=obj).order_by('-completed_at')
+                count = attempts.count()
+                
+                if count == 0:
+                    return None
+                
+                # Get best and latest scores
+                best_attempt = attempts.order_by('-score').first()
+                latest_attempt = attempts.first()
+                
+                # Get recent attempts (last 3)
+                recent_attempts = list(attempts[:3].values('id', 'score', 'correct_count', 'total_questions', 'completed_at'))
+                
+                return {
+                    'total_attempts': count,
+                    'best_score': best_attempt.score if best_attempt else None,
+                    'latest_score': latest_attempt.score if latest_attempt else None,
+                    'recent_attempts': recent_attempts
+                }
+        return None
 
 
 class PassageDetailSerializer(serializers.ModelSerializer):
@@ -150,6 +194,7 @@ class SubmitPassageResponseSerializer(serializers.Serializer):
     is_completed = serializers.BooleanField()
     answers = AnswerResultSerializer(many=True)
     completed_at = serializers.DateTimeField()
+    attempt_id = serializers.UUIDField(allow_null=True)  # ID of the attempt record
 
 
 class ReviewAnnotationSerializer(serializers.Serializer):
@@ -178,6 +223,18 @@ class ReviewResponseSerializer(serializers.Serializer):
     correct_count = serializers.IntegerField()
     total_questions = serializers.IntegerField()
     answers = ReviewAnswerSerializer(many=True)
+
+
+class PassageAttemptSerializer(serializers.Serializer):
+    """Serializer for passage attempt history"""
+    id = serializers.UUIDField()
+    passage_id = serializers.UUIDField()
+    score = serializers.IntegerField()
+    correct_count = serializers.IntegerField()
+    total_questions = serializers.IntegerField()
+    time_spent_seconds = serializers.IntegerField(allow_null=True)
+    completed_at = serializers.DateTimeField()
+    answers = AnswerResultSerializer(many=True)
 
 
 # Admin serializers

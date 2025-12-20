@@ -13,7 +13,7 @@ from django.conf import settings
 
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
-    UserProgress, UserAnswer, WordOfTheDay
+    UserProgress, UserAnswer, WordOfTheDay, PassageAttempt
 )
 from .serializers import (
     PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
@@ -38,6 +38,12 @@ class PassageViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == 'retrieve':
             return PassageDetailSerializer
         return PassageListSerializer
+    
+    def get_serializer_context(self):
+        """Add request to serializer context for attempt_count"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
     
     def retrieve(self, request, *args, **kwargs):
         """Get passage detail with premium check"""
@@ -177,10 +183,9 @@ class QuestionViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 def get_user_from_request(request):
-    """Helper function to get user from request (for now, support anonymous users)"""
-    # TODO: Implement authentication
-    # For now, return None for anonymous users
-    if request.user.is_authenticated:
+    """Helper function to get user from request (supports JWT authentication)"""
+    # Check if user is authenticated via JWT or session
+    if hasattr(request, 'user') and request.user.is_authenticated:
         return request.user
     return None
 
@@ -333,15 +338,13 @@ class SubmitPassageView(APIView):
             if is_correct:
                 correct_count += 1
             
-            # Save user answer
+            # Save user answer (create new record for each attempt)
             if user:
-                user_answer, _ = UserAnswer.objects.update_or_create(
+                UserAnswer.objects.create(
                     user=user,
                     question=question,
-                    defaults={
-                        'selected_option_index': selected_index,
-                        'is_correct': is_correct,
-                    }
+                    selected_option_index=selected_index,
+                    is_correct=is_correct,
                 )
             
             # Get annotations for this question (now that user has answered)
@@ -363,14 +366,27 @@ class SubmitPassageView(APIView):
         # Calculate score
         score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
         
-        # Update or create user progress
+        # Create a new attempt record (for logged-in users only)
+        attempt = None
         if user:
+            from .models import PassageAttempt
+            attempt = PassageAttempt.objects.create(
+                user=user,
+                passage=passage,
+                score=score,
+                correct_count=correct_count,
+                total_questions=total_questions,
+                time_spent_seconds=time_spent,
+                answers_data=answer_results,
+            )
+            
+            # Also update UserProgress to track latest (for backward compatibility)
             UserProgress.objects.update_or_create(
                 user=user,
                 passage=passage,
                 defaults={
                     'is_completed': True,
-                    'score': score,
+                    'score': score,  # Store latest score
                     'time_spent_seconds': time_spent,
                     'completed_at': timezone.now(),
                 }
@@ -384,6 +400,7 @@ class SubmitPassageView(APIView):
             'is_completed': True,
             'answers': answer_results,
             'completed_at': timezone.now().isoformat(),
+            'attempt_id': str(attempt.id) if attempt else None,  # Include attempt ID
         }
         
         serializer = SubmitPassageResponseSerializer(response_data)
@@ -668,6 +685,61 @@ class AdminPassageView(APIView):
         passage = get_object_or_404(Passage, id=passage_uuid)
         passage.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PassageAttemptsView(APIView):
+    """
+    View for getting past attempts for a passage.
+    GET /progress/passages/:passage_id/attempts - Get all attempts for a passage
+    """
+    
+    def get(self, request, passage_id):
+        """GET /progress/passages/:passage_id/attempts"""
+        user = get_user_from_request(request)
+        
+        # Fallback: check request.user directly if get_user_from_request didn't work
+        if not user and hasattr(request, 'user') and request.user.is_authenticated:
+            user = request.user
+        
+        if not user:
+            return Response(
+                {'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required. Please log in.'}},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Convert string to UUID
+        try:
+            passage_uuid = uuid.UUID(str(passage_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid passage ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        passage = get_object_or_404(Passage, id=passage_uuid)
+        
+        # Get all attempts for this user and passage
+        attempts = PassageAttempt.objects.filter(
+            user=user,
+            passage=passage
+        ).order_by('-completed_at')
+        
+        from .serializers import PassageAttemptSerializer
+        # Convert attempts to serializer format
+        attempts_data = []
+        for attempt in attempts:
+            attempts_data.append({
+                'id': attempt.id,
+                'passage_id': str(attempt.passage.id),
+                'score': attempt.score,
+                'correct_count': attempt.correct_count,
+                'total_questions': attempt.total_questions,
+                'time_spent_seconds': attempt.time_spent_seconds,
+                'completed_at': attempt.completed_at,
+                'answers': attempt.answers_data or [],
+            })
+        serializer = PassageAttemptSerializer(attempts_data, many=True)
+        return Response(serializer.data)
 
 
 class WordOfTheDayView(APIView):
