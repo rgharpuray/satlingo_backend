@@ -284,10 +284,19 @@ def create_passage_from_parsed_data(parsed_data):
     """Create Passage, Questions, and Options from parsed data"""
     from .models import Passage, Question, QuestionOption
     
+    # Normalize content: convert literal \n strings to actual newlines
+    content = parsed_data['content']
+    if isinstance(content, str):
+        # Handle cases where AI might return literal \n strings
+        # First handle double backslash (\\n -> \n)
+        content = content.replace('\\\\n', '\n')
+        # Then handle single backslash (\n -> newline)
+        content = content.replace('\\n', '\n')
+    
     # Create passage
     passage = Passage.objects.create(
         title=parsed_data['title'],
-        content=parsed_data['content'],
+        content=content,
         difficulty=parsed_data.get('difficulty', 'Medium')
     )
     

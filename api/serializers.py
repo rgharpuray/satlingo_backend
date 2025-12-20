@@ -175,6 +175,8 @@ class ReviewAnswerSerializer(serializers.Serializer):
 class ReviewResponseSerializer(serializers.Serializer):
     passage_id = serializers.UUIDField()
     score = serializers.IntegerField(allow_null=True)
+    correct_count = serializers.IntegerField()
+    total_questions = serializers.IntegerField()
     answers = ReviewAnswerSerializer(many=True)
 
 

@@ -105,9 +105,54 @@ class QuestionInline(nested_admin.NestedStackedInline):
     ordering = ('order',)
 
 
+class PassageAdminForm(forms.ModelForm):
+    """Custom form for Passage admin to properly display line breaks"""
+    content = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'rows': 30,
+            'cols': 100,
+            'style': 'font-family: monospace; white-space: pre-wrap; font-size: 13px; line-height: 1.5;',
+            'wrap': 'off'
+        }),
+        help_text='Line breaks will be preserved. Use double line breaks (blank lines) for paragraph separation.'
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Convert literal \n strings to actual newlines when displaying
+        if self.instance and self.instance.pk and self.instance.content:
+            # Replace literal \n (escaped) with actual newlines
+            content = self.instance.content
+            # Handle both \\n (double escaped) and \n (single escaped) cases
+            # Check if content has literal \n strings that need conversion
+            if '\\n' in content:
+                # Convert literal \n to actual newlines
+                # First handle double backslash (\\n -> \n)
+                content = content.replace('\\\\n', '\n')
+                # Then handle single backslash (\n -> newline)
+                content = content.replace('\\n', '\n')
+                self.initial['content'] = content
+    
+    def clean_content(self):
+        """Ensure content has actual newlines, not literal \n strings"""
+        content = self.cleaned_data.get('content', '')
+        if content:
+            # Convert any remaining literal \n strings to actual newlines
+            # This handles cases where user might paste content with literal \n
+            content = content.replace('\\n', '\n')
+            # Handle double backslash case
+            content = content.replace('\\\\n', '\n')
+        return content
+    
+    class Meta:
+        model = Passage
+        fields = '__all__'
+
+
 @admin.register(Passage)
 class PassageAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for passages with inline questions, options, and annotations"""
+    form = PassageAdminForm
     list_display = ['title', 'difficulty', 'tier', 'question_count', 'annotation_count', 'created_at', 'preview_link']
     list_filter = ['difficulty', 'tier', 'created_at']
     search_fields = ['title', 'content']

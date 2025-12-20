@@ -457,9 +457,16 @@ class ReviewPassageView(APIView):
         else:
             annotations_by_question = {}
         
+        correct_count = 0
+        total_questions = questions.count()
+        
         for question in questions:
             user_answer = user_answers.get(str(question.id))
             options = [opt.text for opt in question.options.all().order_by('order')]
+            
+            # Count correct answers
+            if user_answer and user_answer.is_correct:
+                correct_count += 1
             
             # Include annotations for this question if user has answered it
             question_annotations = annotations_by_question.get(str(question.id), [])
@@ -478,6 +485,8 @@ class ReviewPassageView(APIView):
         response_data = {
             'passage_id': str(passage.id),
             'score': score,
+            'correct_count': correct_count,
+            'total_questions': total_questions,
             'answers': review_answers,
         }
         

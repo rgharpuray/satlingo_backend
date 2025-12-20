@@ -206,12 +206,84 @@
             white-space: pre-wrap;
         }
         
+        .passage-content-sat {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+            font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #000;
+        }
+        
+        .passage-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            column-gap: 40px;
+        }
+        
+        .passage-column {
+            width: 100%;
+        }
+        
+        .passage-line {
+            font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
+            font-size: 15px;
+            line-height: 1.5;
+            white-space: pre;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .passage-line-numbered {
+            display: flex;
+            align-items: flex-start;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .line-number {
+            color: #666;
+            font-size: 11px;
+            font-weight: bold;
+            margin-right: 8px;
+            min-width: 25px;
+            text-align: right;
+            padding-top: 2px;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
+        }
+        
+        .line-text {
+            flex: 1;
+            font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
+            font-size: 15px;
+            line-height: 1.5;
+            white-space: pre;
+        }
+        
+        .questions-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 1024px) {
+            .passage-columns,
+            .questions-columns {
+                grid-template-columns: 1fr;
+            }
+        }
+        
         .question-card {
             border: 1px solid #d0d0d0;
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
             background: #ffffff;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .question-card h4 {
@@ -219,6 +291,11 @@
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 15px;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
+        }
+        
+        .question-card p {
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .option {
@@ -231,6 +308,7 @@
             cursor: pointer;
             transition: all 0.2s ease;
             background: #ffffff;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .option:hover {
@@ -263,6 +341,7 @@
             flex: 1;
             color: #000;
             font-size: 15px;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .explanation {
@@ -274,6 +353,7 @@
             color: #000;
             font-size: 14px;
             line-height: 1.6;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .results-summary {
@@ -282,6 +362,7 @@
             padding: 20px;
             margin-bottom: 20px;
             border: 1px solid #e0e0e0;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .results-summary h3 {
@@ -289,6 +370,7 @@
             font-size: 20px;
             font-weight: 600;
             margin-bottom: 15px;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .score {
@@ -296,6 +378,7 @@
             font-weight: 700;
             color: #3498DB;
             margin: 10px 0;
+            font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .modal {
@@ -1198,25 +1281,150 @@
             }
         }
         
+        function formatPassageForSAT(content) {
+            // First, normalize content: convert literal \n strings to actual newlines
+            if (typeof content === 'string') {
+                // Handle literal \n strings (both \\n and \n)
+                content = content.replace(/\\\\n/g, '\n');
+                content = content.replace(/\\n/g, '\n');
+            }
+            
+            // Split content into paragraphs (double newlines separate paragraphs)
+            // Preserve original line breaks but wrap to 50 characters
+            const allLines = [];
+            const paragraphs = content.split(/\n\n+/);
+            
+            paragraphs.forEach((paragraph, paraIndex) => {
+                // Split paragraph by single newlines to preserve line breaks
+                const originalLines = paragraph.split(/\n/);
+                
+                originalLines.forEach(originalLine => {
+                    const trimmed = originalLine.trim();
+                    
+                    if (!trimmed) {
+                        // Empty line - preserve it as blank line
+                        allLines.push('');
+                        return;
+                    }
+                    
+                    // Wrap this line to 50 characters
+                    const words = trimmed.split(/\s+/);
+                    let currentLine = '';
+                    
+                    words.forEach(word => {
+                        const testLine = currentLine ? currentLine + ' ' + word : word;
+                        if (testLine.length <= 50) {
+                            currentLine = testLine;
+                        } else {
+                            // Save current line and start new one
+                            if (currentLine) {
+                                allLines.push(currentLine);
+                            }
+                            // If word itself is longer than 50 chars, split it
+                            if (word.length > 50) {
+                                let remaining = word;
+                                while (remaining.length > 50) {
+                                    allLines.push(remaining.substring(0, 50));
+                                    remaining = remaining.substring(50);
+                                }
+                                currentLine = remaining;
+                            } else {
+                                currentLine = word;
+                            }
+                        }
+                    });
+                    
+                    // Add remaining line
+                    if (currentLine) {
+                        allLines.push(currentLine);
+                    }
+                });
+                
+                // Add blank line between paragraphs (but not after last paragraph)
+                if (paraIndex < paragraphs.length - 1) {
+                    allLines.push('');
+                }
+            });
+            
+            // Calculate line numbers: skip blank lines in numbering
+            let lineNumber = 0; // This counts only non-blank lines
+            const linesWithNumbers = allLines.map(line => {
+                const isBlank = !line || line.trim() === '';
+                if (!isBlank) {
+                    lineNumber++;
+                }
+                return {
+                    text: line,
+                    isBlank: isBlank,
+                    lineNumber: isBlank ? null : lineNumber
+                };
+            });
+            
+            // Format lines with line numbers every 5 lines (5, 10, 15, 20, etc.)
+            // But only show numbers on non-blank lines
+            let formattedHTML = '<div class="passage-columns">';
+            const linesPerColumn = Math.ceil(linesWithNumbers.length / 2);
+            
+            // Create two columns
+            for (let col = 0; col < 2; col++) {
+                formattedHTML += '<div class="passage-column">';
+                const startLine = col * linesPerColumn;
+                const endLine = Math.min(startLine + linesPerColumn, linesWithNumbers.length);
+                
+                for (let i = startLine; i < endLine; i++) {
+                    const lineData = linesWithNumbers[i];
+                    const line = lineData.text;
+                    const lineNum = lineData.lineNumber;
+                    
+                    // Show line number every 5 lines (5, 10, 15, 20, etc.) but only on non-blank lines
+                    const shouldShowNumber = lineNum !== null && lineNum % 5 === 0;
+                    
+                    if (shouldShowNumber) {
+                        formattedHTML += `<div class="passage-line-numbered">`;
+                        formattedHTML += `<span class="line-number">${lineNum}</span>`;
+                        formattedHTML += `<span class="line-text">${escapeHtml(line || ' ')}</span>`;
+                        formattedHTML += `</div>`;
+                    } else {
+                        // Still use numbered format for alignment, but with empty number
+                        formattedHTML += `<div class="passage-line-numbered">`;
+                        formattedHTML += `<span class="line-number"></span>`;
+                        formattedHTML += `<span class="line-text">${escapeHtml(line || ' ')}</span>`;
+                        formattedHTML += `</div>`;
+                    }
+                }
+                
+                formattedHTML += '</div>';
+            }
+            
+            formattedHTML += '</div>';
+            return formattedHTML;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         function displayPassage(passage, questions) {
             // Hide passages list, show passage detail
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
-            // Display passage content - preserve paragraph breaks
-            // Convert \n\n to double line breaks and \n to single line breaks
-            const formattedContent = passage.content
-                .replace(/\n\n/g, '<br><br>')
-                .replace(/\n/g, '<br>');
+            // Format passage in SAT style (50 chars per line, two columns, line numbers every 5)
+            const formattedContent = formatPassageForSAT(passage.content);
             
             document.getElementById('passageContent').innerHTML = `
                 <h2 style="color: #3498DB; margin-bottom: 15px;">${passage.title}</h2>
-                <div class="passage-content">${formattedContent}</div>
+                <div class="passage-content-sat">${formattedContent}</div>
             `;
             
-            // Display questions
+            // Display questions in two columns
             const questionsContainer = document.getElementById('questionsContainer');
-            questionsContainer.innerHTML = '';
+            questionsContainer.innerHTML = '<div class="questions-columns"><div class="question-column-left"></div><div class="question-column-right"></div></div>';
+            
+            const leftColumn = questionsContainer.querySelector('.question-column-left');
+            const rightColumn = questionsContainer.querySelector('.question-column-right');
             
             // Debug: log questions to see what we're getting
             console.log('Questions received:', questions.questions);
@@ -1240,7 +1448,13 @@
                         `).join('') : '<p style="color: red;">No options available for this question</p>'}
                     </div>
                 `;
-                questionsContainer.appendChild(questionCard);
+                
+                // Alternate between left and right columns
+                if (index % 2 === 0) {
+                    leftColumn.appendChild(questionCard);
+                } else {
+                    rightColumn.appendChild(questionCard);
+                }
             });
             
             // Show submit button, hide results
@@ -1299,17 +1513,32 @@
                     return;
                 }
                 
-                // Get review data
+                // Get submit response data (includes correct_count and total_questions)
+                const submitData = await submitResponse.json();
+                
+                // Get review data for detailed answer breakdown
                 const reviewResponse = await fetch(`${API_BASE}/progress/passages/${currentPassageId}/review`, {
                     headers: authToken ? {'Authorization': `Bearer ${authToken}`} : {}
                 });
                 
                 if (reviewResponse.ok) {
                     const reviewData = await reviewResponse.json();
+                    // Use correct_count and total_questions from submit response (more reliable)
+                    reviewData.correct_count = submitData.correct_count || reviewData.correct_count || 0;
+                    reviewData.total_questions = submitData.total_questions || reviewData.total_questions || currentPassageData.questions.length;
                     displayResults(reviewData);
                 } else {
-                    // Fallback: show results from passage detail (includes correct answers)
-                    displayResultsFromPassage(currentPassageData);
+                    // Fallback: use submit response data directly
+                    if (submitData.correct_count !== undefined && submitData.total_questions !== undefined) {
+                        displayResults({
+                            correct_count: submitData.correct_count,
+                            total_questions: submitData.total_questions,
+                            answers: submitData.answers || []
+                        });
+                    } else {
+                        // Final fallback: show results from passage detail (includes correct answers)
+                        displayResultsFromPassage(currentPassageData);
+                    }
                 }
                 
             } catch (error) {
