@@ -10,13 +10,15 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
     parse_passage_with_ai, create_passage_from_parsed_data, process_ingestion
 )
 from .lesson_ingestion_utils import process_lesson_ingestion
+from .writing_ingestion_utils import process_writing_ingestion
+from .writing_gpt_utils import convert_document_to_writing_json
 
 
 class MultipleFileInput(forms.Widget):
@@ -1092,6 +1094,316 @@ class LessonQuestionOptionAdmin(admin.ModelAdmin):
     """Admin interface for lesson question options"""
     list_display = ['text_short', 'question', 'order']
     list_filter = ['question__lesson', 'created_at']
+    search_fields = ['text', 'question__text']
+    
+    def text_short(self, obj):
+        return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
+    text_short.short_description = 'Option'
+
+
+# Writing Section Admin
+class WritingSectionIngestionForm(forms.ModelForm):
+    """Custom form for writing section file upload - supports JSON or documents with GPT conversion"""
+    file = forms.FileField(
+        required=True,
+        help_text="Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT.",
+        widget=forms.FileInput(attrs={'accept': '.json,.pdf,.docx,.doc,.txt,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'})
+    )
+    use_gpt_conversion = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Check this to convert document to JSON using GPT (auto-detected for non-JSON files)"
+    )
+    
+    class Meta:
+        model = WritingSectionIngestion
+        fields = ['file', 'use_gpt_conversion']
+    
+    def clean_file(self):
+        """Validate uploaded file"""
+        data = self.cleaned_data.get('file')
+        if data:
+            file_ext = os.path.splitext(data.name)[1].lower()
+            
+            # If it's a JSON file, validate it
+            if file_ext == '.json':
+                try:
+                    data.seek(0)
+                    json.loads(data.read().decode('utf-8'))
+                    data.seek(0)  # Reset for later use
+                except json.JSONDecodeError as e:
+                    raise forms.ValidationError(f'Invalid JSON file: {str(e)}')
+                except UnicodeDecodeError:
+                    raise forms.ValidationError('File must be valid UTF-8 encoded JSON')
+            # For other file types, we'll handle them in save_model
+            elif file_ext not in ['.pdf', '.docx', '.doc', '.txt']:
+                raise forms.ValidationError('File must be JSON (.json), PDF (.pdf), DOCX (.docx), or TXT (.txt)')
+        
+        return data
+
+
+@admin.register(WritingSectionIngestion)
+class WritingSectionIngestionAdmin(admin.ModelAdmin):
+    """Admin interface for writing section ingestion"""
+    form = WritingSectionIngestionForm
+    list_display = ['file_name', 'status', 'created_writing_section_link', 'created_at', 'process_action']
+    list_filter = ['status', 'created_at']
+    search_fields = ['file_name', 'error_message']
+    readonly_fields = ['id', 'file_name', 'file_path', 'status', 'parsed_data_preview', 'error_message', 'created_writing_section_link', 'created_at', 'updated_at']
+    actions = ['process_selected']
+    
+    fieldsets = (
+        ('File Upload', {
+            'fields': ('file', 'use_gpt_conversion'),
+            'description': 'Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT. Check "Use GPT conversion" to force GPT conversion even for JSON files.'
+        }),
+        ('Processing Status', {
+            'fields': ('id', 'status', 'file_path', 'error_message')
+        }),
+        ('Results', {
+            'fields': ('parsed_data_preview', 'created_writing_section_link'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def parsed_data_preview(self, obj):
+        """Display preview of parsed JSON data"""
+        if obj.parsed_data:
+            preview = json.dumps(obj.parsed_data, indent=2)[:1000] + '...' if len(json.dumps(obj.parsed_data)) > 1000 else json.dumps(obj.parsed_data, indent=2)
+            return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        return '-'
+    parsed_data_preview.short_description = 'Parsed Data Preview'
+    
+    def created_writing_section_link(self, obj):
+        """Link to created writing section"""
+        if obj.created_writing_section:
+            url = reverse('admin:api_writingsection_change', args=[obj.created_writing_section.pk])
+            return format_html('<a href="{}">{}</a>', url, obj.created_writing_section.title)
+        return '-'
+    created_writing_section_link.short_description = 'Created Writing Section'
+    
+    def process_action(self, obj):
+        """Display process button for each row"""
+        if obj.status in ['pending', 'failed'] or (obj.status == 'processing' and not obj.created_writing_section):
+            url = reverse('admin:api_writingsectioningestion_process', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 5px 10px; background: #417690; color: white; text-decoration: none; border-radius: 3px;">Process Now</a>',
+                url
+            )
+        return '-'
+    process_action.short_description = 'Actions'
+    process_action.allow_tags = True
+    
+    def process_selected(self, request, queryset):
+        """Admin action to process selected ingestions"""
+        processed = 0
+        for ingestion in queryset:
+            if ingestion.status in ['pending', 'failed'] or (ingestion.status == 'processing' and not ingestion.created_writing_section):
+                try:
+                    process_writing_ingestion(ingestion)
+                    processed += 1
+                except Exception as e:
+                    self.message_user(request, f'Error processing {ingestion.file_name}: {str(e)}', level='ERROR')
+        
+        if processed > 0:
+            self.message_user(request, f'Successfully processed {processed} ingestion(s).', level='SUCCESS')
+        else:
+            self.message_user(request, 'No ingestions to process. Only pending or failed ingestions can be processed.', level='WARNING')
+    process_selected.short_description = 'Process selected writing section ingestions'
+    
+    def get_urls(self):
+        """Add custom URL for processing"""
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<uuid:ingestion_id>/process/',
+                self.admin_site.admin_view(self.process_ingestion_view),
+                name='api_writingsectioningestion_process',
+            ),
+        ]
+        return custom_urls + urls
+    
+    def process_ingestion_view(self, request, ingestion_id):
+        """Custom view to process a single ingestion"""
+        from django.shortcuts import get_object_or_404, redirect
+        from django.contrib import messages
+        
+        ingestion = get_object_or_404(WritingSectionIngestion, pk=ingestion_id)
+        
+        if ingestion.status not in ['pending', 'failed'] and (ingestion.status != 'processing' or ingestion.created_writing_section):
+            messages.warning(request, 'This ingestion has already been processed.')
+            return redirect('admin:api_writingsectioningestion_changelist')
+        
+        try:
+            process_writing_ingestion(ingestion)
+            messages.success(request, f'Successfully processed {ingestion.file_name}.')
+        except Exception as e:
+            messages.error(request, f'Error processing {ingestion.file_name}: {str(e)}')
+        
+        return redirect('admin:api_writingsectioningestion_changelist')
+    
+    def save_model(self, request, obj, form, change):
+        """Handle file upload and save ingestion"""
+        if not change:  # Only on create
+            uploaded_file = request.FILES.get('file')
+            use_gpt = form.cleaned_data.get('use_gpt_conversion', False)
+            
+            if uploaded_file:
+                import uuid
+                from pathlib import Path
+                
+                # Create media directory if it doesn't exist
+                media_dir = Path(settings.MEDIA_ROOT)
+                media_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Save file
+                file_ext = os.path.splitext(uploaded_file.name)[1]
+                unique_filename = f"{uuid.uuid4()}{file_ext}"
+                file_path = media_dir / unique_filename
+                
+                with open(file_path, 'wb+') as destination:
+                    for chunk in uploaded_file.chunks():
+                        destination.write(chunk)
+                
+                obj.file_name = uploaded_file.name
+                obj.file_path = str(file_path)
+                obj.file_type = file_ext[1:] if file_ext.startswith('.') else file_ext
+                
+                # Determine if we need GPT conversion
+                is_json = file_ext.lower() == '.json'
+                is_document = file_ext.lower() in ['.pdf', '.docx', '.doc', '.txt']
+                should_use_gpt = use_gpt or (is_document and not is_json)
+                
+                # Parse JSON or convert document
+                try:
+                    if is_json:
+                        # Direct JSON parsing
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                obj.parsed_data = json.load(f)
+                        except UnicodeDecodeError:
+                            # Try with error handling for non-UTF-8 files
+                            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                                obj.parsed_data = json.load(f)
+                    elif should_use_gpt and is_document:
+                        # Convert document to JSON using GPT
+                        obj.status = 'processing'
+                        obj.error_message = 'Converting document to JSON using GPT...'
+                        obj.save()  # Save first to get the ID
+                        
+                        # Convert document - this MUST succeed before processing
+                        try:
+                            writing_data = convert_document_to_writing_json(str(file_path), uploaded_file.name)
+                            obj.parsed_data = writing_data
+                            obj.error_message = f'✓ Successfully converted document to JSON using GPT.'
+                            obj.status = 'pending'  # Reset to pending so background processing can run
+                        except Exception as gpt_error:
+                            # GPT conversion failed - don't proceed to processing
+                            obj.status = 'failed'
+                            obj.error_message = f'Failed to convert document to JSON using GPT: {str(gpt_error)}'
+                            obj.save()
+                            return  # Don't start background processing
+                    else:
+                        raise ValueError(f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.')
+                except Exception as e:
+                    obj.status = 'failed'
+                    obj.error_message = f'Failed to process file: {str(e)}'
+                
+                # Save ingestion
+                obj.save()
+                
+                # Process in background - only if we have parsed_data (either from JSON or GPT conversion)
+                if obj.status != 'failed' and obj.parsed_data:
+                    def process_in_background(ingestion_id):
+                        import traceback
+                        from django.db import connection
+                        connection.close()
+                        from django import db
+                        db.connections.close_all()
+                        from .models import WritingSectionIngestion
+                        ingestion = WritingSectionIngestion.objects.get(pk=ingestion_id)
+                        try:
+                            process_writing_ingestion(ingestion)
+                        except Exception as e:
+                            ingestion.status = 'failed'
+                            ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
+                            ingestion.save()
+                    
+                    # Mark as processing
+                    WritingSectionIngestion.objects.filter(pk=obj.pk).update(status='processing')
+                    
+                    thread = threading.Thread(target=process_in_background, args=(obj.pk,))
+                    thread.daemon = True
+                    thread.start()
+
+
+@admin.register(WritingSection)
+class WritingSectionAdmin(admin.ModelAdmin):
+    """Admin interface for writing sections"""
+    list_display = ['title', 'difficulty', 'tier', 'selection_count', 'question_count', 'created_at']
+    list_filter = ['difficulty', 'tier', 'created_at']
+    search_fields = ['title', 'content']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def selection_count(self, obj):
+        """Display number of selections"""
+        if obj.pk:
+            return obj.selections.count()
+        return 0
+    selection_count.short_description = 'Selections'
+    
+    def question_count(self, obj):
+        """Display number of questions"""
+        if obj.pk:
+            return obj.questions.count()
+        return 0
+    question_count.short_description = 'Questions'
+
+
+@admin.register(WritingSectionSelection)
+class WritingSectionSelectionAdmin(admin.ModelAdmin):
+    """Admin interface for writing section selections"""
+    list_display = ['number', 'writing_section', 'selected_text_short', 'start_char', 'end_char']
+    list_filter = ['writing_section', 'created_at']
+    search_fields = ['selected_text', 'writing_section__title']
+    
+    def selected_text_short(self, obj):
+        return obj.selected_text[:50] + '...' if len(obj.selected_text) > 50 else obj.selected_text
+    selected_text_short.short_description = 'Selected Text'
+
+
+@admin.register(WritingSectionQuestion)
+class WritingSectionQuestionAdmin(nested_admin.NestedModelAdmin):
+    """Admin interface for writing section questions"""
+    list_display = ['text_short', 'writing_section', 'order', 'correct_answer_index', 'selection_number']
+    list_filter = ['writing_section', 'created_at']
+    search_fields = ['text', 'writing_section__title']
+    
+    def text_short(self, obj):
+        return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
+    text_short.short_description = 'Question'
+
+
+@admin.register(WritingSectionQuestionOption)
+class WritingSectionQuestionOptionAdmin(admin.ModelAdmin):
+    """Admin interface for writing section question options"""
+    list_display = ['text_short', 'question', 'order']
+    list_filter = ['question__writing_section', 'created_at']
     search_fields = ['text', 'question__text']
     
     def text_short(self, obj):

@@ -987,6 +987,12 @@
                         <div id="lessonsList"></div>
                     </div>
                     
+                    <!-- Writing Sections List View -->
+                    <div class="passages-section" id="writingSectionsListSection" style="margin-bottom: 40px;">
+                        <h2>Writing Sections</h2>
+                        <div id="writingSectionsList"></div>
+                    </div>
+                    
                     <!-- Passages List View -->
                     <div class="passages-section" id="passagesListSection">
                         <h2>Reading Passages</h2>
@@ -1118,9 +1124,12 @@
             // Reset to passages list view
             document.getElementById('passagesListSection').style.display = 'block';
             document.getElementById('passageDetailSection').style.display = 'none';
-            // Load lessons and passages if not already loaded
+            // Load lessons, writing sections, and passages if not already loaded
             if (document.getElementById('lessonsList').innerHTML === '') {
                 loadLessons();
+            }
+            if (document.getElementById('writingSectionsList').innerHTML === '') {
+                loadWritingSections();
             }
             if (document.getElementById('passagesList').innerHTML === '') {
                 loadPassages();
@@ -1269,6 +1278,77 @@
             }
         }
         
+        async function loadWritingSections() {
+            try {
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                const response = await fetch(`${API_BASE}/writing-sections/`, {headers});
+                const data = await response.json();
+                
+                const writingSectionsList = document.getElementById('writingSectionsList');
+                writingSectionsList.innerHTML = '';
+                
+                if (data.results && data.results.length > 0) {
+                    data.results.forEach(writingSection => {
+                        const card = document.createElement('div');
+                        card.className = `passage-card ${writingSection.tier === 'premium' ? 'premium' : ''}`;
+                        const attemptCount = writingSection.attempt_count || 0;
+                        const attemptText = attemptCount > 0 ? ` | ${attemptCount} attempt${attemptCount !== 1 ? 's' : ''}` : '';
+                        
+                        let attemptSummaryHTML = '';
+                        if (writingSection.attempt_summary && attemptCount > 0) {
+                            const summary = writingSection.attempt_summary;
+                            attemptSummaryHTML = `
+                                <div style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                        <span style="color: #666;"><strong>Best Score:</strong></span>
+                                        <span style="color: #3498DB; font-weight: bold;">${summary.best_score}%</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                        <span style="color: #666;"><strong>Latest Score:</strong></span>
+                                        <span style="color: #000; font-weight: bold;">${summary.latest_score}%</span>
+                                    </div>
+                                    ${summary.recent_attempts && summary.recent_attempts.length > 0 ? `
+                                        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
+                                            <div style="color: #666; margin-bottom: 6px; font-size: 12px;"><strong>Recent Attempts:</strong></div>
+                                            ${summary.recent_attempts.map((attempt, idx) => {
+                                                const date = new Date(attempt.completed_at);
+                                                const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                                return `
+                                                    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 4px;">
+                                                        <span>${dateStr}</span>
+                                                        <span style="font-weight: bold; color: #000;">${attempt.score}%</span>
+                                                    </div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }
+                        
+                        card.innerHTML = `
+                            <h3>${writingSection.title} ${writingSection.tier === 'premium' ? '<span class="premium-badge">PREMIUM</span>' : ''}</h3>
+                            <p>Difficulty: ${writingSection.difficulty} | Questions: ${writingSection.question_count || 0} | Selections: ${writingSection.selection_count || 0}${attemptText}</p>
+                            ${attemptSummaryHTML}
+                            ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showWritingSectionAttemptHistory('${writingSection.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
+                        `;
+                        card.onclick = () => openWritingSection(writingSection.id);
+                        writingSectionsList.appendChild(card);
+                    });
+                } else {
+                    writingSectionsList.innerHTML = '<p style="color: #666; font-style: italic;">No writing sections available yet.</p>';
+                }
+            } catch (error) {
+                console.error('Failed to load writing sections:', error);
+                const writingSectionsList = document.getElementById('writingSectionsList');
+                writingSectionsList.innerHTML = '<p style="color: #999;">Unable to load writing sections.</p>';
+            }
+        }
+        
         async function loadPassages() {
             try {
                 const headers = {};
@@ -1342,6 +1422,8 @@
         let currentPassageData = null;
         let currentLessonId = null;
         let currentLessonData = null;
+        let currentWritingSectionId = null;
+        let currentWritingSectionData = null;
         let userAnswers = {};
         
         async function openLesson(lessonId) {
@@ -1381,9 +1463,10 @@
         }
         
         function displayLesson(lesson) {
-            // Hide passages list and lessons list, show detail view
+            // Hide all list sections, show detail view
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
+            document.getElementById('writingSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Clear attempt history button
@@ -1622,10 +1705,243 @@
             return div.innerHTML;
         }
         
-        async function displayPassage(passage, questions) {
-            // Hide passages list and lessons list, show passage detail
+        function formatWritingSectionContent(content, selections) {
+            // First, normalize the content - remove all line breaks and normalize whitespace
+            // Convert literal \n strings to actual newlines if needed
+            if (typeof content === 'string') {
+                content = content.replace(/\\\\n/g, '\n');
+                content = content.replace(/\\n/g, '\n');
+            }
+            
+            // Store original for position calculations
+            const originalContent = content;
+            
+            // Normalize whitespace: convert all line breaks to spaces, collapse multiple spaces
+            // But we need to map positions from original to normalized
+            let normalizedContent = originalContent.replace(/\r\n/g, ' '); // Windows line breaks
+            normalizedContent = normalizedContent.replace(/\n/g, ' '); // Unix line breaks
+            normalizedContent = normalizedContent.replace(/\r/g, ' '); // Old Mac line breaks
+            normalizedContent = normalizedContent.replace(/\s+/g, ' '); // Collapse multiple spaces/tabs/etc to single space
+            normalizedContent = normalizedContent.trim();
+            
+            // Build a mapping from original positions to normalized positions
+            // This is complex, so instead let's rebuild selections based on normalized content
+            const sortedSelections = [...selections].sort((a, b) => a.start_char - b.start_char);
+            
+            // Recalculate selection positions in normalized content
+            const normalizedSelections = sortedSelections.map(sel => {
+                const selectedText = originalContent.substring(sel.start_char, sel.end_char).trim();
+                // Find this text in the normalized content
+                const pos = normalizedContent.indexOf(selectedText);
+                if (pos !== -1) {
+                    return {
+                        ...sel,
+                        start_char: pos,
+                        end_char: pos + selectedText.length,
+                        selected_text: selectedText
+                    };
+                }
+                // Try case-insensitive
+                const normalizedLower = normalizedContent.toLowerCase();
+                const selectedLower = selectedText.toLowerCase();
+                const posLower = normalizedLower.indexOf(selectedLower);
+                if (posLower !== -1) {
+                    const actualText = normalizedContent.substring(posLower, posLower + selectedText.length);
+                    return {
+                        ...sel,
+                        start_char: posLower,
+                        end_char: posLower + actualText.length,
+                        selected_text: actualText
+                    };
+                }
+                return sel; // Keep original if can't find
+            });
+            
+            // Now use normalized content and adjusted selections
+            content = normalizedContent;
+            
+            // Build the formatted content with selections
+            let formattedHTML = '<div class="passage-content-sat" style="line-height: 1.8; font-size: 16px; max-width: 800px;">';
+            let lastIndex = 0;
+            let htmlParts = [];
+            
+            // Process each selection and insert underlined text
+            normalizedSelections.forEach(selection => {
+                // Add text before selection
+                if (selection.start_char > lastIndex) {
+                    const beforeText = content.substring(lastIndex, selection.start_char);
+                    htmlParts.push(escapeHtml(beforeText));
+                }
+                
+                // Add underlined selection with number
+                const selectedText = content.substring(selection.start_char, selection.end_char);
+                htmlParts.push(`<span style="text-decoration: underline; font-weight: 500; color: #000; background-color: #fffacd; padding: 2px 4px;">
+                    [${selection.number}] <u>${escapeHtml(selectedText)}</u>
+                </span>`);
+                
+                lastIndex = selection.end_char;
+            });
+            
+            // Add remaining text after last selection
+            if (lastIndex < content.length) {
+                const afterText = content.substring(lastIndex);
+                htmlParts.push(escapeHtml(afterText));
+            }
+            
+            // Combine all parts
+            let fullText = htmlParts.join('');
+            
+            // Wrap in paragraph tags for natural text flow
+            formattedHTML += '<p style="margin-bottom: 12px; text-align: left; white-space: normal;">' + fullText + '</p>';
+            
+            formattedHTML += '</div>';
+            return formattedHTML;
+        }
+        
+        async function openWritingSection(writingSectionId) {
+            try {
+                currentWritingSectionId = writingSectionId;
+                currentPassageId = null; // Clear passage data
+                currentPassageData = null;
+                currentLessonId = null;
+                currentLessonData = null;
+                userAnswers = {};
+                
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                // Fetch writing section detail
+                const sectionResponse = await fetch(`${API_BASE}/writing-sections/${writingSectionId}`, {headers});
+                if (sectionResponse.status === 403) {
+                    alert('This writing section requires a premium subscription. Please upgrade to access premium content.');
+                    return;
+                }
+                
+                if (!sectionResponse.ok) {
+                    alert('Failed to load writing section. Please try again.');
+                    return;
+                }
+                
+                const sectionData = await sectionResponse.json();
+                currentWritingSectionData = sectionData;
+                
+                // Fetch questions (without answers)
+                const questionsResponse = await fetch(`${API_BASE}/writing-sections/${writingSectionId}/questions`, {headers});
+                if (!questionsResponse.ok) {
+                    alert('Failed to load questions. Please try again.');
+                    return;
+                }
+                
+                const questionsData = await questionsResponse.json();
+                
+                // Display writing section
+                displayWritingSection(sectionData, questionsData);
+                
+            } catch (error) {
+                console.error('Failed to open writing section:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+        
+        function displayWritingSection(writingSection, questions) {
+            // Hide all list sections, show detail view
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
+            document.getElementById('writingSectionsListSection').style.display = 'none';
+            document.getElementById('passageDetailSection').style.display = 'block';
+            
+            // Show attempt history button if user is logged in
+            const attemptHistoryContainer = document.getElementById('attemptHistoryButtonContainer');
+            if (authToken && writingSection.id) {
+                try {
+                    const attemptsResponse = await fetch(`${API_BASE}/progress/writing-sections/${writingSection.id}/attempts`, {
+                        headers: {'Authorization': `Bearer ${authToken}`}
+                    });
+                    if (attemptsResponse.ok) {
+                        const attempts = await attemptsResponse.json();
+                        if (attempts.length > 0) {
+                            attemptHistoryContainer.innerHTML = `
+                                <button class="btn btn-secondary" onclick="showWritingSectionAttemptHistory('${writingSection.id}')" style="font-size: 12px; padding: 6px 12px;">
+                                    📊 View Attempt History (${attempts.length})
+                                </button>
+                            `;
+                        } else {
+                            attemptHistoryContainer.innerHTML = '';
+                        }
+                    } else {
+                        attemptHistoryContainer.innerHTML = '';
+                    }
+                } catch (error) {
+                    console.error('Failed to load attempt history:', error);
+                    attemptHistoryContainer.innerHTML = '';
+                }
+            } else {
+                attemptHistoryContainer.innerHTML = '';
+            }
+            
+            // Format content with underlined selections
+            const formattedContent = formatWritingSectionContent(writingSection.content, writingSection.selections || []);
+            
+            document.getElementById('passageContent').innerHTML = `
+                <h2 style="color: #3498DB; margin-bottom: 15px;">${escapeHtml(writingSection.title)}</h2>
+                ${formattedContent}
+            `;
+            
+            // Display questions in two columns (similar to passages)
+            const questionsContainer = document.getElementById('questionsContainer');
+            questionsContainer.innerHTML = '<div class="questions-columns"><div class="question-column-left"></div><div class="question-column-right"></div></div>';
+            
+            const leftColumn = questionsContainer.querySelector('.question-column-left');
+            const rightColumn = questionsContainer.querySelector('.question-column-right');
+            
+            (questions.questions || []).forEach((question, index) => {
+                const questionNumber = question.order !== undefined ? question.order : (index + 1);
+                const questionCard = document.createElement('div');
+                questionCard.className = 'question-card';
+                
+                // Show selection number if question is linked to a selection
+                let selectionInfo = '';
+                if (question.selection_number) {
+                    selectionInfo = `<p style="color: #666; font-size: 13px; margin-bottom: 8px;">Refer to selection [${question.selection_number}]</p>`;
+                }
+                
+                questionCard.innerHTML = `
+                    <h4>Question ${questionNumber}</h4>
+                    ${selectionInfo}
+                    <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${escapeHtml(question.text)}</p>
+                    <div class="options-container">
+                        ${question.options && question.options.length > 0 ? question.options.map((option, optIndex) => `
+                            <div class="option" onclick="selectOption('${question.id}', ${optIndex})">
+                                <input type="radio" name="question_${question.id}" value="${optIndex}" id="opt_${question.id}_${optIndex}">
+                                <label class="option-label" for="opt_${question.id}_${optIndex}">
+                                    ${String.fromCharCode(65 + optIndex)}. ${escapeHtml(option.text || option)}
+                                </label>
+                            </div>
+                        `).join('') : '<p style="color: red;">No options available for this question</p>'}
+                    </div>
+                `;
+                
+                // Alternate between left and right columns
+                if (index % 2 === 0) {
+                    leftColumn.appendChild(questionCard);
+                } else {
+                    rightColumn.appendChild(questionCard);
+                }
+            });
+            
+            // For now, hide submit section for writing sections (no backend endpoint yet)
+            // Show submit section
+            document.getElementById('submitSection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+        
+        async function displayPassage(passage, questions) {
+            // Hide passages list, lessons list, and writing sections list, show passage detail
+            document.getElementById('passagesListSection').style.display = 'none';
+            document.getElementById('lessonsListSection').style.display = 'none';
+            document.getElementById('writingSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Show attempt history button if user is logged in
@@ -1719,10 +2035,18 @@
         }
         
         async function submitAnswers() {
-            if (!currentPassageId) return;
+            // Check if we're on a passage or writing section
+            if (!currentPassageId && !currentWritingSectionId) return;
+            
+            // Determine if we're on a passage or writing section
+            const isWritingSection = !!currentWritingSectionId;
+            const currentId = isWritingSection ? currentWritingSectionId : currentPassageId;
+            const currentData = isWritingSection ? currentWritingSectionData : currentPassageData;
+            
+            if (!currentId || !currentData) return;
             
             // Check if all questions are answered
-            const totalQuestions = currentPassageData.questions.length;
+            const totalQuestions = currentData.questions.length;
             if (Object.keys(userAnswers).length < totalQuestions) {
                 if (!confirm(`You have only answered ${Object.keys(userAnswers).length} out of ${totalQuestions} questions. Submit anyway?`)) {
                     return;
@@ -1743,8 +2067,12 @@
                     selected_option_index: selectedIndex
                 }));
                 
-                // Submit answers
-                const submitResponse = await fetch(`${API_BASE}/progress/passages/${currentPassageId}/submit`, {
+                // Submit answers - use appropriate endpoint
+                const submitEndpoint = isWritingSection
+                    ? `${API_BASE}/progress/writing-sections/${currentId}/submit`
+                    : `${API_BASE}/progress/passages/${currentId}/submit`;
+                
+                const submitResponse = await fetch(submitEndpoint, {
                     method: 'POST',
                     headers: headers,
                     body: JSON.stringify({
@@ -1763,7 +2091,11 @@
                 const submitData = await submitResponse.json();
                 
                 // Get review data for detailed answer breakdown
-                const reviewResponse = await fetch(`${API_BASE}/progress/passages/${currentPassageId}/review`, {
+                const reviewEndpoint = isWritingSection
+                    ? `${API_BASE}/progress/writing-sections/${currentId}/review`
+                    : `${API_BASE}/progress/passages/${currentId}/review`;
+                
+                const reviewResponse = await fetch(reviewEndpoint, {
                     headers: authToken ? {'Authorization': `Bearer ${authToken}`} : {}
                 });
                 
@@ -1771,8 +2103,8 @@
                     const reviewData = await reviewResponse.json();
                     // Use correct_count and total_questions from submit response (more reliable)
                     reviewData.correct_count = submitData.correct_count || reviewData.correct_count || 0;
-                    reviewData.total_questions = submitData.total_questions || reviewData.total_questions || currentPassageData.questions.length;
-                    displayResults(reviewData);
+                    reviewData.total_questions = submitData.total_questions || reviewData.total_questions || currentData.questions.length;
+                    displayResults(reviewData, isWritingSection);
                 } else {
                     // Fallback: use submit response data directly
                     if (submitData.correct_count !== undefined && submitData.total_questions !== undefined) {
@@ -1780,10 +2112,14 @@
                             correct_count: submitData.correct_count,
                             total_questions: submitData.total_questions,
                             answers: submitData.answers || []
-                        });
+                        }, isWritingSection);
                     } else {
-                        // Final fallback: show results from passage detail (includes correct answers)
-                        displayResultsFromPassage(currentPassageData);
+                        // Final fallback: show results from data
+                        if (isWritingSection) {
+                            displayResultsFromWritingSection(currentData);
+                        } else {
+                            displayResultsFromPassage(currentData);
+                        }
                     }
                 }
                 
@@ -1795,24 +2131,28 @@
         
         let lastAttemptData = null; // Store attempt data for anonymous users to save on registration
         
-        function displayResults(reviewData) {
+        function displayResults(reviewData, isWritingSection = false) {
             const resultsSection = document.getElementById('resultsSection');
             resultsSection.style.display = 'block';
             document.getElementById('submitSection').style.display = 'none';
             
+            const currentId = isWritingSection ? currentWritingSectionId : currentPassageId;
+            const currentData = isWritingSection ? currentWritingSectionData : currentPassageData;
+            
             const correctCount = reviewData.correct_count || 0;
-            const totalQuestions = reviewData.total_questions || currentPassageData.questions.length;
+            const totalQuestions = reviewData.total_questions || (currentData ? currentData.questions.length : 0);
             const percentage = Math.round((correctCount / totalQuestions) * 100);
             
             // Store attempt data for anonymous users (to save on registration)
             if (!authToken && reviewData.attempt_id) {
                 lastAttemptData = {
-                    passage_id: currentPassageId,
+                    [isWritingSection ? 'writing_section_id' : 'passage_id']: currentId,
                     attempt_id: reviewData.attempt_id,
                     answers: reviewData.answers || [],
                     score: reviewData.score,
                     correct_count: correctCount,
-                    total_questions: totalQuestions
+                    total_questions: totalQuestions,
+                    is_writing_section: isWritingSection
                 };
             }
             
@@ -1824,15 +2164,24 @@
             `;
             
             // Show attempt history button for logged-in users
-            // Add a small delay to ensure the attempt is saved before trying to view history
-            if (authToken && currentPassageId) {
-                resultsHTML += `
-                    <div style="margin: 20px 0; text-align: center;">
-                        <button class="btn btn-secondary" onclick="setTimeout(() => showAttemptHistory('${currentPassageId}'), 500)" style="font-size: 14px; padding: 10px 20px;">
-                            📊 View All Attempts for This Passage
-                        </button>
-                    </div>
-                `;
+            if (authToken && currentId) {
+                if (isWritingSection) {
+                    resultsHTML += `
+                        <div style="margin: 20px 0; text-align: center;">
+                            <button class="btn btn-secondary" onclick="setTimeout(() => showWritingSectionAttemptHistory('${currentId}'), 500)" style="font-size: 14px; padding: 10px 20px;">
+                                📊 View All Attempts for This Writing Section
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultsHTML += `
+                        <div style="margin: 20px 0; text-align: center;">
+                            <button class="btn btn-secondary" onclick="setTimeout(() => showAttemptHistory('${currentId}'), 500)" style="font-size: 14px; padding: 10px 20px;">
+                                📊 View All Attempts for This Passage
+                            </button>
+                        </div>
+                    `;
+                }
             }
             
             // Show registration prompt for anonymous users
@@ -1850,11 +2199,16 @@
             }
             
             // Show each question with correct/incorrect status
-            currentPassageData.questions.forEach((question, index) => {
+            const questions = currentData ? currentData.questions : [];
+            questions.forEach((question, index) => {
                 const userAnswer = userAnswers[question.id];
-                const isCorrect = userAnswer === question.correct_answer_index;
-                const userOption = question.options[userAnswer];
-                const correctOption = question.options[question.correct_answer_index];
+                const reviewAnswer = reviewData.answers && reviewData.answers.find(a => a.question_id === question.id);
+                const isCorrect = reviewAnswer ? reviewAnswer.is_correct : (userAnswer === question.correct_answer_index);
+                
+                // Get options - handle both array of strings and array of objects
+                const options = question.options || [];
+                const userOption = options[userAnswer];
+                const correctOption = options[question.correct_answer_index];
                 
                 // Use question.order if available, otherwise use index + 1
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
@@ -1864,7 +2218,7 @@
                         <h4>Question ${questionNumber} ${isCorrect ? '✓' : '✗'}</h4>
                         <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${question.text}</p>
                         <div class="options-container">
-                            ${question.options.map((option, optIndex) => {
+                            ${options.map((option, optIndex) => {
                                 let optionClass = 'option';
                                 if (optIndex === question.correct_answer_index) {
                                     optionClass += ' correct';
@@ -1887,9 +2241,9 @@
                                 `;
                             }).join('')}
                         </div>
-                        ${question.explanation ? `
+                        ${(reviewAnswer && reviewAnswer.explanation) || question.explanation ? `
                             <div class="explanation">
-                                <strong>Explanation:</strong> ${question.explanation}
+                                <strong>Explanation:</strong> ${(reviewAnswer && reviewAnswer.explanation) || question.explanation || ''}
                             </div>
                         ` : ''}
                     </div>
@@ -1976,11 +2330,14 @@
         function backToPassagesList() {
             document.getElementById('passagesListSection').style.display = 'block';
             document.getElementById('lessonsListSection').style.display = 'block';
+            document.getElementById('writingSectionsListSection').style.display = 'block';
             document.getElementById('passageDetailSection').style.display = 'none';
             currentPassageId = null;
             currentPassageData = null;
             currentLessonId = null;
             currentLessonData = null;
+            currentWritingSectionId = null;
+            currentWritingSectionData = null;
             userAnswers = {};
             lastAttemptData = null;
         }
@@ -2063,7 +2420,7 @@
                                 Score: <strong style="color: #3498DB;">${attempt.correct_count} / ${attempt.total_questions} (${percentage}%)</strong>
                             </div>
                             ${attempt.time_spent_seconds ? `<div style="color: #666; font-size: 12px;">Time: ${Math.floor(attempt.time_spent_seconds / 60)}m ${attempt.time_spent_seconds % 60}s</div>` : ''}
-                            <button class="btn btn-secondary" onclick="viewAttemptDetails('${attempt.id}', '${passageId}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px;">
+                            <button class="btn btn-secondary" onclick="viewAttemptDetails('${attempt.id}', '${passageId}', false)" style="margin-top: 10px; font-size: 12px; padding: 6px 12px;">
                                 View Details
                             </button>
                         </div>
@@ -2097,24 +2454,122 @@
             }
         }
         
-        async function viewAttemptDetails(attemptId, passageId) {
-            // Load passage and attempt data to show full details
+        async function showWritingSectionAttemptHistory(writingSectionId) {
+            if (!authToken) {
+                alert('Please log in to view your attempt history.');
+                return;
+            }
+            
             try {
-                const [passageResponse, attemptsResponse] = await Promise.all([
-                    fetch(`${API_BASE}/passages/${passageId}`, {
+                const url = `${API_BASE}/progress/writing-sections/${writingSectionId}/attempts`;
+                console.log('Fetching writing section attempt history from:', url);
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    let errorMessage = 'Please try again.';
+                    try {
+                        const errorData = await response.json();
+                        console.error('Error response:', errorData);
+                        errorMessage = errorData.error?.message || errorMessage;
+                    } catch (e) {
+                        console.error('Failed to parse error response:', e);
+                        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    }
+                    alert(`Failed to load attempt history. ${errorMessage}`);
+                    return;
+                }
+                
+                const attempts = await response.json();
+                
+                if (attempts.length === 0) {
+                    alert('No attempts found for this writing section. Try refreshing the page.');
+                    return;
+                }
+                
+                // Show attempts in a modal
+                let attemptsHTML = '<div style="max-height: 70vh; overflow-y: auto;">';
+                attemptsHTML += `<h3 style="margin-bottom: 20px; color: #3498DB;">Attempt History</h3>`;
+                
+                attempts.forEach((attempt, index) => {
+                    const date = new Date(attempt.completed_at);
+                    const dateStr = date.toLocaleString();
+                    const percentage = Math.round((attempt.correct_count / attempt.total_questions) * 100);
+                    
+                    attemptsHTML += `
+                        <div style="border: 1px solid #d0d0d0; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <strong style="color: #000;">Attempt #${attempts.length - index}</strong>
+                                <span style="color: #666; font-size: 12px;">${dateStr}</span>
+                            </div>
+                            <div style="color: #000; margin-bottom: 8px;">
+                                Score: <strong style="color: #3498DB;">${attempt.correct_count} / ${attempt.total_questions} (${percentage}%)</strong>
+                            </div>
+                            ${attempt.time_spent_seconds ? `<div style="color: #666; font-size: 12px;">Time: ${Math.floor(attempt.time_spent_seconds / 60)}m ${attempt.time_spent_seconds % 60}s</div>` : ''}
+                            <button class="btn btn-secondary" onclick="viewAttemptDetails('${attempt.id}', '${writingSectionId}', true)" style="margin-top: 10px; font-size: 12px; padding: 6px 12px;">
+                                View Details
+                            </button>
+                        </div>
+                    `;
+                });
+                
+                attemptsHTML += '</div>';
+                
+                // Create and show modal
+                const modal = document.createElement('div');
+                modal.className = 'modal active';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 600px;">
+                        <h2>Attempt History</h2>
+                        ${attemptsHTML}
+                        <button class="btn btn-secondary" onclick="this.closest('.modal').remove()" style="margin-top: 20px; width: 100%;">Close</button>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                
+                // Close on outside click
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Failed to load attempt history:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+        
+        async function viewAttemptDetails(attemptId, sectionId, isWritingSection = false) {
+            // Load section and attempt data to show full details
+            try {
+                const endpoint = isWritingSection ? `${API_BASE}/writing-sections/${sectionId}` : `${API_BASE}/passages/${sectionId}`;
+                const attemptsEndpoint = isWritingSection 
+                    ? `${API_BASE}/progress/writing-sections/${sectionId}/attempts`
+                    : `${API_BASE}/progress/passages/${sectionId}/attempts`;
+                
+                const [sectionResponse, attemptsResponse] = await Promise.all([
+                    fetch(endpoint, {
                         headers: authToken ? {'Authorization': `Bearer ${authToken}`} : {}
                     }),
-                    fetch(`${API_BASE}/progress/passages/${passageId}/attempts`, {
+                    fetch(attemptsEndpoint, {
                         headers: {'Authorization': `Bearer ${authToken}`}
                     })
                 ]);
                 
-                if (!passageResponse.ok || !attemptsResponse.ok) {
+                if (!sectionResponse.ok || !attemptsResponse.ok) {
                     alert('Failed to load attempt details.');
                     return;
                 }
                 
-                const passageData = await passageResponse.json();
+                const sectionData = await sectionResponse.json();
                 const attempts = await attemptsResponse.json();
                 const attempt = attempts.find(a => a.id === attemptId);
                 
@@ -2139,20 +2594,24 @@
                         <h4 style="margin-bottom: 15px; color: #000;">Your Answers:</h4>
                 `;
                 
-                // Match attempt answers with passage questions
-                passageData.questions.forEach((question, index) => {
+                // Match attempt answers with section questions
+                const questions = sectionData.questions || [];
+                questions.forEach((question, index) => {
                     const attemptAnswer = attempt.answers.find(a => a.question_id === question.id);
                     if (!attemptAnswer) return;
                     
                     const isCorrect = attemptAnswer.is_correct;
                     const questionNumber = question.order !== undefined ? question.order : (index + 1);
                     
+                    // Get options - handle both array of strings and array of objects
+                    const options = question.options || [];
+                    
                     detailsHTML += `
                         <div class="question-card" style="margin-bottom: 15px;">
                             <h4>Question ${questionNumber} ${isCorrect ? '✓' : '✗'}</h4>
                             <p style="margin-bottom: 10px; font-size: 14px; color: #000;">${question.text}</p>
                             <div class="options-container">
-                                ${question.options.map((option, optIndex) => {
+                                ${options.map((option, optIndex) => {
                                     let optionClass = 'option';
                                     if (optIndex === question.correct_answer_index) {
                                         optionClass += ' correct';

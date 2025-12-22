@@ -2,7 +2,8 @@ from rest_framework import serializers
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
     UserProgress, UserAnswer, PassageAnnotation, WordOfTheDay,
-    Lesson, LessonQuestion, LessonQuestionOption
+    Lesson, LessonQuestion, LessonQuestionOption,
+    WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption
 )
 
 
@@ -219,7 +220,8 @@ class ReviewAnswerSerializer(serializers.Serializer):
 
 
 class ReviewResponseSerializer(serializers.Serializer):
-    passage_id = serializers.UUIDField()
+    passage_id = serializers.UUIDField(required=False, allow_null=True)
+    writing_section_id = serializers.UUIDField(required=False, allow_null=True)
     score = serializers.IntegerField(allow_null=True)
     correct_count = serializers.IntegerField()
     total_questions = serializers.IntegerField()
@@ -292,4 +294,116 @@ class LessonDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
         fields = ['id', 'lesson_id', 'title', 'chunks', 'content', 'difficulty', 'tier', 'questions', 'created_at', 'updated_at']
+
+
+# Writing Section Serializers
+class WritingSectionSelectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WritingSectionSelection
+        fields = ['id', 'number', 'start_char', 'end_char', 'selected_text']
+
+
+class WritingSectionQuestionOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WritingSectionQuestionOption
+        fields = ['id', 'text', 'order']
+
+
+class WritingSectionQuestionSerializer(serializers.ModelSerializer):
+    options = WritingSectionQuestionOptionSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = WritingSectionQuestion
+        fields = ['id', 'text', 'options', 'correct_answer_index', 'explanation', 'order', 'selection_number']
+
+
+class WritingSectionListSerializer(serializers.ModelSerializer):
+    question_count = serializers.SerializerMethodField()
+    selection_count = serializers.SerializerMethodField()
+    attempt_count = serializers.SerializerMethodField()
+    attempt_summary = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = WritingSection
+        fields = ['id', 'title', 'difficulty', 'tier', 'question_count', 'selection_count', 
+                 'attempt_count', 'attempt_summary', 'created_at']
+    
+    def get_question_count(self, obj):
+        return obj.questions.count()
+    
+    def get_selection_count(self, obj):
+        return obj.selections.count()
+    
+    def get_attempt_count(self, obj):
+        """Get number of attempts for the current user"""
+        request = self.context.get('request')
+        if request:
+            from .views import get_user_from_request
+            user = get_user_from_request(request)
+            if user:
+                from .models import WritingSectionAttempt
+                return WritingSectionAttempt.objects.filter(user=user, writing_section=obj).count()
+        return 0
+    
+    def get_attempt_summary(self, obj):
+        """Get summary of attempts (best score, latest score, recent attempts)"""
+        request = self.context.get('request')
+        if request:
+            from .views import get_user_from_request
+            user = get_user_from_request(request)
+            if user:
+                from .models import WritingSectionAttempt
+                attempts = WritingSectionAttempt.objects.filter(user=user, writing_section=obj).order_by('-completed_at')
+                if attempts.exists():
+                    best_attempt = attempts.order_by('-score', '-completed_at').first()
+                    latest_attempt = attempts.first()
+                    recent_attempts = list(attempts[:3].values('score', 'correct_count', 'total_questions', 'completed_at'))
+                    return {
+                        'best_score': best_attempt.score if best_attempt else None,
+                        'latest_score': latest_attempt.score if latest_attempt else None,
+                        'recent_attempts': recent_attempts
+                    }
+        return None
+
+
+class WritingSectionDetailSerializer(serializers.ModelSerializer):
+    selections = WritingSectionSelectionSerializer(many=True, read_only=True)
+    questions = WritingSectionQuestionSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = WritingSection
+        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'selections', 'questions', 'created_at', 'updated_at']
+
+
+class SubmitWritingSectionRequestSerializer(serializers.Serializer):
+    """Serializer for submitting writing section answers"""
+    answers = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="List of answer objects with question_id and selected_option_index"
+    )
+    time_spent_seconds = serializers.IntegerField(required=False, allow_null=True, default=0)
+
+
+class SubmitWritingSectionResponseSerializer(serializers.Serializer):
+    """Serializer for writing section submission response"""
+    writing_section_id = serializers.UUIDField()
+    score = serializers.IntegerField()
+    total_questions = serializers.IntegerField()
+    correct_count = serializers.IntegerField()
+    is_completed = serializers.BooleanField()
+    answers = serializers.ListField()
+    completed_at = serializers.DateTimeField()
+    attempt_id = serializers.UUIDField(allow_null=True)
+
+
+class WritingSectionAttemptSerializer(serializers.Serializer):
+    """Serializer for writing section attempt history"""
+    id = serializers.UUIDField()
+    writing_section_id = serializers.UUIDField()
+    score = serializers.IntegerField()
+    correct_count = serializers.IntegerField()
+    total_questions = serializers.IntegerField()
+    time_spent_seconds = serializers.IntegerField(allow_null=True)
+    completed_at = serializers.DateTimeField()
+    answers = serializers.ListField()
 

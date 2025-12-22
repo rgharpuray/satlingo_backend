@@ -444,6 +444,180 @@ class LessonIngestion(models.Model):
         return f"{self.file_name} - {self.status}"
 
 
+class WritingSection(models.Model):
+    """Writing sections similar to passages but with underlined text selections"""
+    DIFFICULTY_CHOICES = [
+        ('Easy', 'Easy'),
+        ('Medium', 'Medium'),
+        ('Hard', 'Hard'),
+    ]
+    
+    TIER_CHOICES = [
+        ('free', 'Free'),
+        ('premium', 'Premium'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
+    tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'writing_sections'
+        indexes = [
+            models.Index(fields=['difficulty']),
+            models.Index(fields=['tier']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.title
+
+
+class WritingSectionSelection(models.Model):
+    """Underlined text selections in writing sections with numbers"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    writing_section = models.ForeignKey(WritingSection, on_delete=models.CASCADE, related_name='selections')
+    number = models.IntegerField(validators=[MinValueValidator(1)], help_text="The number shown next to the underlined text (e.g., [1])")
+    start_char = models.IntegerField(validators=[MinValueValidator(0)], help_text="Start character position in content")
+    end_char = models.IntegerField(validators=[MinValueValidator(0)], help_text="End character position (exclusive)")
+    selected_text = models.TextField(help_text="The actual underlined text")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'writing_section_selections'
+        indexes = [
+            models.Index(fields=['writing_section']),
+            models.Index(fields=['number']),
+            models.Index(fields=['start_char', 'end_char']),
+        ]
+        ordering = ['number', 'start_char']
+    
+    def __str__(self):
+        return f"{self.writing_section.title} - [{self.number}] {self.selected_text[:30]}..."
+    
+    def clean(self):
+        """Validate that end_char > start_char and positions are within content length"""
+        from django.core.exceptions import ValidationError
+        if self.end_char <= self.start_char:
+            raise ValidationError('End character must be greater than start character')
+        if self.writing_section and self.writing_section.content:
+            if self.end_char > len(self.writing_section.content):
+                raise ValidationError(f'End character ({self.end_char}) exceeds content length ({len(self.writing_section.content)})')
+    
+    def save(self, *args, **kwargs):
+        """Auto-populate selected_text if not provided"""
+        if not self.selected_text and self.writing_section and self.writing_section.content:
+            self.selected_text = self.writing_section.content[self.start_char:self.end_char]
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class WritingSectionQuestion(models.Model):
+    """Questions for writing sections"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    writing_section = models.ForeignKey(WritingSection, on_delete=models.CASCADE, related_name='questions')
+    text = models.TextField()
+    correct_answer_index = models.IntegerField(validators=[MinValueValidator(0)])
+    explanation = models.TextField(null=True, blank=True)
+    order = models.IntegerField()
+    selection_number = models.IntegerField(null=True, blank=True, help_text="The selection number this question refers to (if any)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'writing_section_questions'
+        indexes = [
+            models.Index(fields=['writing_section']),
+            models.Index(fields=['order']),
+            models.Index(fields=['selection_number']),
+        ]
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.writing_section.title} - Q{self.order}"
+
+
+class WritingSectionQuestionOption(models.Model):
+    """Options for writing section questions"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    question = models.ForeignKey(WritingSectionQuestion, on_delete=models.CASCADE, related_name='options')
+    text = models.TextField()
+    order = models.IntegerField(validators=[MinValueValidator(0)])
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'writing_section_question_options'
+        indexes = [
+            models.Index(fields=['question']),
+            models.Index(fields=['order']),
+        ]
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.question} - Option {self.order}"
+
+
+class WritingSectionIngestion(models.Model):
+    """Track writing section ingestion from files"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)
+    file_type = models.CharField(max_length=50)  # pdf, docx, txt, json
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    extracted_text = models.TextField(null=True, blank=True)
+    parsed_data = models.JSONField(null=True, blank=True)  # Store parsed JSON data
+    error_message = models.TextField(null=True, blank=True)
+    created_writing_section = models.ForeignKey(WritingSection, on_delete=models.SET_NULL, null=True, blank=True, related_name='ingestions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'writing_section_ingestions'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.file_name} - {self.status}"
+
+
+class WritingSectionAttempt(models.Model):
+    """Store individual attempts at writing sections with full answer details"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='writing_section_attempts', null=True, blank=True)
+    writing_section = models.ForeignKey(WritingSection, on_delete=models.CASCADE, related_name='attempts')
+    score = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)])
+    correct_count = models.IntegerField()
+    total_questions = models.IntegerField()
+    time_spent_seconds = models.IntegerField(null=True, blank=True)
+    completed_at = models.DateTimeField(auto_now_add=True)
+    # Store answers as JSON for full history
+    answers_data = models.JSONField(default=list)  # List of {question_id, selected_option_index, is_correct, etc.}
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'writing_section_attempts'
+        indexes = [
+            models.Index(fields=['user', 'writing_section']),
+            models.Index(fields=['user']),
+            models.Index(fields=['writing_section']),
+            models.Index(fields=['completed_at']),
+        ]
+        ordering = ['-completed_at']
+    
+    def __str__(self):
+        return f"{self.user.email if self.user else 'Anonymous'} - {self.writing_section.title} - {self.score}% ({self.completed_at})"
+
+
 @receiver(post_save, sender=LessonIngestion)
 def auto_process_lesson_ingestion(sender, instance, created, **kwargs):
     """Automatically process lesson ingestion when saved with pending status"""

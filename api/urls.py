@@ -5,7 +5,8 @@ from .views import (
     PassageViewSet, QuestionViewSet, ProgressView,
     PassageProgressView, StartSessionView, SubmitPassageView,
     ReviewPassageView, AnswerView, AdminPassageView, WordOfTheDayView,
-    PassageAttemptsView, LessonViewSet
+    PassageAttemptsView, LessonViewSet, WritingSectionViewSet,
+    SubmitWritingSectionView, ReviewWritingSectionView, WritingSectionAttemptsView
 )
 from .auth_views import register, login, me
 from .stripe_views import (
@@ -17,6 +18,7 @@ router = DefaultRouter()
 router.register(r'passages', PassageViewSet, basename='passage')
 router.register(r'questions', QuestionViewSet, basename='question')
 router.register(r'lessons', LessonViewSet, basename='lesson')
+router.register(r'writing-sections', WritingSectionViewSet, basename='writing-section')
 
 urlpatterns = [
     # Passages and Questions (handled by router)
@@ -29,6 +31,11 @@ urlpatterns = [
     path('progress/passages/<str:passage_id>/submit', SubmitPassageView.as_view(), name='progress-submit'),
     path('progress/passages/<str:passage_id>/review', ReviewPassageView.as_view(), name='progress-review'),
     path('progress/passages/<str:passage_id>/attempts', PassageAttemptsView.as_view(), name='progress-attempts'),
+    
+    # Writing section progress endpoints
+    path('progress/writing-sections/<str:writing_section_id>/submit', SubmitWritingSectionView.as_view(), name='progress-writing-submit'),
+    path('progress/writing-sections/<str:writing_section_id>/review', ReviewWritingSectionView.as_view(), name='progress-writing-review'),
+    path('progress/writing-sections/<str:writing_section_id>/attempts', WritingSectionAttemptsView.as_view(), name='progress-writing-attempts'),
     
     # Answers endpoints
     path('answers', AnswerView.as_view(), name='answers'),

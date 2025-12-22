@@ -14,7 +14,9 @@ from django.conf import settings
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
     UserProgress, UserAnswer, WordOfTheDay, PassageAttempt,
-    Lesson, LessonQuestion, LessonQuestionOption
+    Lesson, LessonQuestion, LessonQuestionOption,
+    WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption,
+    WritingSectionAttempt
 )
 from .serializers import (
     PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
@@ -22,7 +24,10 @@ from .serializers import (
     UserAnswerSerializer, SubmitPassageRequestSerializer, SubmitPassageResponseSerializer,
     ReviewResponseSerializer, ReviewAnswerSerializer, CreatePassageSerializer,
     PassageAnnotationSerializer, WordOfTheDaySerializer,
-    LessonListSerializer, LessonDetailSerializer, LessonQuestionSerializer
+    LessonListSerializer, LessonDetailSerializer, LessonQuestionSerializer,
+    WritingSectionListSerializer, WritingSectionDetailSerializer, WritingSectionQuestionSerializer,
+    SubmitWritingSectionRequestSerializer, SubmitWritingSectionResponseSerializer,
+    WritingSectionAttemptSerializer
 )
 
 
@@ -784,6 +789,302 @@ class LessonViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.filter(tier='free')
         
         return queryset
+
+
+class WritingSectionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for writing sections endpoints.
+    GET /writing-sections - List all writing sections
+    GET /writing-sections/:id - Get writing section detail
+    GET /writing-sections/:id/questions - Get questions for a writing section
+    """
+    queryset = WritingSection.objects.all()
+    serializer_class = WritingSectionListSerializer
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return WritingSectionDetailSerializer
+        return WritingSectionListSerializer
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Get writing section detail with premium check"""
+        writing_section = self.get_object()
+        user = get_user_from_request(request)
+        
+        # Check if writing section is premium and user doesn't have access
+        if writing_section.tier == 'premium':
+            if not user or not (user.is_premium or user.has_active_subscription):
+                return Response(
+                    {'error': {
+                        'code': 'PREMIUM_REQUIRED',
+                        'message': 'This writing section requires a premium subscription',
+                        'upgrade_url': '/web/subscription'
+                    }},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        return super().retrieve(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        queryset = WritingSection.objects.annotate(
+            question_count=Count('questions'),
+            selection_count=Count('selections')
+        )
+        difficulty = self.request.query_params.get('difficulty', None)
+        tier = self.request.query_params.get('tier', None)
+        
+        if difficulty:
+            queryset = queryset.filter(difficulty=difficulty)
+        
+        # Get user for premium check
+        user = get_user_from_request(self.request)
+        is_premium_user = user and (user.is_premium or user.has_active_subscription)
+        
+        # Handle tier filtering
+        if tier:
+            if tier == 'premium' and not is_premium_user:
+                queryset = queryset.none()
+            else:
+                queryset = queryset.filter(tier=tier)
+        else:
+            # No tier filter: automatically filter premium content for non-premium users
+            if not is_premium_user:
+                queryset = queryset.filter(tier='free')
+        
+        return queryset
+    
+    @action(detail=True, methods=['get'])
+    def questions(self, request, pk=None):
+        """Get questions for a writing section without correct answers/explanations"""
+        writing_section = self.get_object()
+        user = get_user_from_request(request)
+        
+        # Check if writing section is premium and user doesn't have access
+        if writing_section.tier == 'premium':
+            if not user or not (user.is_premium or user.has_active_subscription):
+                return Response(
+                    {'error': {
+                        'code': 'PREMIUM_REQUIRED',
+                        'message': 'This writing section requires a premium subscription',
+                        'upgrade_url': '/web/subscription'
+                    }},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        questions = writing_section.questions.all().order_by('order')
+        serializer = WritingSectionQuestionSerializer(questions, many=True)
+        return Response({'questions': serializer.data})
+
+
+class SubmitWritingSectionView(APIView):
+    """
+    View for submitting answers to a writing section.
+    POST /progress/writing-sections/:writing_section_id/submit - Submit answers
+    """
+    
+    def post(self, request, writing_section_id):
+        """POST /progress/writing-sections/:writing_section_id/submit"""
+        user = get_user_from_request(request)
+        # Convert string to UUID
+        try:
+            section_uuid = uuid.UUID(str(writing_section_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid writing section ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        writing_section = get_object_or_404(WritingSection, id=section_uuid)
+        
+        serializer = SubmitWritingSectionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        answers_data = serializer.validated_data['answers']
+        time_spent = serializer.validated_data.get('time_spent_seconds', 0)
+        
+        # Get all questions for the writing section
+        questions = writing_section.questions.all().order_by('order')
+        question_dict = {str(q.id): q for q in questions}
+        
+        # Process answers
+        answer_results = []
+        correct_count = 0
+        total_questions = questions.count()
+        
+        for answer_data in answers_data:
+            question_id = str(answer_data['question_id'])
+            if question_id not in question_dict:
+                continue
+            
+            question = question_dict[question_id]
+            selected_index = answer_data['selected_option_index']
+            is_correct = selected_index == question.correct_answer_index
+            
+            if is_correct:
+                correct_count += 1
+            
+            # Note: UserAnswer is only for Passage questions
+            # Writing section answers are stored in WritingSectionAttempt.answers_data (JSON field)
+            
+            answer_results.append({
+                'question_id': question_id,
+                'selected_option_index': selected_index,
+                'correct_answer_index': question.correct_answer_index,
+                'is_correct': is_correct,
+                'explanation': question.explanation,
+            })
+        
+        # Calculate score
+        score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
+        
+        # Create a new attempt record (for logged-in users only)
+        attempt = None
+        if user:
+            attempt = WritingSectionAttempt.objects.create(
+                user=user,
+                writing_section=writing_section,
+                score=score,
+                correct_count=correct_count,
+                total_questions=total_questions,
+                time_spent_seconds=time_spent,
+                answers_data=answer_results,
+            )
+        
+        response_data = {
+            'writing_section_id': str(writing_section.id),
+            'score': score,
+            'total_questions': total_questions,
+            'correct_count': correct_count,
+            'is_completed': True,
+            'answers': answer_results,
+            'completed_at': timezone.now().isoformat(),
+            'attempt_id': str(attempt.id) if attempt else None,
+        }
+        
+        serializer = SubmitWritingSectionResponseSerializer(response_data)
+        return Response(serializer.data)
+
+
+class ReviewWritingSectionView(APIView):
+    """
+    View for getting review data for a completed writing section.
+    GET /progress/writing-sections/:writing_section_id/review - Get review data
+    """
+    
+    def get(self, request, writing_section_id):
+        """GET /progress/writing-sections/:writing_section_id/review"""
+        user = get_user_from_request(request)
+        # Convert string to UUID
+        try:
+            section_uuid = uuid.UUID(str(writing_section_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid writing section ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        writing_section = get_object_or_404(WritingSection, id=section_uuid)
+        
+        # Get the most recent attempt for this user and writing section
+        attempt = None
+        if user:
+            attempt = WritingSectionAttempt.objects.filter(
+                user=user,
+                writing_section=writing_section
+            ).order_by('-completed_at').first()
+        
+        # Build review data from the attempt
+        review_answers = []
+        questions = writing_section.questions.all().order_by('order')
+        
+        correct_count = 0
+        total_questions = questions.count()
+        
+        # Get answers from attempt if available
+        attempt_answers = {}
+        if attempt and attempt.answers_data:
+            for ans in attempt.answers_data:
+                attempt_answers[str(ans.get('question_id'))] = ans
+        
+        for question in questions:
+            question_id_str = str(question.id)
+            attempt_answer = attempt_answers.get(question_id_str)
+            options = [opt.text for opt in question.options.all().order_by('order')]
+            
+            # Count correct answers
+            if attempt_answer and attempt_answer.get('is_correct'):
+                correct_count += 1
+            
+            review_answers.append({
+                'question_id': question_id_str,
+                'question_text': question.text,
+                'options': options,
+                'selected_option_index': attempt_answer.get('selected_option_index') if attempt_answer else None,
+                'correct_answer_index': question.correct_answer_index,
+                'is_correct': attempt_answer.get('is_correct', False) if attempt_answer else False,
+                'explanation': question.explanation,
+            })
+        
+        score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
+        
+        response_data = {
+            'writing_section_id': str(writing_section.id),
+            'score': score,
+            'total_questions': total_questions,
+            'correct_count': correct_count,
+            'answers': review_answers,
+        }
+        
+        serializer = ReviewResponseSerializer(response_data)
+        return Response(serializer.data)
+
+
+class WritingSectionAttemptsView(APIView):
+    """
+    View for getting past attempts for a writing section.
+    GET /progress/writing-sections/:writing_section_id/attempts - Get all attempts for a writing section
+    """
+    
+    def get(self, request, writing_section_id):
+        """GET /progress/writing-sections/:writing_section_id/attempts"""
+        user = get_user_from_request(request)
+        
+        if not user:
+            return Response(
+                {'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required. Please log in.'}},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Convert string to UUID
+        try:
+            section_uuid = uuid.UUID(str(writing_section_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid writing section ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        writing_section = get_object_or_404(WritingSection, id=section_uuid)
+        
+        # Get all attempts for this user and writing section
+        attempts = WritingSectionAttempt.objects.filter(
+            user=user,
+            writing_section=writing_section
+        ).order_by('-completed_at')
+        
+        # Convert attempts to serializer format
+        attempts_data = []
+        for attempt in attempts:
+            attempts_data.append({
+                'id': attempt.id,
+                'writing_section_id': str(attempt.writing_section.id),
+                'score': attempt.score,
+                'correct_count': attempt.correct_count,
+                'total_questions': attempt.total_questions,
+                'time_spent_seconds': attempt.time_spent_seconds,
+                'completed_at': attempt.completed_at,
+                'answers': attempt.answers_data or [],
+            })
+        serializer = WritingSectionAttemptSerializer(attempts_data, many=True)
+        return Response(serializer.data)
 
 
 class WordOfTheDayView(APIView):
