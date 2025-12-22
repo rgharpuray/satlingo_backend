@@ -1255,117 +1255,134 @@ class WritingSectionIngestionAdmin(admin.ModelAdmin):
             uploaded_file = request.FILES.get('file')
             use_gpt = form.cleaned_data.get('use_gpt_conversion', False)
             
-            if uploaded_file:
-                import uuid
-                from pathlib import Path
-                
-                # Create media directory if it doesn't exist
-                media_dir = Path(settings.MEDIA_ROOT)
-                media_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Save file
-                file_ext = os.path.splitext(uploaded_file.name)[1]
-                unique_filename = f"{uuid.uuid4()}{file_ext}"
-                file_path = media_dir / unique_filename
-                
-                with open(file_path, 'wb+') as destination:
-                    for chunk in uploaded_file.chunks():
-                        destination.write(chunk)
-                
-                obj.file_name = uploaded_file.name
-                obj.file_path = str(file_path)
-                obj.file_type = file_ext[1:] if file_ext.startswith('.') else file_ext
-                
-                # Determine if we need GPT conversion
-                is_json = file_ext.lower() == '.json'
-                is_document = file_ext.lower() in ['.pdf', '.docx', '.doc', '.txt']
-                should_use_gpt = use_gpt or (is_document and not is_json)
-                
-                # Use atomic transaction to handle errors properly
+            if not uploaded_file:
+                # No file uploaded - use default save
+                super().save_model(request, obj, form, change)
+                return
+            
+            import uuid
+            from pathlib import Path
+            
+            # Create media directory if it doesn't exist
+            media_dir = Path(settings.MEDIA_ROOT)
+            media_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save file
+            file_ext = os.path.splitext(uploaded_file.name)[1]
+            unique_filename = f"{uuid.uuid4()}{file_ext}"
+            file_path = media_dir / unique_filename
+            
+            with open(file_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+            
+            obj.file_name = uploaded_file.name
+            obj.file_path = str(file_path)
+            obj.file_type = file_ext[1:] if file_ext.startswith('.') else file_ext
+            
+            # Determine if we need GPT conversion
+            is_json = file_ext.lower() == '.json'
+            is_document = file_ext.lower() in ['.pdf', '.docx', '.doc', '.txt']
+            should_use_gpt = use_gpt or (is_document and not is_json)
+            
+            # Handle JSON files directly
+            if is_json:
                 try:
                     with transaction.atomic():
-                        # Parse JSON or convert document
-                        if is_json:
-                            # Direct JSON parsing
-                            try:
-                                with open(file_path, 'r', encoding='utf-8') as f:
-                                    obj.parsed_data = json.load(f)
-                            except UnicodeDecodeError:
-                                # Try with error handling for non-UTF-8 files
-                                with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-                                    obj.parsed_data = json.load(f)
-                            obj.status = 'pending'
-                            obj.save()
-                        elif should_use_gpt and is_document:
-                            # Convert document to JSON using GPT
-                            obj.status = 'processing'
-                            obj.error_message = 'Converting document to JSON using GPT...'
-                            obj.save()  # Save first to get the ID
-                        
-                        # If GPT conversion needed, do it outside the transaction
-                        # (GPT calls can take a long time and shouldn't hold a DB transaction)
-                        if should_use_gpt and is_document:
-                            # Exit transaction before GPT call
-                            pass
-                        
+                        # Direct JSON parsing
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                obj.parsed_data = json.load(f)
+                        except UnicodeDecodeError:
+                            # Try with error handling for non-UTF-8 files
+                            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                                obj.parsed_data = json.load(f)
+                        obj.status = 'pending'
+                        obj.save()
                 except Exception as e:
-                    # Handle errors within transaction
+                    with transaction.atomic():
+                        obj.status = 'failed'
+                        obj.error_message = f'Failed to parse JSON file: {str(e)}'
+                        obj.save()
+                    return
+            
+            # Handle documents that need GPT conversion
+            elif should_use_gpt and is_document:
+                # Save initial state in transaction
+                try:
+                    with transaction.atomic():
+                        obj.status = 'processing'
+                        obj.error_message = 'Converting document to JSON using GPT...'
+                        obj.save()  # Save first to get the ID
+                except Exception as e:
                     obj.status = 'failed'
-                    obj.error_message = f'Failed to process file: {str(e)}'
+                    obj.error_message = f'Failed to save ingestion: {str(e)}'
                     obj.save()
                     return
                 
                 # GPT conversion happens outside transaction to avoid long-running transactions
-                if should_use_gpt and is_document:
+                try:
+                    writing_data = convert_document_to_writing_json(str(file_path), uploaded_file.name)
+                    # Update in a new transaction
+                    with transaction.atomic():
+                        obj.refresh_from_db()
+                        obj.parsed_data = writing_data
+                        obj.error_message = f'✓ Successfully converted document to JSON using GPT.'
+                        obj.status = 'pending'  # Reset to pending so background processing can run
+                        obj.save()
+                except Exception as gpt_error:
+                    # GPT conversion failed - don't proceed to processing
                     try:
-                        writing_data = convert_document_to_writing_json(str(file_path), uploaded_file.name)
-                        # Update in a new transaction
-                        with transaction.atomic():
-                            obj.refresh_from_db()
-                            obj.parsed_data = writing_data
-                            obj.error_message = f'✓ Successfully converted document to JSON using GPT.'
-                            obj.status = 'pending'  # Reset to pending so background processing can run
-                            obj.save()
-                    except Exception as gpt_error:
-                        # GPT conversion failed - don't proceed to processing
                         with transaction.atomic():
                             obj.refresh_from_db()
                             obj.status = 'failed'
                             obj.error_message = f'Failed to convert document to JSON using GPT: {str(gpt_error)}'
                             obj.save()
-                        return  # Don't start background processing
-                elif not is_json:
-                    # Unsupported file type
-                    with transaction.atomic():
-                        obj.status = 'failed'
-                        obj.error_message = f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.'
-                        obj.save()
-                    return
+                    except Exception as save_error:
+                        # If refresh fails, the object might not exist - log and return
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f'Failed to save error state: {save_error}')
+                    return  # Don't start background processing
+            
+            # Unsupported file type
+            else:
+                with transaction.atomic():
+                    obj.status = 'failed'
+                    obj.error_message = f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.'
+                    obj.save()
+                return
+            
+            # Process in background - only if we have parsed_data (either from JSON or GPT conversion)
+            if obj.status != 'failed' and obj.parsed_data:
+                def process_in_background(ingestion_id):
+                    import traceback
+                    from django.db import connection
+                    connection.close()
+                    from django import db
+                    db.connections.close_all()
+                    from .models import WritingSectionIngestion
+                    ingestion = WritingSectionIngestion.objects.get(pk=ingestion_id)
+                    try:
+                        process_writing_ingestion(ingestion)
+                    except Exception as e:
+                        ingestion.status = 'failed'
+                        ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
+                        ingestion.save()
                 
-                # Process in background - only if we have parsed_data (either from JSON or GPT conversion)
-                if obj.status != 'failed' and obj.parsed_data:
-                    def process_in_background(ingestion_id):
-                        import traceback
-                        from django.db import connection
-                        connection.close()
-                        from django import db
-                        db.connections.close_all()
-                        from .models import WritingSectionIngestion
-                        ingestion = WritingSectionIngestion.objects.get(pk=ingestion_id)
-                        try:
-                            process_writing_ingestion(ingestion)
-                        except Exception as e:
-                            ingestion.status = 'failed'
-                            ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
-                            ingestion.save()
-                    
-                    # Mark as processing in a new transaction
+                # Mark as processing in a new transaction
+                try:
                     with transaction.atomic():
                         WritingSectionIngestion.objects.filter(pk=obj.pk).update(status='processing')
-                    
-                    thread = threading.Thread(target=process_in_background, args=(obj.pk,))
-                    thread.daemon = True
-                    thread.start()
+                except Exception as e:
+                    # If update fails, log but don't crash
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f'Failed to update status to processing: {e}')
+                
+                thread = threading.Thread(target=process_in_background, args=(obj.pk,))
+                thread.daemon = True
+                thread.start()
         else:
             super().save_model(request, obj, form, change)
 
