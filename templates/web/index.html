@@ -958,37 +958,16 @@
                 <div class="hero-logo">
                     <img src="{% static 'web/images/keuvi.png' %}" alt="Keuvi Logo">
                 </div>
-                <p class="hero-subtitle">Your SAT reading wingman</p>
-                <h1>Master SAT Reading Comprehension</h1>
-                <p>Level up your reading skills with expertly crafted passages and questions that mirror the real SAT. Start free, unlock premium content when you're ready to go deeper.</p>
+                <p class="hero-subtitle">Your SAT wingman</p>
+                <h1>Master SAT Reading, Writing, and Math</h1>
+                <p>Level up your  skills with expertly crafted passages and questions that mirror the real SAT. Start free, unlock premium content when you're ready to go deeper.</p>
                 <div class="hero-cta">
                     <h2>Ready to Start Practicing?</h2>
                     <p>Browse our collection of reading passages and begin your SAT prep journey today.</p>
-                    <button class="btn-large" onclick="showPassages()">Try a Free Passage</button>
+                    <button class="btn-large" onclick="showPassages()">Enter Keuvi!</button>
                 </div>
             </div>
-            
-            <!-- Product Preview Section -->
-            <div class="preview-section">
-                <h3>See What's Inside</h3>
-                <div class="preview-cards">
-                    <div class="preview-card" onclick="showPassages()">
-                        <div class="preview-card-icon">📖</div>
-                        <h4>Sample Passage</h4>
-                        <p>Realistic SAT-style reading passages covering diverse topics and difficulty levels</p>
-                    </div>
-                    <div class="preview-card" onclick="showPassages()">
-                        <div class="preview-card-icon">❓</div>
-                        <h4>Practice Questions</h4>
-                        <p>Multiple-choice questions with detailed explanations to help you understand every answer</p>
-                    </div>
-                    <div class="preview-card" onclick="showPassages()">
-                        <div class="preview-card-icon">📊</div>
-                        <h4>Track Progress</h4>
-                        <p>Monitor your performance and see improvement over time with detailed analytics</p>
-                    </div>
-                </div>
-            </div>
+        
             
             <!-- Why Keuwi Section -->
             <div class="why-keuwi">
@@ -1146,10 +1125,36 @@
         let authToken = localStorage.getItem('authToken');
         let currentUser = null;
         
-        // Always start on landing page
-        showLanding();
+        // Check URL hash to determine initial view
+        function handleHashRoute() {
+            const hash = window.location.hash.substring(1); // Remove #
+            
+            if (hash.startsWith('passage/')) {
+                const passageId = hash.split('/')[1];
+                showPassages();
+                setTimeout(() => openPassage(passageId), 100);
+            } else if (hash.startsWith('lesson/')) {
+                const lessonId = hash.split('/')[1];
+                showPassages();
+                setTimeout(() => openLesson(lessonId), 100);
+            } else if (hash.startsWith('writing-section/')) {
+                const sectionId = hash.split('/')[1];
+                showPassages();
+                setTimeout(() => openWritingSection(sectionId), 100);
+            } else if (hash === 'passages' || hash === 'lessons' || hash === 'writing-sections') {
+                showPassages();
+            } else {
+                showLanding();
+            }
+        }
         
-        // Check if user is logged in on load (but stay on landing page)
+        // Listen for hash changes
+        window.addEventListener('hashchange', handleHashRoute);
+        
+        // Initial route handling
+        handleHashRoute();
+        
+        // Check if user is logged in on load
         if (authToken) {
             checkAuth();
         }
@@ -1166,6 +1171,10 @@
             document.querySelectorAll('.view-toggle button').forEach(btn => {
                 btn.classList.remove('active');
             });
+            // Update URL
+            if (window.location.hash !== '') {
+                window.history.replaceState(null, '', window.location.pathname);
+            }
         }
         
         function showPassages() {
@@ -1184,6 +1193,10 @@
             // Reset to passages list view
             document.getElementById('passagesListSection').style.display = 'block';
             document.getElementById('passageDetailSection').style.display = 'none';
+            // Update URL
+            if (window.location.hash !== '#passages') {
+                window.history.replaceState(null, '', window.location.pathname + '#passages');
+            }
             // Load lessons, writing sections, and passages if not already loaded
             if (document.getElementById('lessonsList').innerHTML === '') {
                 loadLessons();
@@ -1499,6 +1512,9 @@
                 currentPassageData = null;
                 userAnswers = {};
                 
+                // Update URL hash
+                window.history.replaceState(null, '', window.location.pathname + `#lesson/${lessonId}`);
+                
                 const headers = {};
                 if (authToken) {
                     headers['Authorization'] = `Bearer ${authToken}`;
@@ -1732,6 +1748,9 @@
             try {
                 currentPassageId = passageId;
                 userAnswers = {};
+                
+                // Update URL hash
+                window.history.replaceState(null, '', window.location.pathname + `#passage/${passageId}`);
                 
                 const headers = {};
                 if (authToken) {
@@ -2005,6 +2024,9 @@
                 currentLessonId = null;
                 currentLessonData = null;
                 userAnswers = {};
+                
+                // Update URL hash
+                window.history.replaceState(null, '', window.location.pathname + `#writing-section/${writingSectionId}`);
                 
                 const headers = {};
                 if (authToken) {
@@ -2553,6 +2575,8 @@
             currentWritingSectionData = null;
             userAnswers = {};
             lastAttemptData = null;
+            // Update URL hash
+            window.history.replaceState(null, '', window.location.pathname + '#passages');
         }
         
         function showRegisterModalAndSaveAttempt() {
