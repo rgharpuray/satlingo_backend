@@ -801,34 +801,41 @@ class PassageIngestionAdmin(admin.ModelAdmin):
 
 
 class LessonIngestionForm(forms.ModelForm):
-    """Custom form for JSON file upload"""
+    """Custom form for lesson file upload - supports JSON or documents (PDF, DOCX, TXT) with GPT conversion"""
     file = forms.FileField(
         required=True,
-        help_text="Upload a JSON file containing lesson data (e.g., commas.json). The file should follow the lesson schema.",
-        widget=forms.FileInput(attrs={'accept': '.json,application/json'})
+        help_text="Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT.",
+        widget=forms.FileInput(attrs={'accept': '.json,.pdf,.docx,.doc,.txt,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'})
+    )
+    use_gpt_conversion = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Check this to convert document to JSON using GPT (auto-detected for non-JSON files)"
     )
     
     class Meta:
         model = LessonIngestion
-        fields = ['file']
+        fields = ['file', 'use_gpt_conversion']
     
     def clean_file(self):
-        """Validate that uploaded file is JSON"""
+        """Validate uploaded file"""
         data = self.cleaned_data.get('file')
         if data:
-            # Check file extension
-            if not data.name.lower().endswith('.json'):
-                raise forms.ValidationError('File must be a JSON file (.json)')
+            file_ext = os.path.splitext(data.name)[1].lower()
             
-            # Try to parse JSON to validate
-            try:
-                data.seek(0)
-                json.loads(data.read().decode('utf-8'))
-                data.seek(0)  # Reset for later use
-            except json.JSONDecodeError as e:
-                raise forms.ValidationError(f'Invalid JSON file: {str(e)}')
-            except UnicodeDecodeError:
-                raise forms.ValidationError('File must be valid UTF-8 encoded JSON')
+            # If it's a JSON file, validate it
+            if file_ext == '.json':
+                try:
+                    data.seek(0)
+                    json.loads(data.read().decode('utf-8'))
+                    data.seek(0)  # Reset for later use
+                except json.JSONDecodeError as e:
+                    raise forms.ValidationError(f'Invalid JSON file: {str(e)}')
+                except UnicodeDecodeError:
+                    raise forms.ValidationError('File must be valid UTF-8 encoded JSON')
+            # For other file types, we'll handle them in save_model
+            elif file_ext not in ['.pdf', '.docx', '.doc', '.txt']:
+                raise forms.ValidationError('File must be JSON (.json), PDF (.pdf), DOCX (.docx), or TXT (.txt)')
         
         return data
 
@@ -845,8 +852,8 @@ class LessonIngestionAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('File Upload', {
-            'fields': ('file',),
-            'description': 'Upload a JSON file containing lesson data. The file should follow the lesson schema with lesson_id, title, and chunks array.'
+            'fields': ('file', 'use_gpt_conversion'),
+            'description': 'Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT. Check "Use GPT conversion" to force GPT conversion even for JSON files.'
         }),
         ('Processing Status', {
             'fields': ('id', 'status', 'file_path', 'error_message')
@@ -944,6 +951,8 @@ class LessonIngestionAdmin(admin.ModelAdmin):
         """Handle file upload and save ingestion"""
         if not change:  # Only on create
             uploaded_file = request.FILES.get('file')
+            use_gpt = form.cleaned_data.get('use_gpt_conversion', False)
+            
             if uploaded_file:
                 import uuid
                 from pathlib import Path
@@ -964,19 +973,39 @@ class LessonIngestionAdmin(admin.ModelAdmin):
                 obj.file_name = uploaded_file.name
                 obj.file_path = str(file_path)
                 
-                # Parse JSON and store in parsed_data
+                # Determine if we need GPT conversion
+                is_json = file_ext.lower() == '.json'
+                is_document = file_ext.lower() in ['.pdf', '.docx', '.doc', '.txt']
+                should_use_gpt = use_gpt or (is_document and not is_json)
+                
+                # Parse JSON or convert document
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        obj.parsed_data = json.load(f)
+                    if is_json:
+                        # Direct JSON parsing
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            obj.parsed_data = json.load(f)
+                    elif should_use_gpt and is_document:
+                        # Convert document to JSON using GPT
+                        from .lesson_gpt_utils import convert_document_to_lesson_json
+                        obj.status = 'processing'
+                        obj.error_message = 'Converting document to JSON using GPT...'
+                        obj.save()  # Save first to get the ID
+                        
+                        # Convert document
+                        lesson_data = convert_document_to_lesson_json(str(file_path), uploaded_file.name)
+                        obj.parsed_data = lesson_data
+                        obj.error_message = f'✓ Successfully converted document to JSON using GPT.'
+                    else:
+                        raise ValueError(f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.')
                 except Exception as e:
                     obj.status = 'failed'
-                    obj.error_message = f'Failed to parse JSON: {str(e)}'
+                    obj.error_message = f'Failed to process file: {str(e)}'
                 
                 # Save ingestion
                 obj.save()
                 
                 # Process in background
-                if obj.status != 'failed':
+                if obj.status != 'failed' and obj.parsed_data:
                     from .lesson_ingestion_utils import process_lesson_ingestion
                     
                     def process_in_background(ingestion_id):

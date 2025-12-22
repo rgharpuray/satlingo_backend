@@ -1,0 +1,167 @@
+{
+  "lesson_id": "semicolons",
+  "title": "Semicolons",
+  "difficulty": "Medium",
+  "tier": "free",
+  "chunks": [
+    {
+      "type": "header",
+      "level": 1,
+      "text": "Semicolons"
+    },
+    {
+      "type": "paragraph",
+      "text": "Semicolons are the ones that look like ; (just to be sure)."
+    },
+    {
+      "type": "paragraph",
+      "text": "Semicolons, quite simply, go between phrases that could stand alone as their own sentences (“independent clauses)."
+    },
+    {
+      "type": "paragraph",
+      "text": "Stylistically, they indicate a closer connection between two clauses than a period does."
+    },
+    {
+      "type": "paragraph",
+      "text": "However, since the two are so similar grammatically, we can always test whether or not a semicolon is in the right place by switching it with a period."
+    },
+    {
+      "type": "paragraph",
+      "text": "If a period works somewhere (adjusting the capitalization accordingly), then a semicolon would work in the same place."
+    },
+
+    {
+      "type": "example",
+      "text": "It started raining; I started moping."
+    },
+    {
+      "type": "example",
+      "text": "After all of that studying, I knew I’d do well on the test; therefore, I was unsurprised when I found out I’d aced it."
+    },
+
+    {
+      "type": "example",
+      "text": "It started raining; I started moping."
+    },
+    {
+      "type": "paragraph",
+      "text": "We have full independent clauses on both sides of the semicolon."
+    },
+    {
+      "type": "paragraph",
+      "text": "Both It started raining and I started moping could stand on their own as sentences."
+    },
+    {
+      "type": "paragraph",
+      "text": "We use a semicolon in between them to indicate the relationship between the clauses (I started moping because it was raining)."
+    },
+    {
+      "type": "example",
+      "text": "It started raining. I started moping."
+    },
+    {
+      "type": "paragraph",
+      "text": "Since a period works here, a semicolon would work too."
+    },
+
+    {
+      "type": "example",
+      "text": "After all of that studying, I knew I’d do well on the test; therefore, I was unsurprised when I found out I’d aced it."
+    },
+    {
+      "type": "paragraph",
+      "text": "We added a little bit to this example, but it works for the same reason the previous one worked."
+    },
+    {
+      "type": "paragraph",
+      "text": "Both After all of that studying, I knew I’d do well on the test and therefore, I was unsurprised when I found out I’d aced it include perfectly functional independent clauses."
+    },
+    {
+      "type": "example",
+      "text": "After all of that studying, I knew I’d do well on the test. Therefore, I was unsurprised when I found out I’d aced it."
+    },
+    {
+      "type": "paragraph",
+      "text": "Since we can replace the semicolon with a period, we know we can use a semicolon here."
+    },
+
+    {
+      "type": "header",
+      "level": 2,
+      "text": "Comma or semicolon?"
+    },
+    {
+      "type": "question",
+      "question_type": "multiple_choice",
+      "prompt": "We won_ they lost.",
+      "choices": [
+        ",",
+        ";"
+      ],
+      "correct_answer_index": 1
+    },
+
+    {
+      "type": "header",
+      "level": 2,
+      "text": "Comma or semicolon?"
+    },
+    {
+      "type": "question",
+      "question_type": "multiple_choice",
+      "prompt": "While the security guards tried to hold the fans back_ they poured onto the court to celebrate.",
+      "choices": [
+        ",",
+        ";"
+      ],
+      "correct_answer_index": 0
+    },
+
+    {
+      "type": "header",
+      "level": 2,
+      "text": "Comma or semicolon?"
+    },
+    {
+      "type": "question",
+      "question_type": "multiple_choice",
+      "prompt": "The fans hoisted the star point guard on their shoulders_ he smiled ecstatically, even though he was being carried around the court by complete strangers.",
+      "choices": [
+        ",",
+        ";"
+      ],
+      "correct_answer_index": 1
+    },
+
+    {
+      "type": "header",
+      "level": 2,
+      "text": "Review"
+    },
+    {
+      "type": "paragraph",
+      "text": "Semicolons connect independent clauses."
+    },
+    {
+      "type": "paragraph",
+      "text": "Both sides of a semicolon should be to work as their own sentences."
+    },
+    {
+      "type": "paragraph",
+      "text": "Thus, we can test semicolon use with periods."
+    },
+    {
+      "type": "paragraph",
+      "text": "If a period works somewhere, a semicolon could work too."
+    },
+    {
+      "type": "example",
+      "text": "He studied French; she studied Spanish."
+    },
+    {
+      "type": "example",
+      "text": "She’d visited Spain, France, China, Malaysia, Australia, Belize, Argentina, and Mexico; he’d never left the country."
+    }
+  ]
+}
+

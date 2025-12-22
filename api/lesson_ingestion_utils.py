@@ -38,19 +38,40 @@ def process_lesson_ingestion(ingestion):
         ingestion.error_message = 'Step 2/3: Processing chunks and extracting questions...'
         ingestion.save()
         
+        # Validate chunks structure
+        if not isinstance(lesson_data['chunks'], list):
+            raise ValueError("'chunks' must be an array")
+        
         # Extract questions from chunks
         questions_data = []
         question_order = 0
         
         for idx, chunk in enumerate(lesson_data['chunks']):
+            if not isinstance(chunk, dict):
+                raise ValueError(f"Chunk at index {idx} must be an object, got {type(chunk).__name__}")
+            
             if chunk.get('type') == 'question':
                 question_order += 1
+                prompt = chunk.get('prompt', '')
+                choices = chunk.get('choices', [])
+                
+                if not prompt:
+                    raise ValueError(f"Question chunk at index {idx} is missing 'prompt' field")
+                if not choices or not isinstance(choices, list):
+                    raise ValueError(f"Question chunk at index {idx} must have a non-empty 'choices' array")
+                
+                correct_index = chunk.get('correct_answer_index', 0)
+                if not isinstance(correct_index, int) or correct_index < 0:
+                    raise ValueError(f"Question chunk at index {idx} has invalid 'correct_answer_index' (must be non-negative integer)")
+                if correct_index >= len(choices):
+                    raise ValueError(f"Question chunk at index {idx} has 'correct_answer_index' ({correct_index}) that is out of range (choices length: {len(choices)})")
+                
                 questions_data.append({
                     'chunk_index': idx,
                     'order': question_order,
-                    'text': chunk.get('prompt', ''),
-                    'choices': chunk.get('choices', []),
-                    'correct_answer_index': chunk.get('correct_answer_index', 0),
+                    'text': prompt,
+                    'choices': choices,
+                    'correct_answer_index': correct_index,
                 })
         
         ingestion.error_message = f'Step 2/3: Found {len(questions_data)} questions in chunks.'
