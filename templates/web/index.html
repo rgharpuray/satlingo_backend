@@ -186,6 +186,66 @@
             letter-spacing: 0.5px;
         }
         
+        .premium-lock {
+            display: inline-block;
+            margin-left: 8px;
+            color: #FFD700;
+            font-size: 18px;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+        
+        .premium-preview-overlay {
+            position: relative;
+            max-height: 400px;
+            overflow: hidden;
+        }
+        
+        .premium-preview-overlay::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 1) 100%);
+            pointer-events: none;
+        }
+        
+        .premium-upgrade-prompt {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 30px 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .premium-upgrade-prompt h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+        
+        .premium-upgrade-prompt p {
+            margin-bottom: 20px;
+            font-size: 16px;
+            opacity: 0.95;
+        }
+        
+        .premium-upgrade-prompt .btn {
+            background: white;
+            color: #667eea;
+            font-weight: bold;
+            padding: 12px 30px;
+            font-size: 16px;
+        }
+        
+        .premium-upgrade-prompt .btn:hover {
+            background: #f0f0f0;
+        }
+        
         .passage-detail-section {
             background: white;
             border-radius: 10px;
@@ -1453,7 +1513,8 @@
                         const lessonData = await previewResponse.json();
                         displayLessonPreview(lessonData, 'lesson');
                     } else {
-                        alert('This lesson requires a premium subscription. Please upgrade to access premium content.');
+                        // Show upgrade modal instead of alert
+                        showUpgradeModal('lesson');
                     }
                     return;
                 }
@@ -1686,7 +1747,8 @@
                         const passageData = await previewResponse.json();
                         displayPassagePreview(passageData);
                     } else {
-                        alert('This passage requires a premium subscription. Please upgrade to access premium content.');
+                        // Show upgrade modal instead of alert
+                        showUpgradeModal('passage');
                     }
                     return;
                 }
@@ -1958,7 +2020,8 @@
                         const sectionData = await previewResponse.json();
                         displayWritingSectionPreview(sectionData);
                     } else {
-                        alert('This writing section requires a premium subscription. Please upgrade to access premium content.');
+                        // Show upgrade modal instead of alert
+                        showUpgradeModal('writing section');
                     }
                     return;
                 }
@@ -2818,9 +2881,51 @@
             }
         }
         
+        function showUpgradeModal(contentType = 'content') {
+            // Create and show upgrade modal
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 500px;">
+                    <h2>🔒 Premium Content</h2>
+                    <p style="margin-bottom: 20px; color: #666;">
+                        This ${contentType} is part of our premium collection. Upgrade to unlock full access to all ${contentType}s, passages, and writing sections.
+                    </p>
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h3 style="margin-top: 0; color: white;">Premium Benefits</h3>
+                        <ul style="text-align: left; margin: 0; padding-left: 20px;">
+                            <li>Access to all premium passages</li>
+                            <li>Access to all premium lessons</li>
+                            <li>Access to all premium writing sections</li>
+                            <li>Detailed explanations and analytics</li>
+                        </ul>
+                    </div>
+                    ${authToken ? 
+                        `<button class="btn btn-primary" onclick="upgradeToPremium(); this.closest('.modal').remove();" style="width: 100%; font-size: 16px; padding: 12px;">
+                            Upgrade to Premium - $5/month
+                        </button>` :
+                        `<button class="btn btn-primary" onclick="showRegisterModal(); this.closest('.modal').remove();" style="width: 100%; font-size: 16px; padding: 12px; margin-bottom: 10px;">
+                            Sign Up to Upgrade
+                        </button>
+                        <button class="btn btn-secondary" onclick="this.closest('.modal').remove();" style="width: 100%; font-size: 14px; padding: 10px;">
+                            Maybe Later
+                        </button>`
+                    }
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Close on outside click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+        
         async function upgradeToPremium() {
             if (!authToken) {
-                alert('Please login first');
+                showRegisterModal();
                 return;
             }
             

@@ -93,13 +93,11 @@ class PassageViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.none()
             else:
                 queryset = queryset.filter(tier=tier)
-        else:
-            # No tier filter: automatically filter premium content for non-premium users
-            # Premium users see all passages (free + premium)
-            # Non-premium users only see free passages
-            if not is_premium_user:
-                queryset = queryset.filter(tier='free')
-            # Premium users see all - no additional filter needed
+        # No tier filter: show all content (including premium)
+        # Frontend will handle showing preview/lock for premium content
+        # Premium users see all passages (free + premium)
+        # Non-premium users see all but with preview/lock on premium
+        # No filtering - let frontend handle the UI
         
         return queryset
     
@@ -783,10 +781,9 @@ class LessonViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.none()
             else:
                 queryset = queryset.filter(tier=tier)
-        else:
-            # No tier filter: automatically filter premium content for non-premium users
-            if not is_premium_user:
-                queryset = queryset.filter(tier='free')
+        # No tier filter: show all content (including premium)
+        # Frontend will handle showing preview/lock for premium content
+        # No filtering - let frontend handle the UI
         
         return queryset
 
@@ -846,10 +843,9 @@ class WritingSectionViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.none()
             else:
                 queryset = queryset.filter(tier=tier)
-        else:
-            # No tier filter: automatically filter premium content for non-premium users
-            if not is_premium_user:
-                queryset = queryset.filter(tier='free')
+        # No tier filter: show all content (including premium)
+        # Frontend will handle showing preview/lock for premium content
+        # No filtering - let frontend handle the UI
         
         return queryset
     
