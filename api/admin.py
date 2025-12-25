@@ -19,6 +19,8 @@ from .ingestion_utils import (
 from .lesson_ingestion_utils import process_lesson_ingestion
 from .writing_ingestion_utils import process_writing_ingestion
 from .writing_gpt_utils import convert_document_to_writing_json
+from .passage_ingestion_utils import process_passage_ingestion
+from .passage_gpt_utils import convert_document_to_passage_json
 
 
 class MultipleFileInput(forms.Widget):
@@ -427,23 +429,42 @@ class PassageAnnotationAdmin(admin.ModelAdmin):
 
 
 class PassageIngestionForm(forms.ModelForm):
-    """Custom form for file upload - supports multiple files"""
+    """Custom form for file upload - supports JSON or documents with GPT conversion"""
     file = forms.FileField(
         required=True,
-        help_text="Upload one or more files: images (PNG, JPG), PDFs, Word documents (.docx, .doc), or text files (.txt) containing passages with questions. Hold Ctrl/Cmd to select multiple files.",
-        widget=MultipleFileInput(attrs={'accept': 'image/*,application/pdf,.pdf,.docx,.doc,text/plain,.txt'})
+        help_text="Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT.",
+        widget=forms.FileInput(attrs={'accept': '.json,.pdf,.docx,.doc,.txt,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'})
+    )
+    use_gpt_conversion = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Check this to convert document to JSON using GPT (auto-detected for non-JSON files)"
     )
     
     class Meta:
         model = PassageIngestion
-        fields = ['file']
+        fields = ['file', 'use_gpt_conversion']
     
     def clean_file(self):
-        """Handle multiple file uploads - return first file for validation"""
-        # The widget's value_from_datadict should return the first file
-        # This satisfies the required field validation
-        # save_model will handle all files via request.FILES.getlist('file')
+        """Validate uploaded file"""
         data = self.cleaned_data.get('file')
+        if data:
+            file_ext = os.path.splitext(data.name)[1].lower()
+            
+            # If it's a JSON file, validate it
+            if file_ext == '.json':
+                try:
+                    data.seek(0)
+                    json.loads(data.read().decode('utf-8'))
+                    data.seek(0)  # Reset for later use
+                except json.JSONDecodeError as e:
+                    raise forms.ValidationError(f'Invalid JSON file: {str(e)}')
+                except UnicodeDecodeError:
+                    raise forms.ValidationError('File must be valid UTF-8 encoded JSON')
+            # For other file types, we'll handle them in save_model
+            elif file_ext not in ['.pdf', '.docx', '.doc', '.txt']:
+                raise forms.ValidationError('File must be JSON (.json), PDF (.pdf), DOCX (.docx), or TXT (.txt)')
+        
         return data
 
 
@@ -454,7 +475,7 @@ class PassageIngestionAdmin(admin.ModelAdmin):
     list_display = ['file_name', 'file_type', 'status', 'created_passage_link', 'created_at', 'process_action']
     list_filter = ['status', 'file_type', 'created_at']
     search_fields = ['file_name', 'error_message']
-    readonly_fields = ['id', 'file_name', 'file_path', 'file_type', 'extracted_text_preview', 'status', 'error_message', 'created_passage_link', 'created_at', 'updated_at']
+    readonly_fields = ['id', 'file_name', 'file_path', 'file_type', 'extracted_text_preview', 'parsed_data_preview', 'status', 'error_message', 'created_passage_link', 'created_at', 'updated_at']
     actions = ['process_selected']
     
     class Media:
@@ -462,14 +483,14 @@ class PassageIngestionAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('File Upload', {
-            'fields': ('file',),
-            'description': 'You can select multiple files at once by holding Ctrl (Windows/Linux) or Cmd (Mac) while clicking files.'
+            'fields': ('file', 'use_gpt_conversion'),
+            'description': 'Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT. Check "Use GPT conversion" to force GPT conversion even for JSON files.'
         }),
         ('Processing Status', {
             'fields': ('id', 'status', 'file_path', 'error_message')
         }),
         ('Results', {
-            'fields': ('extracted_text_preview', 'created_passage_link'),
+            'fields': ('extracted_text_preview', 'parsed_data_preview', 'created_passage_link'),
             'classes': ('collapse',)
         }),
         ('Metadata', {
@@ -485,6 +506,14 @@ class PassageIngestionAdmin(admin.ModelAdmin):
             return format_html('<pre style="max-height: 200px; overflow: auto;">{}</pre>', preview)
         return '-'
     extracted_text_preview.short_description = 'Extracted Text Preview'
+    
+    def parsed_data_preview(self, obj):
+        """Display preview of parsed JSON data"""
+        if obj.parsed_data:
+            preview = json.dumps(obj.parsed_data, indent=2)[:1000] + '...' if len(json.dumps(obj.parsed_data)) > 1000 else json.dumps(obj.parsed_data, indent=2)
+            return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        return '-'
+    parsed_data_preview.short_description = 'Parsed Data Preview'
     
     def created_passage_link(self, obj):
         """Link to created passage"""
@@ -572,7 +601,12 @@ class PassageIngestionAdmin(admin.ModelAdmin):
             
             try:
                 ingestion = PassageIngestion.objects.get(pk=ingestion_id)
-                process_ingestion(ingestion)
+                # Use new JSON-based processing if parsed_data exists, otherwise fall back to old method
+                if ingestion.parsed_data:
+                    process_passage_ingestion(ingestion)
+                else:
+                    # Fall back to old process_ingestion for backward compatibility
+                    process_ingestion(ingestion)
             except Exception as e:
                 # Get full traceback for debugging
                 error_trace = traceback.format_exc()
@@ -632,172 +666,113 @@ class PassageIngestionAdmin(admin.ModelAdmin):
     process_selected.short_description = 'Process selected ingestions'
     
     def save_model(self, request, obj, form, change):
-        """Override save to handle file upload and process ingestion - supports multiple files"""
-        # Handle file upload for new objects - check request.FILES directly for multiple files
+        """Override save to handle file upload with GPT conversion"""
         if not change:
-            uploaded_files = request.FILES.getlist('file')
+            uploaded_file = form.cleaned_data.get('file')
+            use_gpt = form.cleaned_data.get('use_gpt_conversion', False)
             
-            # Fallback to single file if multiple not available
-            if not uploaded_files:
-                uploaded_file = form.cleaned_data.get('file')
-                if uploaded_file:
-                    uploaded_files = [uploaded_file]
-            
-            if uploaded_files:
-                # Use transaction to prevent database locking issues
-                with transaction.atomic():
-                    # Save all files and collect their paths
-                    media_dir = settings.MEDIA_ROOT / 'ingestions'
-                    media_dir.mkdir(parents=True, exist_ok=True)
+            if uploaded_file:
+                import uuid
+                from pathlib import Path
+                
+                # Create media directory if it doesn't exist
+                media_dir = Path(settings.MEDIA_ROOT) / 'ingestions'
+                media_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Save file
+                file_ext = os.path.splitext(uploaded_file.name)[1]
+                unique_filename = f"{uuid.uuid4()}{file_ext}"
+                file_path = media_dir / unique_filename
+                
+                with open(file_path, 'wb+') as destination:
+                    for chunk in uploaded_file.chunks():
+                        destination.write(chunk)
+                
+                obj.file_name = uploaded_file.name
+                obj.file_path = str(file_path)
+                obj.file_type = file_ext.lower().lstrip('.')
+                
+                # Determine if we need GPT conversion
+                is_json = file_ext.lower() == '.json'
+                is_document = file_ext.lower() in ['.pdf', '.docx', '.doc', '.txt']
+                should_use_gpt = use_gpt or (is_document and not is_json)
+                
+                # Parse JSON or convert document
+                try:
+                    # Save first to get the ID, but set status to 'processing' to prevent signal handler from running
+                    with transaction.atomic():
+                        obj.status = 'processing'
+                        obj.error_message = 'Processing file...'
+                        obj.save()  # Save first to get the ID
                     
-                    import uuid
-                    file_paths = []
-                    file_names = []
-                    file_type = None
-                    
-                    for uploaded_file in uploaded_files:
-                        # Save file to media directory
-                        file_ext = os.path.splitext(uploaded_file.name)[1]
-                        unique_filename = f"{uuid.uuid4()}{file_ext}"
-                        file_path = media_dir / unique_filename
+                    if is_json:
+                        # Direct JSON parsing
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            obj.parsed_data = json.load(f)
+                        obj.error_message = '✓ Successfully loaded JSON file.'
+                    elif should_use_gpt and is_document:
+                        # Convert document to JSON using GPT (outside transaction to avoid long-running calls)
+                        obj.error_message = 'Converting document to JSON using GPT...'
+                        obj.save()
                         
-                        with open(file_path, 'wb+') as destination:
-                            for chunk in uploaded_file.chunks():
-                                destination.write(chunk)
-                        
-                        file_paths.append(str(file_path))
-                        file_names.append(uploaded_file.name)
-                        
-                        # Determine file type
-                        ext = file_ext.lower()
-                        if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']:
-                            if file_type is None:
-                                file_type = 'image'
-                        elif ext == '.pdf':
-                            if file_type is None:
-                                file_type = 'pdf'
-                        elif ext == '.docx':
-                            if file_type is None:
-                                file_type = 'docx'
-                        elif ext == '.doc':
-                            # Legacy .doc files - note that extraction may not work perfectly
-                            if file_type is None:
-                                file_type = 'docx'  # Try to process as docx, will show error if fails
-                        elif ext == '.txt':
-                            if file_type is None:
-                                file_type = 'txt'
-                    
-                    if file_type is None:
-                        file_type = 'unknown'
-                    
-                    # Create ONE ingestion object for all files (they're screenshots of the same document)
-                    ingestion = PassageIngestion()
-                    ingestion.file_name = f"{len(file_names)} files: {', '.join(file_names[:3])}" + (f" and {len(file_names)-3} more" if len(file_names) > 3 else "")
-                    ingestion.file_path = file_paths[0]  # Primary file for backward compatibility
-                    ingestion.file_paths = file_paths  # All file paths
-                    ingestion.file_type = file_type
-                    ingestion.save()
-                    
-                    created_ingestions = [ingestion]
+                        # Convert document
+                        passage_data = convert_document_to_passage_json(str(file_path), uploaded_file.name)
+                        obj.parsed_data = passage_data
+                        obj.error_message = f'✓ Successfully converted document to JSON using GPT.'
+                    else:
+                        raise ValueError(f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.')
+                except Exception as e:
+                    obj.status = 'failed'
+                    obj.error_message = f'Failed to process file: {str(e)}'
                 
-                # Process ingestions asynchronously in background threads
-                def process_in_background(ingestion_id):
-                    """Process ingestion in background thread"""
-                    import traceback
-                    from django.db import connection
-                    # Close the connection from the main thread
-                    connection.close()
-                    # Get fresh connection for this thread
-                    from django import db
-                    db.connections.close_all()
-                    
-                    # Get the ingestion object in this thread
-                    try:
-                        ingestion = PassageIngestion.objects.get(pk=ingestion_id)
-                        process_ingestion(ingestion)
-                    except Exception as e:
-                        # Get full traceback for debugging
-                        error_trace = traceback.format_exc()
-                        try:
-                            ingestion = PassageIngestion.objects.get(pk=ingestion_id)
-                            ingestion.status = 'failed'
-                            ingestion.error_message = f"{str(e)}\n\nTraceback:\n{error_trace}"
-                            ingestion.save()
-                        except Exception as save_error:
-                            # If we can't save the error, log it
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.error(f"Failed to save error for ingestion {ingestion_id}: {save_error}")
-                            logger.error(f"Original error: {error_trace}")
-                
-                # Start background processing for each ingestion
-                for ingestion in created_ingestions:
-                    thread = threading.Thread(target=process_in_background, args=(ingestion.pk,))
-                    thread.daemon = True
-                    thread.start()
-                
-                # Show success message
-                from django.contrib import messages
-                if len(created_ingestions) > 1:
-                    messages.success(request, f"Successfully uploaded {len(created_ingestions)} files. Processing is happening in the background - check back in a moment to see results.")
-                    messages.info(request, "💡 Tip: If processing gets stuck, select the ingestion(s) and use the 'Process selected ingestions' action, or run: heroku run python manage.py process_ingestions --app keuvi")
-                else:
-                    messages.success(request, f"Successfully uploaded {created_ingestions[0].file_name}. Processing is happening in the background - check back in a moment to see results.")
-                    messages.info(request, "💡 Tip: If processing gets stuck, select the ingestion and use the 'Process selected ingestions' action, or run: heroku run python manage.py process_ingestions --id <id> --app keuvi")
-                
-                # Store first ingestion ID for redirect in response_add
-                if created_ingestions:
-                    request._ingestion_redirect_id = created_ingestions[0].pk
-                
-                # Don't save the original obj since we created separate ones
-                return
-            else:
-                # No files uploaded
-                from django.contrib import messages
-                messages.error(request, "No files were uploaded.")
-                return
-        
-        # For editing existing objects - auto-process if pending/failed
-        if change:
-            super().save_model(request, obj, form, change)
-            # Auto-process if it has files and is pending/failed
-            if obj.file_path and obj.status in ['pending', 'failed']:
-                # Mark as processing and start background processing
-                obj.status = 'processing'
+                # Save ingestion with final status
                 obj.save()
                 
-                # Process in background
-                def process_in_background(ingestion_id):
-                    import traceback
-                    from django.db import connection
-                    connection.close()
-                    from django import db
-                    db.connections.close_all()
-                    
-                    try:
-                        ingestion = PassageIngestion.objects.get(pk=ingestion_id)
-                        process_ingestion(ingestion)
-                    except Exception as e:
-                        # Get full traceback for debugging
-                        error_trace = traceback.format_exc()
+                # Process in background (only if we have parsed_data and didn't fail)
+                if obj.status != 'failed' and obj.parsed_data:
+                    def process_in_background(ingestion_id):
+                        import time
+                        import traceback
+                        from django.db import connection
+                        # Small delay to ensure transaction has committed
+                        time.sleep(0.5)
+                        connection.close()
+                        from django import db
+                        db.connections.close_all()
+                        from .models import PassageIngestion
                         try:
-                            ingestion = PassageIngestion.objects.get(pk=ingestion_id)
-                            ingestion.status = 'failed'
-                            ingestion.error_message = f"{str(e)}\n\nTraceback:\n{error_trace}"
-                            ingestion.save()
-                        except Exception as save_error:
-                            # If we can't save the error, log it
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.error(f"Failed to save error for ingestion {ingestion_id}: {save_error}")
-                            logger.error(f"Original error: {error_trace}")
-                
-                thread = threading.Thread(target=process_in_background, args=(obj.pk,))
-                thread.daemon = True
-                thread.start()
-                
-                from django.contrib import messages
-                messages.info(request, "Processing started automatically in the background.")
+                            # Try to get the object, with retry logic
+                            ingestion = None
+                            for attempt in range(3):
+                                try:
+                                    ingestion = PassageIngestion.objects.get(pk=ingestion_id)
+                                    break
+                                except PassageIngestion.DoesNotExist:
+                                    if attempt < 2:
+                                        time.sleep(0.5)
+                                    else:
+                                        raise
+                            
+                            if ingestion:
+                                process_passage_ingestion(ingestion)
+                        except Exception as e:
+                            try:
+                                ingestion = PassageIngestion.objects.get(pk=ingestion_id)
+                                ingestion.status = 'failed'
+                                ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
+                                ingestion.save()
+                            except PassageIngestion.DoesNotExist:
+                                # Object doesn't exist, can't save error - just log it
+                                import logging
+                                logger = logging.getLogger(__name__)
+                                logger.error(f"PassageIngestion {ingestion_id} does not exist. Error was: {str(e)}")
+                    
+                    thread = threading.Thread(target=process_in_background, args=(obj.pk,))
+                    thread.daemon = True
+                    thread.start()
+                    
+                    from django.contrib import messages
+                    messages.info(request, "Processing started automatically in the background.")
         else:
             super().save_model(request, obj, form, change)
 

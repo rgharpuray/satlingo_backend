@@ -323,6 +323,7 @@ class PassageIngestion(models.Model):
     file_type = models.CharField(max_length=50)  # image, pdf, etc.
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     extracted_text = models.TextField(null=True, blank=True)  # OCR/extracted text (combined from all files)
+    parsed_data = models.JSONField(null=True, blank=True)  # Store parsed JSON data
     error_message = models.TextField(null=True, blank=True)
     created_passage = models.ForeignKey(Passage, on_delete=models.SET_NULL, null=True, blank=True, related_name='ingestions')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -654,8 +655,9 @@ def auto_process_ingestion(sender, instance, created, **kwargs):
     # 1. Has file_path (files are uploaded)
     # 2. Status is pending or failed (check before we update it)
     # 3. Not already processing or completed
+    # 4. Does NOT have parsed_data (new JSON-based ingestions are handled in admin.save_model)
     # Use raw status check to avoid signal loop
-    if instance.file_path:
+    if instance.file_path and not instance.parsed_data:
         current_status = PassageIngestion.objects.filter(pk=instance.pk).values_list('status', flat=True).first()
         if current_status in ['pending', 'failed']:
             # Mark as processing immediately (use update to avoid signal loop)
@@ -663,8 +665,11 @@ def auto_process_ingestion(sender, instance, created, **kwargs):
             
             # Process in background thread
             def process_in_background(ingestion_id):
+                import time
                 import traceback
                 from django.db import connection
+                # Small delay to ensure transaction has committed
+                time.sleep(0.5)
                 connection.close()
                 from django import db
                 db.connections.close_all()
@@ -672,8 +677,21 @@ def auto_process_ingestion(sender, instance, created, **kwargs):
                 # Import here to avoid circular imports
                 from api.ingestion_utils import process_ingestion
                 try:
-                    ingestion = PassageIngestion.objects.get(pk=ingestion_id)
-                    process_ingestion(ingestion)
+                    # Try to get the object, with retry logic
+                    ingestion = None
+                    for attempt in range(3):
+                        try:
+                            ingestion = PassageIngestion.objects.get(pk=ingestion_id)
+                            break
+                        except PassageIngestion.DoesNotExist:
+                            if attempt < 2:
+                                time.sleep(0.5)
+                            else:
+                                raise
+                    
+                    if ingestion:
+                        # Only use old process_ingestion for backward compatibility (no parsed_data)
+                        process_ingestion(ingestion)
                 except Exception as e:
                     # Get full traceback for debugging
                     error_trace = traceback.format_exc()
@@ -682,6 +700,11 @@ def auto_process_ingestion(sender, instance, created, **kwargs):
                         ingestion.status = 'failed'
                         ingestion.error_message = f"{str(e)}\n\nTraceback:\n{error_trace}"
                         ingestion.save()
+                    except PassageIngestion.DoesNotExist:
+                        # Object doesn't exist, can't save error - just log it
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"PassageIngestion {ingestion_id} does not exist. Error was: {str(e)}")
                     except Exception as save_error:
                         # If we can't save the error, log it
                         import logging
