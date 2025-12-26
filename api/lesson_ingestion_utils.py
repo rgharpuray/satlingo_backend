@@ -10,8 +10,9 @@ def process_lesson_ingestion(ingestion):
     """
     Process a lesson ingestion from JSON file.
     Creates a Lesson with questions extracted from chunks.
+    Supports assets (diagrams/images) for math lessons.
     """
-    from .models import Lesson, LessonQuestion, LessonQuestionOption
+    from .models import Lesson, LessonQuestion, LessonQuestionOption, LessonAsset, LessonQuestionAsset
     
     try:
         ingestion.status = 'processing'
@@ -72,13 +73,14 @@ def process_lesson_ingestion(ingestion):
                     'text': prompt,
                     'choices': choices,
                     'correct_answer_index': correct_index,
+                    'assets': chunk.get('assets', []),  # Include assets from chunk
                 })
         
         ingestion.error_message = f'Step 2/3: Found {len(questions_data)} questions in chunks.'
         ingestion.save()
         
-        # Step 3: Create lesson and questions
-        ingestion.error_message = 'Step 3/3: Creating lesson and questions in database...'
+        # Step 3: Create lesson, assets, and questions
+        ingestion.error_message = 'Step 3/3: Creating lesson, assets, and questions in database...'
         ingestion.save()
         
         # Check if lesson with this lesson_id already exists
@@ -92,8 +94,9 @@ def process_lesson_ingestion(ingestion):
             lesson.content = _render_lesson_content(lesson_data['chunks'])
             lesson.save()
             
-            # Delete old questions
+            # Delete old questions and assets
             lesson.questions.all().delete()
+            lesson.assets.all().delete()
         elif not ingestion.created_lesson:
             # Create new lesson
             lesson = Lesson.objects.create(
@@ -106,6 +109,23 @@ def process_lesson_ingestion(ingestion):
             )
         else:
             lesson = ingestion.created_lesson
+        
+        # Process shared assets (for math lessons with diagrams)
+        assets_map = {}  # Map asset_id to LessonAsset object
+        shared_assets = lesson_data.get('shared_assets', [])
+        if shared_assets:
+            for asset_data in shared_assets:
+                asset_id = asset_data.get('asset_id')
+                if not asset_id:
+                    continue
+                
+                asset = LessonAsset.objects.create(
+                    lesson=lesson,
+                    asset_id=asset_id,
+                    type=asset_data.get('type', 'image'),
+                    s3_url=asset_data.get('s3_url', ''),
+                )
+                assets_map[asset_id] = asset
         
         # Create questions
         for q_data in questions_data:
@@ -124,6 +144,16 @@ def process_lesson_ingestion(ingestion):
                     text=choice_text,
                     order=opt_idx,
                 )
+            
+            # Link assets to question if specified
+            question_assets = q_data.get('assets', [])
+            if question_assets:
+                for asset_id in question_assets:
+                    if asset_id in assets_map:
+                        LessonQuestionAsset.objects.create(
+                            question=question,
+                            asset=assets_map[asset_id],
+                        )
         
         ingestion.created_lesson = lesson
         ingestion.status = 'completed'

@@ -418,6 +418,50 @@ class LessonQuestionOption(models.Model):
         return f"{self.question} - Option {self.order}"
 
 
+class LessonAsset(models.Model):
+    """Shared assets (diagrams, images) for lessons"""
+    ASSET_TYPE_CHOICES = [
+        ('image', 'Image'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='assets')
+    asset_id = models.CharField(max_length=255, help_text="Unique identifier from JSON (e.g., 'diagram-1')")
+    type = models.CharField(max_length=50, choices=ASSET_TYPE_CHOICES, default='image')
+    s3_url = models.URLField(max_length=500, help_text="Public S3 URL for the asset")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'lesson_assets'
+        indexes = [
+            models.Index(fields=['lesson']),
+            models.Index(fields=['asset_id']),
+        ]
+        unique_together = [['lesson', 'asset_id']]
+    
+    def __str__(self):
+        return f"{self.lesson.title} - {self.asset_id}"
+
+
+class LessonQuestionAsset(models.Model):
+    """Many-to-many relationship between lesson questions and assets"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    question = models.ForeignKey(LessonQuestion, on_delete=models.CASCADE, related_name='question_assets')
+    asset = models.ForeignKey(LessonAsset, on_delete=models.CASCADE, related_name='question_references')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'lesson_question_assets'
+        indexes = [
+            models.Index(fields=['question']),
+            models.Index(fields=['asset']),
+        ]
+        unique_together = [['question', 'asset']]
+    
+    def __str__(self):
+        return f"{self.question} - {self.asset.asset_id}"
+
+
 class LessonIngestion(models.Model):
     """Track lesson ingestion from JSON files"""
     STATUS_CHOICES = [
@@ -718,4 +762,186 @@ def auto_process_ingestion(sender, instance, created, **kwargs):
             
             # Note: On Heroku, daemon threads may be killed when request ends
             # If processing gets stuck, use: heroku run python manage.py process_ingestions --id <id>
+
+
+# Math Section Models
+class MathSection(models.Model):
+    """Math sections with questions and shared assets (diagrams)"""
+    DIFFICULTY_CHOICES = [
+        ('Easy', 'Easy'),
+        ('Medium', 'Medium'),
+        ('Hard', 'Hard'),
+    ]
+    
+    TIER_CHOICES = [
+        ('free', 'Free'),
+        ('premium', 'Premium'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    section_id = models.CharField(max_length=255, unique=True, help_text="Unique identifier from JSON (e.g., 'algebra-basics')")
+    title = models.CharField(max_length=255)
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='Medium')
+    tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'math_sections'
+        indexes = [
+            models.Index(fields=['section_id']),
+            models.Index(fields=['difficulty']),
+            models.Index(fields=['tier']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.title
+
+
+class MathAsset(models.Model):
+    """Shared assets (diagrams, images) for math sections"""
+    ASSET_TYPE_CHOICES = [
+        ('image', 'Image'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    math_section = models.ForeignKey(MathSection, on_delete=models.CASCADE, related_name='assets')
+    asset_id = models.CharField(max_length=255, help_text="Unique identifier from JSON (e.g., 'diagram-1')")
+    type = models.CharField(max_length=50, choices=ASSET_TYPE_CHOICES, default='image')
+    s3_url = models.URLField(max_length=500, help_text="Public S3 URL for the asset")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'math_assets'
+        indexes = [
+            models.Index(fields=['math_section']),
+            models.Index(fields=['asset_id']),
+        ]
+        unique_together = [['math_section', 'asset_id']]
+    
+    def __str__(self):
+        return f"{self.math_section.title} - {self.asset_id}"
+
+
+class MathQuestion(models.Model):
+    """Questions for math sections"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    math_section = models.ForeignKey(MathSection, on_delete=models.CASCADE, related_name='questions')
+    question_id = models.CharField(max_length=255, help_text="Unique identifier from JSON (e.g., 'q1')")
+    prompt = models.TextField(help_text="Question prompt")
+    correct_answer_index = models.IntegerField(validators=[MinValueValidator(0)], default=0)
+    explanation = models.JSONField(default=list, help_text="Array of explanation blocks")
+    order = models.IntegerField(help_text="Order of the question")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'math_questions'
+        indexes = [
+            models.Index(fields=['math_section']),
+            models.Index(fields=['question_id']),
+            models.Index(fields=['order']),
+        ]
+        unique_together = [['math_section', 'question_id']]
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.math_section.title} - {self.question_id}"
+
+
+class MathQuestionOption(models.Model):
+    """Options for math questions"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    question = models.ForeignKey(MathQuestion, on_delete=models.CASCADE, related_name='options')
+    text = models.TextField()
+    order = models.IntegerField(validators=[MinValueValidator(0)])
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'math_question_options'
+        indexes = [
+            models.Index(fields=['question']),
+            models.Index(fields=['order']),
+        ]
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.question} - Option {self.order}"
+
+
+class MathQuestionAsset(models.Model):
+    """Many-to-many relationship between questions and assets"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    question = models.ForeignKey(MathQuestion, on_delete=models.CASCADE, related_name='question_assets')
+    asset = models.ForeignKey(MathAsset, on_delete=models.CASCADE, related_name='question_references')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'math_question_assets'
+        indexes = [
+            models.Index(fields=['question']),
+            models.Index(fields=['asset']),
+        ]
+        unique_together = [['question', 'asset']]
+    
+    def __str__(self):
+        return f"{self.question} - {self.asset.asset_id}"
+
+
+class MathSectionIngestion(models.Model):
+    """Track math section ingestion from files"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)
+    file_type = models.CharField(max_length=50)  # pdf, docx, txt, json
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    extracted_text = models.TextField(null=True, blank=True)
+    parsed_data = models.JSONField(null=True, blank=True)  # Store parsed JSON data
+    error_message = models.TextField(null=True, blank=True)
+    created_math_section = models.ForeignKey(MathSection, on_delete=models.SET_NULL, null=True, blank=True, related_name='ingestions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'math_section_ingestions'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.file_name} - {self.status}"
+
+
+class MathSectionAttempt(models.Model):
+    """Store individual attempts at math sections with full answer details"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='math_section_attempts', null=True, blank=True)
+    math_section = models.ForeignKey(MathSection, on_delete=models.CASCADE, related_name='attempts')
+    score = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)])
+    correct_count = models.IntegerField()
+    total_questions = models.IntegerField()
+    time_spent_seconds = models.IntegerField(null=True, blank=True)
+    completed_at = models.DateTimeField(auto_now_add=True)
+    # Store answers as JSON for full history
+    answers_data = models.JSONField(default=list)  # List of {question_id, selected_option_index, is_correct, etc.}
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'math_section_attempts'
+        indexes = [
+            models.Index(fields=['user', 'math_section']),
+            models.Index(fields=['user']),
+            models.Index(fields=['math_section']),
+            models.Index(fields=['completed_at']),
+        ]
+        ordering = ['-completed_at']
+    
+    def __str__(self):
+        return f"{self.user.email if self.user else 'Anonymous'} - {self.math_section.title} - {self.score}% ({self.completed_at})"
 

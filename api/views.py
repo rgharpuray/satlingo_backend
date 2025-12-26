@@ -16,7 +16,8 @@ from .models import (
     UserProgress, UserAnswer, WordOfTheDay, PassageAttempt,
     Lesson, LessonQuestion, LessonQuestionOption,
     WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption,
-    WritingSectionAttempt
+    WritingSectionAttempt,
+    MathSection, MathQuestion, MathQuestionOption, MathAsset, MathSectionAttempt
 )
 from .serializers import (
     PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
@@ -27,7 +28,8 @@ from .serializers import (
     LessonListSerializer, LessonDetailSerializer, LessonQuestionSerializer,
     WritingSectionListSerializer, WritingSectionDetailSerializer, WritingSectionQuestionSerializer,
     SubmitWritingSectionRequestSerializer, SubmitWritingSectionResponseSerializer,
-    WritingSectionAttemptSerializer
+    WritingSectionAttemptSerializer,
+    MathSectionListSerializer, MathSectionDetailSerializer, MathQuestionSerializer
 )
 
 
@@ -761,6 +763,25 @@ class LessonViewSet(viewsets.ReadOnlyModelViewSet):
             return LessonDetailSerializer
         return LessonListSerializer
     
+    def retrieve(self, request, *args, **kwargs):
+        """Get lesson detail with premium check"""
+        lesson = self.get_object()
+        user = get_user_from_request(request)
+        
+        # Check if lesson is premium and user doesn't have access
+        if lesson.tier == 'premium':
+            if not user or not (user.is_premium or user.has_active_subscription):
+                return Response(
+                    {'error': {
+                        'code': 'PREMIUM_REQUIRED',
+                        'message': 'This lesson requires a premium subscription',
+                        'upgrade_url': '/web/subscription'
+                    }},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        return super().retrieve(request, *args, **kwargs)
+    
     def get_queryset(self):
         queryset = Lesson.objects.annotate(
             question_count=Count('questions')
@@ -870,6 +891,96 @@ class WritingSectionViewSet(viewsets.ReadOnlyModelViewSet):
         questions = writing_section.questions.all().order_by('order')
         serializer = WritingSectionQuestionSerializer(questions, many=True)
         return Response({'questions': serializer.data})
+
+
+class MathSectionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for math sections endpoints.
+    GET /math-sections - List all math sections
+    GET /math-sections/:id - Get math section detail
+    GET /math-sections/:id/questions - Get questions for a math section
+    """
+    queryset = MathSection.objects.all()
+    serializer_class = MathSectionListSerializer
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return MathSectionDetailSerializer
+        return MathSectionListSerializer
+    
+    def get_serializer_context(self):
+        """Add request to serializer context for attempt_count"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Get math section detail with premium check"""
+        math_section = self.get_object()
+        user = get_user_from_request(request)
+        
+        # Check if math section is premium and user doesn't have access
+        if math_section.tier == 'premium':
+            if not user or not (user.is_premium or user.has_active_subscription):
+                return Response(
+                    {'error': {
+                        'code': 'PREMIUM_REQUIRED',
+                        'message': 'This math section requires a premium subscription',
+                        'upgrade_url': '/web/subscription'
+                    }},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        return super().retrieve(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        queryset = MathSection.objects.annotate(
+            question_count=Count('questions'),
+            asset_count=Count('assets')
+        )
+        difficulty = self.request.query_params.get('difficulty', None)
+        tier = self.request.query_params.get('tier', None)
+        
+        if difficulty:
+            queryset = queryset.filter(difficulty=difficulty)
+        
+        # Get user for premium check
+        user = get_user_from_request(self.request)
+        is_premium_user = user and (user.is_premium or user.has_active_subscription)
+        
+        # Handle tier filtering
+        if tier:
+            if tier == 'premium' and not is_premium_user:
+                queryset = queryset.none()
+            else:
+                queryset = queryset.filter(tier=tier)
+        # No tier filter: show all content (including premium)
+        # Frontend will handle showing preview/lock for premium content
+        # No filtering - let frontend handle the UI
+        
+        return queryset
+    
+    @action(detail=True, methods=['get'])
+    def questions(self, request, pk=None):
+        """Get questions for a math section without correct answers/explanations"""
+        math_section = self.get_object()
+        user = get_user_from_request(request)
+        
+        # Check if math section is premium and user doesn't have access
+        if math_section.tier == 'premium':
+            if not user or not (user.is_premium or user.has_active_subscription):
+                return Response(
+                    {'error': {
+                        'code': 'PREMIUM_REQUIRED',
+                        'message': 'This math section requires a premium subscription',
+                        'upgrade_url': '/web/subscription'
+                    }},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        questions = math_section.questions.all().order_by('order')
+        serializer = MathQuestionSerializer(questions, many=True)
+        return Response({'results': serializer.data})
 
 
 class SubmitWritingSectionView(APIView):

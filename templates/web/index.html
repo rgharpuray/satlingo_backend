@@ -1036,6 +1036,12 @@
                         <div id="writingSectionsList"></div>
                     </div>
                     
+                    <!-- Math Sections List View -->
+                    <div class="passages-section" id="mathSectionsListSection" style="margin-bottom: 40px;">
+                        <h2>Math Sections</h2>
+                        <div id="mathSectionsList"></div>
+                    </div>
+                    
                     <!-- Passages List View -->
                     <div class="passages-section" id="passagesListSection">
                         <h2>Reading Passages</h2>
@@ -1145,7 +1151,11 @@
                 const sectionId = hash.split('/')[1];
                 showPassages();
                 setTimeout(() => openWritingSection(sectionId), 100);
-            } else if (hash === 'passages' || hash === 'lessons' || hash === 'writing-sections') {
+            } else if (hash.startsWith('math-section/')) {
+                const sectionId = hash.split('/')[1];
+                showPassages();
+                setTimeout(() => openMathSection(sectionId), 100);
+            } else if (hash === 'passages' || hash === 'lessons' || hash === 'writing-sections' || hash === 'math-sections') {
                 showPassages();
             } else {
                 showLanding();
@@ -1201,12 +1211,15 @@
             if (window.location.hash !== '#passages') {
                 window.history.replaceState(null, '', window.location.pathname + '#passages');
             }
-            // Load lessons, writing sections, and passages if not already loaded
+            // Load lessons, writing sections, math sections, and passages if not already loaded
             if (document.getElementById('lessonsList').innerHTML === '') {
                 loadLessons();
             }
             if (document.getElementById('writingSectionsList').innerHTML === '') {
                 loadWritingSections();
+            }
+            if (document.getElementById('mathSectionsList').innerHTML === '') {
+                loadMathSections();
             }
             if (document.getElementById('passagesList').innerHTML === '') {
                 loadPassages();
@@ -1430,6 +1443,79 @@
             }
         }
         
+        async function loadMathSections() {
+            try {
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                const response = await fetch(`${API_BASE}/math-sections/`, {headers});
+                const data = await response.json();
+                
+                const mathSectionsList = document.getElementById('mathSectionsList');
+                mathSectionsList.innerHTML = '';
+                
+                if (data.results && data.results.length > 0) {
+                    data.results.forEach(mathSection => {
+                        const card = document.createElement('div');
+                        card.className = `passage-card ${mathSection.tier === 'premium' ? 'premium' : ''}`;
+                        const attemptCount = mathSection.attempt_count || 0;
+                        const attemptText = attemptCount > 0 ? ` | ${attemptCount} attempt${attemptCount !== 1 ? 's' : ''}` : '';
+                        
+                        let attemptSummaryHTML = '';
+                        if (mathSection.attempt_summary && attemptCount > 0) {
+                            const summary = mathSection.attempt_summary;
+                            attemptSummaryHTML = `
+                                <div style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                        <span style="color: #666;"><strong>Best Score:</strong></span>
+                                        <span style="color: #3498DB; font-weight: bold;">${summary.best_score}%</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                        <span style="color: #666;"><strong>Latest Score:</strong></span>
+                                        <span style="color: #000; font-weight: bold;">${summary.latest_score}%</span>
+                                    </div>
+                                    ${summary.recent_attempts && summary.recent_attempts.length > 0 ? `
+                                        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
+                                            <div style="color: #666; margin-bottom: 6px; font-size: 12px;"><strong>Recent Attempts:</strong></div>
+                                            ${summary.recent_attempts.map((attempt, idx) => {
+                                                const date = new Date(attempt.completed_at);
+                                                const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                                return `
+                                                    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 4px;">
+                                                        <span>${dateStr}</span>
+                                                        <span style="font-weight: bold; color: #000;">${attempt.score}%</span>
+                                                    </div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }
+                        
+                        const isPremium = mathSection.tier === 'premium';
+                        const hasAccess = !isPremium || (currentUser && (currentUser.is_premium || currentUser.has_active_subscription));
+                        card.innerHTML = `
+                            <h3>${mathSection.title} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
+                            <p>Difficulty: ${mathSection.difficulty} | Questions: ${mathSection.question_count || 0}${attemptText}</p>
+                            ${attemptSummaryHTML}
+                            ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showMathSectionAttemptHistory('${mathSection.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
+                        `;
+                        card.onclick = () => openMathSection(mathSection.id);
+                        mathSectionsList.appendChild(card);
+                    });
+                } else {
+                    mathSectionsList.innerHTML = '<p style="color: #666; font-style: italic;">No math sections available yet.</p>';
+                }
+            } catch (error) {
+                console.error('Failed to load math sections:', error);
+                const mathSectionsList = document.getElementById('mathSectionsList');
+                mathSectionsList.innerHTML = '<p style="color: #999;">Unable to load math sections.</p>';
+            }
+        }
+        
         async function loadPassages() {
             try {
                 const headers = {};
@@ -1506,6 +1592,7 @@
         let currentLessonId = null;
         let currentLessonData = null;
         let currentWritingSectionId = null;
+        let currentMathSectionId = null;
         let currentWritingSectionData = null;
         let userAnswers = {};
         
@@ -1566,10 +1653,73 @@
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
             document.getElementById('writingSectionsListSection').style.display = 'none';
+            document.getElementById('mathSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Clear attempt history button
             document.getElementById('attemptHistoryButtonContainer').innerHTML = '';
+            
+            // Build a map of questions by chunk_index to their assets and question objects
+            const questionAssetsMap = {};
+            const questionMap = {}; // Map chunk_index to question object
+            if (lesson.questions) {
+                lesson.questions.forEach(question => {
+                    questionMap[question.chunk_index] = question;
+                    if (question.assets && question.assets.length > 0) {
+                        questionAssetsMap[question.chunk_index] = question.assets;
+                        console.log(`Question at chunk ${question.chunk_index} has ${question.assets.length} asset(s) from question.assets`);
+                    }
+                });
+            }
+            
+            // Also check chunks directly for assets (in case they're in the JSON but not linked yet)
+            if (lesson.chunks) {
+                lesson.chunks.forEach((chunk, chunkIdx) => {
+                    if (chunk.type === 'question' && chunk.assets && chunk.assets.length > 0) {
+                        // If we don't have assets from question object, use chunk assets
+                        if (!questionAssetsMap[chunkIdx]) {
+                            // Map asset_ids to full asset objects from lesson.assets
+                            const chunkAssetObjects = [];
+                            chunk.assets.forEach(assetId => {
+                                // Find the asset in lesson.assets by asset_id
+                                const asset = lesson.assets?.find(a => a.asset_id === assetId);
+                                if (asset) {
+                                    chunkAssetObjects.push(asset);
+                                } else {
+                                    console.warn(`Asset ${assetId} referenced in chunk ${chunkIdx} but not found in lesson.assets`);
+                                }
+                            });
+                            if (chunkAssetObjects.length > 0) {
+                                questionAssetsMap[chunkIdx] = chunkAssetObjects;
+                                console.log(`Found ${chunkAssetObjects.length} asset(s) for chunk ${chunkIdx} from chunk.assets`);
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // If we still don't have assets but lesson.assets exists, try to match by question order
+            // This is a fallback for cases where assets exist but aren't linked
+            if (lesson.assets && lesson.assets.length > 0 && Object.keys(questionAssetsMap).length === 0) {
+                console.warn('No assets linked to questions, but lesson has assets. Attempting to match by question order...');
+                // For now, just log - we'd need more context to match properly
+                // But at least show that assets exist
+                console.log(`Lesson has ${lesson.assets.length} asset(s) available but not linked to questions`);
+            }
+            
+            // Debug logging
+            console.log('Lesson assets:', lesson.assets);
+            console.log('Question assets map:', questionAssetsMap);
+            console.log('Lesson chunks with assets:', lesson.chunks?.filter(c => c.type === 'question' && c.assets));
+            
+            // Log each question's assets
+            if (lesson.questions) {
+                lesson.questions.forEach(q => {
+                    if (q.assets && q.assets.length > 0) {
+                        console.log(`Question at chunk ${q.chunk_index} has assets:`, q.assets);
+                    }
+                });
+            }
             
             // Render lesson content from chunks
             let contentHTML = `<h2 style="color: #3498DB; margin-bottom: 15px;">${escapeHtml(lesson.title)}</h2>`;
@@ -1604,14 +1754,93 @@
                     });
                     contentHTML += `</${listType}>`;
                 } else if (chunkType === 'question') {
+                    // Get the question object if it exists
+                    const questionObj = questionMap[chunkIdx];
+                    const questionId = questionObj ? questionObj.id : `chunk_${chunkIdx}`;
+                    
                     // Render question directly from chunk (questions are embedded in chunks)
                     contentHTML += `<div class="question-card" style="margin: 20px 0; padding: 15px; border: 2px solid #3498DB; border-radius: 8px; background: #f9f9f9;">`;
                     contentHTML += `<h4 style="color: #000; margin-bottom: 10px;">${escapeHtml(chunk.prompt || '')}</h4>`;
+                    
+                    // Display assets (diagrams) if this question has them
+                    let questionAssets = questionAssetsMap[chunkIdx];
+                    
+                    // If no assets linked but lesson has assets, try to match by question order
+                    // This is a fallback for cases where assets exist but aren't properly linked
+                    if ((!questionAssets || questionAssets.length === 0) && lesson.assets && lesson.assets.length > 0) {
+                        // Count how many questions we've seen so far (only question chunks)
+                        let questionNumber = 0;
+                        for (let i = 0; i < chunkIdx; i++) {
+                            if (lesson.chunks[i] && lesson.chunks[i].type === 'question') {
+                                questionNumber++;
+                            }
+                        }
+                        // If this is a question chunk, increment
+                        if (chunkType === 'question') {
+                            // Try to match asset by question number (1st question -> 1st asset, etc.)
+                            // But only if we have a reasonable match
+                            if (questionNumber < lesson.assets.length) {
+                                const matchedAsset = lesson.assets[questionNumber];
+                                questionAssets = [matchedAsset];
+                                console.log(`Matched asset ${matchedAsset.asset_id} to question ${questionNumber + 1} by order`);
+                            } else {
+                                // If more questions than assets, don't show anything
+                                console.log(`Question ${questionNumber + 1} has no matching asset (only ${lesson.assets.length} asset(s) available)`);
+                            }
+                        }
+                    }
+                    
+                    if (questionAssets && questionAssets.length > 0) {
+                        contentHTML += `<div style="margin-bottom: 50px; overflow: visible;">`;
+                        questionAssets.forEach(asset => {
+                            // Clean up malformed URLs (remove trailing colons/spaces)
+                            let imageUrl = asset.s3_url || asset.url || '';
+                            if (imageUrl) {
+                                // Remove trailing colons, spaces, and ensure it ends with file extension
+                                imageUrl = imageUrl.trim().replace(/[: ]+$/, '');
+                                // Fix malformed URLs that end with just the path
+                                // If URL ends with "lessons/proportion:" or similar, we need to reconstruct it
+                                if (imageUrl.endsWith('/') || imageUrl.match(/lessons\/[^/]+:$/)) {
+                                    // Extract asset_id and reconstruct URL
+                                    const assetId = asset.asset_id || 'diagram-1';
+                                    const lessonId = lesson.lesson_id || 'proportion';
+                                    imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}.png`;
+                                    console.log(`Fixed malformed URL for ${assetId}: ${imageUrl}`);
+                                }
+                                // If URL doesn't end with image extension, try to fix it
+                                if (!/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(imageUrl)) {
+                                    // Try to append .png if no extension
+                                    if (!imageUrl.includes('.')) {
+                                        imageUrl += '.png';
+                                    }
+                                }
+                            } else if (asset.asset_id && lesson.lesson_id) {
+                                // If no URL but we have asset_id, construct it
+                                imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${lesson.lesson_id}/${asset.asset_id}.png`;
+                                console.log(`Constructed URL for ${asset.asset_id}: ${imageUrl}`);
+                            }
+                            if (imageUrl) {
+                                contentHTML += `<div style="display: inline-block; margin: 15px 0;"><img src="${imageUrl}" alt="${asset.asset_id || 'Diagram'}" style="transform: scale(2); transform-origin: top left; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load image:', this.src); this.style.display='none';" /></div>`;
+                            } else {
+                                console.warn('Asset has no valid URL:', asset);
+                            }
+                        });
+                        contentHTML += `</div>`;
+                    } else {
+                        // Debug: log when assets should be shown but aren't
+                        if (chunk.assets && chunk.assets.length > 0) {
+                            console.warn(`Chunk ${chunkIdx} has assets in chunk.assets but not in questionAssetsMap:`, chunk.assets);
+                        }
+                    }
+                    
                     contentHTML += `<div class="options-container">`;
                     (chunk.choices || []).forEach((choice, idx) => {
                         contentHTML += `
-                            <div class="option" style="margin-bottom: 8px;">
-                                <label style="color: #000; cursor: pointer; display: block; padding: 8px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='transparent'">${String.fromCharCode(65 + idx)}. ${escapeHtml(choice)}</label>
+                            <div class="option" onclick="selectOption('${questionId}', ${idx})">
+                                <input type="radio" name="question_${questionId}" value="${idx}" id="opt_${questionId}_${idx}">
+                                <label class="option-label" for="opt_${questionId}_${idx}" style="color: #000; cursor: pointer; display: block; padding: 8px; border-radius: 4px; transition: background 0.2s;">
+                                    ${String.fromCharCode(65 + idx)}. ${escapeHtml(choice)}
+                                </label>
                             </div>
                         `;
                     });
@@ -1630,9 +1859,13 @@
             
             document.getElementById('passageContent').innerHTML = contentHTML;
             
-            // Hide questions container and submit section for lessons (questions are inline)
+            // Show submit section for lessons (questions are inline but can be answered)
             document.getElementById('questionsContainer').innerHTML = '';
-            document.getElementById('submitSection').style.display = 'none';
+            if (lesson.questions && lesson.questions.length > 0) {
+                document.getElementById('submitSection').style.display = 'block';
+            } else {
+                document.getElementById('submitSection').style.display = 'none';
+            }
             document.getElementById('resultsSection').style.display = 'none';
         }
         
@@ -1717,6 +1950,7 @@
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
             document.getElementById('writingSectionsListSection').style.display = 'none';
+            document.getElementById('mathSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Show first ~500 characters with gradient fade
@@ -2084,11 +2318,72 @@
             }
         }
         
+        async function openMathSection(mathSectionId) {
+            try {
+                currentMathSectionId = mathSectionId;
+                currentPassageId = null;
+                currentPassageData = null;
+                currentLessonId = null;
+                currentLessonData = null;
+                currentWritingSectionId = null;
+                userAnswers = {};
+                
+                // Update URL hash
+                window.history.replaceState(null, '', window.location.pathname + `#math-section/${mathSectionId}`);
+                
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                
+                // Fetch math section detail
+                const sectionResponse = await fetch(`${API_BASE}/math-sections/${mathSectionId}`, {headers});
+                if (sectionResponse.status === 403) {
+                    // Try to get section data anyway for preview
+                    const previewResponse = await fetch(`${API_BASE}/math-sections/${mathSectionId}`, {});
+                    if (previewResponse.ok) {
+                        const sectionData = await previewResponse.json();
+                        displayMathSectionPreview(sectionData);
+                        return;
+                    }
+                }
+                
+                if (!sectionResponse.ok) {
+                    alert('Failed to fetch math section. Please try again.');
+                    return;
+                }
+                
+                const sectionData = await sectionResponse.json();
+                
+                // Check if premium and user doesn't have access
+                if (sectionData.tier === 'premium' && (!currentUser || (!currentUser.is_premium && !currentUser.has_active_subscription))) {
+                    displayMathSectionPreview(sectionData);
+                    return;
+                }
+                
+                // Fetch questions
+                const questionsResponse = await fetch(`${API_BASE}/math-sections/${mathSectionId}/questions/`, {headers});
+                if (!questionsResponse.ok) {
+                    alert('Failed to fetch questions. Please try again.');
+                    return;
+                }
+                const questionsData = await questionsResponse.json();
+                
+                // Display math section
+                displayMathSection(sectionData, questionsData);
+                
+            } catch (error) {
+                console.error('Failed to open math section:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+        
         async function displayWritingSection(writingSection, questions) {
             // Hide all list sections, show detail view
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
             document.getElementById('writingSectionsListSection').style.display = 'none';
+            document.getElementById('mathSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Show attempt history button if user is logged in
@@ -2177,10 +2472,11 @@
         }
         
         async function displayPassage(passage, questions) {
-            // Hide passages list, lessons list, and writing sections list, show passage detail
+            // Hide passages list, lessons list, writing sections list, and math sections list, show passage detail
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
             document.getElementById('writingSectionsListSection').style.display = 'none';
+            document.getElementById('mathSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Show attempt history button if user is logged in
@@ -2263,6 +2559,126 @@
             document.getElementById('resultsSection').style.display = 'none';
         }
         
+        async function displayMathSection(mathSection, questions) {
+            // Hide all list sections, show detail view
+            document.getElementById('passagesListSection').style.display = 'none';
+            document.getElementById('lessonsListSection').style.display = 'none';
+            document.getElementById('writingSectionsListSection').style.display = 'none';
+            document.getElementById('mathSectionsListSection').style.display = 'none';
+            document.getElementById('passageDetailSection').style.display = 'block';
+            
+            // Show attempt history button if user is logged in
+            const attemptHistoryContainer = document.getElementById('attemptHistoryButtonContainer');
+            if (authToken && mathSection.id) {
+                try {
+                    const attemptsResponse = await fetch(`${API_BASE}/progress/math-sections/${mathSection.id}/attempts`, {
+                        headers: {'Authorization': `Bearer ${authToken}`}
+                    });
+                    if (attemptsResponse.ok) {
+                        const attempts = await attemptsResponse.json();
+                        if (attempts.length > 0) {
+                            attemptHistoryContainer.innerHTML = `
+                                <button class="btn btn-secondary" onclick="showMathSectionAttemptHistory('${mathSection.id}')" style="font-size: 12px; padding: 6px 12px;">
+                                    📊 View Attempt History (${attempts.length})
+                                </button>
+                            `;
+                        } else {
+                            attemptHistoryContainer.innerHTML = '';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load attempt history:', error);
+                }
+            } else {
+                attemptHistoryContainer.innerHTML = '';
+            }
+            
+            // Display math section content
+            document.getElementById('passageContent').innerHTML = `
+                <h2 style="color: #3498DB; margin-bottom: 15px;">${escapeHtml(mathSection.title)}</h2>
+                <p style="color: #666; margin-bottom: 20px;">Difficulty: ${mathSection.difficulty || 'Medium'}</p>
+            `;
+            
+            // Display questions in two columns
+            const questionsContainer = document.getElementById('questionsContainer');
+            questionsContainer.innerHTML = '<div class="questions-columns"><div class="question-column-left"></div><div class="question-column-right"></div></div>';
+            
+            const leftColumn = questionsContainer.querySelector('.question-column-left');
+            const rightColumn = questionsContainer.querySelector('.question-column-right');
+            
+            const questionsList = questions.results || questions.questions || [];
+            questionsList.forEach((question, index) => {
+                const questionNumber = question.order !== undefined ? question.order : (index + 1);
+                const questionCard = document.createElement('div');
+                questionCard.className = 'question-card';
+                
+                questionCard.innerHTML = `
+                    <h4>Question ${questionNumber}</h4>
+                    <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${escapeHtml(question.prompt || question.text || '')}</p>
+                    ${question.assets && question.assets.length > 0 ? `
+                        <div style="margin-bottom: 50px; overflow: visible;">
+                            ${question.assets.map(asset => `
+                                <div style="display: inline-block; margin: 15px 0;"><img src="${asset.s3_url || asset.url}" alt="${asset.asset_id || 'Diagram'}" style="transform: scale(2); transform-origin: top left; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" /></div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    <div class="options-container">
+                        ${question.choices && question.choices.length > 0 ? question.choices.map((choice, optIndex) => `
+                            <div class="option" onclick="selectOption('${question.id}', ${optIndex})">
+                                <input type="radio" name="question_${question.id}" value="${optIndex}" id="opt_${question.id}_${optIndex}">
+                                <label class="option-label" for="opt_${question.id}_${optIndex}">
+                                    ${String.fromCharCode(65 + optIndex)}. ${escapeHtml(choice.text || choice)}
+                                </label>
+                            </div>
+                        `).join('') : '<p style="color: red;">No options available for this question</p>'}
+                    </div>
+                `;
+                
+                // Alternate between left and right columns
+                if (index % 2 === 0) {
+                    leftColumn.appendChild(questionCard);
+                } else {
+                    rightColumn.appendChild(questionCard);
+                }
+            });
+            
+            // Show submit section
+            document.getElementById('submitSection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+        
+        function displayMathSectionPreview(mathSection) {
+            // Hide all list sections, show detail view
+            document.getElementById('passagesListSection').style.display = 'none';
+            document.getElementById('lessonsListSection').style.display = 'none';
+            document.getElementById('writingSectionsListSection').style.display = 'none';
+            document.getElementById('mathSectionsListSection').style.display = 'none';
+            document.getElementById('passageDetailSection').style.display = 'block';
+            
+            let contentHTML = `<h2 style="color: #3498DB; margin-bottom: 15px;">${escapeHtml(mathSection.title)} <span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span></h2>`;
+            contentHTML += '<div class="lesson-content premium-preview-overlay" style="max-width: 800px; margin: 0 auto;">';
+            contentHTML += `<p style="color: #666; margin-bottom: 20px;">Difficulty: ${mathSection.difficulty || 'Medium'}</p>`;
+            contentHTML += '<p style="margin-bottom: 15px; color: #000; line-height: 1.6;">This is a premium math section. Upgrade to access the full content with detailed explanations and diagrams.</p>';
+            contentHTML += '</div>';
+            
+            // Add upgrade prompt
+            contentHTML += `
+                <div style="text-align: center; margin-top: 30px; padding: 30px; background: #f9f9f9; border-radius: 8px;">
+                    <h3 style="color: #3498DB; margin-bottom: 15px;">Upgrade to Premium</h3>
+                    <p style="color: #666; margin-bottom: 20px;">Get access to all premium math sections with detailed explanations and diagrams.</p>
+                    <button class="btn btn-primary" onclick="showUpgradeModal()" style="font-size: 16px; padding: 12px 30px;">
+                        Upgrade Now ($5/month)
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('passageContent').innerHTML = contentHTML;
+            document.getElementById('questionsContainer').innerHTML = '';
+            document.getElementById('submitSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('attemptHistoryButtonContainer').innerHTML = '';
+        }
+        
         function selectOption(questionId, optionIndex) {
             userAnswers[questionId] = optionIndex;
             
@@ -2274,8 +2690,14 @@
         }
         
         async function submitAnswers() {
-            // Check if we're on a passage or writing section
-            if (!currentPassageId && !currentWritingSectionId) return;
+            // Check if we're on a passage, writing section, or lesson
+            if (!currentPassageId && !currentWritingSectionId && !currentLessonId) return;
+            
+            // Handle lessons separately (client-side only for now)
+            if (currentLessonId && currentLessonData) {
+                displayLessonResults(currentLessonData);
+                return;
+            }
             
             // Determine if we're on a passage or writing section
             const isWritingSection = !!currentWritingSectionId;
@@ -2495,6 +2917,88 @@
             resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
         
+        function displayLessonResults(lessonData) {
+            // Display results for lesson questions (client-side only)
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.style.display = 'block';
+            document.getElementById('submitSection').style.display = 'none';
+            
+            if (!lessonData.questions || lessonData.questions.length === 0) {
+                resultsSection.innerHTML = '<p>No questions in this lesson.</p>';
+                return;
+            }
+            
+            let correctCount = 0;
+            const totalQuestions = lessonData.questions.length;
+            
+            // Calculate correct answers
+            lessonData.questions.forEach(question => {
+                const userAnswer = userAnswers[question.id];
+                if (userAnswer === question.correct_answer_index) {
+                    correctCount++;
+                }
+            });
+            
+            const percentage = Math.round((correctCount / totalQuestions) * 100);
+            
+            let resultsHTML = `
+                <div class="results-summary">
+                    <h3>Your Results</h3>
+                    <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                </div>
+            `;
+            
+            // Show each question with correct answer and explanation
+            lessonData.questions.forEach((question, index) => {
+                const userAnswer = userAnswers[question.id];
+                const isCorrect = userAnswer === question.correct_answer_index;
+                const questionNumber = question.order !== undefined ? question.order : (index + 1);
+                
+                // Get options from question object
+                const options = question.options || [];
+                
+                resultsHTML += `
+                    <div class="question-card">
+                        <h4>Question ${questionNumber} ${isCorrect ? '✓' : '✗'}</h4>
+                        <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${escapeHtml(question.text)}</p>
+                        <div class="options-container">
+                            ${options.map((option, optIndex) => {
+                                let optionClass = 'option';
+                                if (optIndex === question.correct_answer_index) {
+                                    optionClass += ' correct';
+                                } else if (optIndex === userAnswer && !isCorrect) {
+                                    optionClass += ' incorrect';
+                                }
+                                
+                                const optionText = typeof option === 'string' ? option : (option.text || option);
+                                
+                                return `
+                                    <div class="${optionClass}">
+                                        <input type="radio" disabled ${optIndex === userAnswer ? 'checked' : ''}>
+                                        <label class="option-label">
+                                            ${String.fromCharCode(65 + optIndex)}. ${escapeHtml(optionText)}
+                                            ${optIndex === question.correct_answer_index ? ' (Correct)' : ''}
+                                            ${optIndex === userAnswer && !isCorrect ? ' (Your Answer)' : ''}
+                                        </label>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                        ${question.explanation ? `
+                            <div class="explanation" style="margin-top: 15px; padding: 12px; background: #f0f8ff; border-left: 4px solid #3498DB; border-radius: 4px;">
+                                <strong>Explanation:</strong> ${escapeHtml(question.explanation)}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            resultsSection.innerHTML = resultsHTML;
+            
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
         function displayResultsFromPassage(passageData) {
             // Fallback if review endpoint fails - use passage data directly
             const resultsSection = document.getElementById('resultsSection');
@@ -2570,6 +3074,7 @@
             document.getElementById('passagesListSection').style.display = 'block';
             document.getElementById('lessonsListSection').style.display = 'block';
             document.getElementById('writingSectionsListSection').style.display = 'block';
+            document.getElementById('mathSectionsListSection').style.display = 'block';
             document.getElementById('passageDetailSection').style.display = 'none';
             currentPassageId = null;
             currentPassageData = null;
@@ -2577,6 +3082,7 @@
             currentLessonData = null;
             currentWritingSectionId = null;
             currentWritingSectionData = null;
+            currentMathSectionId = null;
             userAnswers = {};
             lastAttemptData = null;
             // Update URL hash
@@ -2907,6 +3413,15 @@
                 console.error('Failed to load attempt details:', error);
                 alert('Network error. Please try again.');
             }
+        }
+        
+        async function showMathSectionAttemptHistory(mathSectionId) {
+            // Placeholder function - will be implemented when backend API is ready
+            if (!authToken) {
+                alert('Please log in to view your attempt history.');
+                return;
+            }
+            alert('Attempt history for math sections will be available soon.');
         }
         
         function showUpgradeModal(contentType = 'content') {

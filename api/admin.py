@@ -10,7 +10,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -21,6 +21,8 @@ from .writing_ingestion_utils import process_writing_ingestion
 from .writing_gpt_utils import convert_document_to_writing_json
 from .passage_ingestion_utils import process_passage_ingestion
 from .passage_gpt_utils import convert_document_to_passage_json
+from .math_ingestion_utils import process_math_ingestion
+from .math_gpt_utils import convert_document_to_math_json
 
 
 class MultipleFileInput(forms.Widget):
@@ -1429,3 +1431,422 @@ class WritingSectionQuestionOptionAdmin(admin.ModelAdmin):
     def text_short(self, obj):
         return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
     text_short.short_description = 'Option'
+# Math Section Admin - to be added to admin.py
+
+class MathSectionIngestionForm(forms.ModelForm):
+    """Custom form for math section file upload - supports JSON or documents with GPT conversion"""
+    file = forms.FileField(
+        required=True,
+        help_text="Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT.",
+        widget=forms.FileInput(attrs={'accept': '.json,.pdf,.docx,.doc,.txt,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'})
+    )
+    use_gpt_conversion = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Check this to convert document to JSON using GPT (auto-detected for non-JSON files)"
+    )
+    
+    class Meta:
+        model = MathSectionIngestion
+        fields = ['file', 'use_gpt_conversion']
+    
+    def clean_file(self):
+        """Validate uploaded file"""
+        data = self.cleaned_data.get('file')
+        if data:
+            file_ext = os.path.splitext(data.name)[1].lower()
+            
+            # If it's a JSON file, validate it
+            if file_ext == '.json':
+                try:
+                    data.seek(0)
+                    json.loads(data.read().decode('utf-8'))
+                    data.seek(0)  # Reset for later use
+                except json.JSONDecodeError as e:
+                    raise forms.ValidationError(f'Invalid JSON file: {str(e)}')
+                except UnicodeDecodeError:
+                    raise forms.ValidationError('File must be valid UTF-8 encoded JSON')
+            # For other file types, we'll handle them in save_model
+            elif file_ext not in ['.pdf', '.docx', '.doc', '.txt']:
+                raise forms.ValidationError('File must be JSON (.json), PDF (.pdf), DOCX (.docx), or TXT (.txt)')
+        
+        return data
+
+
+@admin.register(MathSectionIngestion)
+class MathSectionIngestionAdmin(admin.ModelAdmin):
+    """Admin interface for math section ingestion"""
+    form = MathSectionIngestionForm
+    list_display = ['file_name', 'status', 'error_message_short', 'created_math_section_link', 'created_at', 'process_action']
+    list_filter = ['status', 'created_at']
+    search_fields = ['file_name', 'error_message']
+    readonly_fields = ['id', 'file_name', 'file_path', 'status', 'parsed_data_preview', 'error_message', 'created_math_section_link', 'created_at', 'updated_at']
+    
+    def error_message_short(self, obj):
+        """Display short error message in list view"""
+        if obj.error_message:
+            return obj.error_message[:100] + '...' if len(obj.error_message) > 100 else obj.error_message
+        return '-'
+    error_message_short.short_description = 'Error'
+    actions = ['process_selected']
+    
+    fieldsets = (
+        ('File Upload', {
+            'fields': ('file', 'use_gpt_conversion'),
+            'description': 'Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT. Check "Use GPT conversion" to force GPT conversion even for JSON files.'
+        }),
+        ('Processing Status', {
+            'fields': ('id', 'status', 'file_path', 'error_message')
+        }),
+        ('Results', {
+            'fields': ('parsed_data_preview', 'created_math_section_link'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def parsed_data_preview(self, obj):
+        """Display preview of parsed JSON data"""
+        if obj.parsed_data:
+            preview = json.dumps(obj.parsed_data, indent=2)[:1000] + '...' if len(json.dumps(obj.parsed_data)) > 1000 else json.dumps(obj.parsed_data, indent=2)
+            return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        return '-'
+    parsed_data_preview.short_description = 'Parsed Data Preview'
+    
+    def created_math_section_link(self, obj):
+        """Link to created math section"""
+        if obj.created_math_section:
+            url = reverse('admin:api_mathsection_change', args=[obj.created_math_section.pk])
+            return format_html('<a href="{}">{}</a>', url, obj.created_math_section.title)
+        return '-'
+    created_math_section_link.short_description = 'Created Math Section'
+    
+    def process_action(self, obj):
+        """Display process button for each row"""
+        if obj.status in ['pending', 'failed'] or (obj.status == 'processing' and not obj.created_math_section):
+            url = reverse('admin:api_mathsectioningestion_process', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 5px 10px; background: #417690; color: white; text-decoration: none; border-radius: 3px;">Process Now</a>',
+                url
+            )
+        return '-'
+    process_action.short_description = 'Actions'
+    process_action.allow_tags = True
+    
+    def process_selected(self, request, queryset):
+        """Admin action to process selected ingestions"""
+        processed = 0
+        for ingestion in queryset:
+            if ingestion.status in ['pending', 'failed'] or (ingestion.status == 'processing' and not ingestion.created_math_section):
+                try:
+                    process_math_ingestion(ingestion)
+                    processed += 1
+                except Exception as e:
+                    self.message_user(request, f'Error processing {ingestion.file_name}: {str(e)}', level='ERROR')
+        
+        if processed > 0:
+            self.message_user(request, f'Successfully processed {processed} ingestion(s).', level='SUCCESS')
+        else:
+            self.message_user(request, 'No ingestions to process. Only pending or failed ingestions can be processed.', level='WARNING')
+    process_selected.short_description = 'Process selected math section ingestions'
+    
+    def get_urls(self):
+        """Add custom URL for processing"""
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<uuid:ingestion_id>/process/',
+                self.admin_site.admin_view(self.process_ingestion_view),
+                name='api_mathsectioningestion_process',
+            ),
+        ]
+        return custom_urls + urls
+    
+    def process_ingestion_view(self, request, ingestion_id):
+        """Custom view to process a single ingestion"""
+        from django.shortcuts import get_object_or_404, redirect
+        from django.contrib import messages
+        
+        ingestion = get_object_or_404(MathSectionIngestion, pk=ingestion_id)
+        
+        if ingestion.status not in ['pending', 'failed'] and (ingestion.status != 'processing' or ingestion.created_math_section):
+            messages.warning(request, 'This ingestion has already been processed.')
+            return redirect('admin:api_mathsectioningestion_changelist')
+        
+        try:
+            process_math_ingestion(ingestion)
+            messages.success(request, f'Successfully processed {ingestion.file_name}.')
+        except Exception as e:
+            messages.error(request, f'Error processing {ingestion.file_name}: {str(e)}')
+        
+        return redirect('admin:api_mathsectioningestion_changelist')
+    
+    def save_model(self, request, obj, form, change):
+        """Handle file upload and save ingestion"""
+        from django.db import transaction
+        
+        if not change:  # Only on create
+            uploaded_file = request.FILES.get('file')
+            use_gpt = form.cleaned_data.get('use_gpt_conversion', False)
+            
+            if not uploaded_file:
+                # No file uploaded - use default save
+                super().save_model(request, obj, form, change)
+                return
+            
+            import uuid
+            from pathlib import Path
+            
+            # Create media directory if it doesn't exist
+            media_dir = Path(settings.MEDIA_ROOT)
+            media_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save file
+            file_ext = os.path.splitext(uploaded_file.name)[1]
+            unique_filename = f"{uuid.uuid4()}{file_ext}"
+            file_path = media_dir / unique_filename
+            
+            with open(file_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+            
+            obj.file_name = uploaded_file.name
+            obj.file_path = str(file_path)
+            obj.file_type = file_ext.lower().lstrip('.')
+            
+            # Determine if we need GPT conversion
+            is_json = file_ext.lower() == '.json'
+            is_document = file_ext.lower() in ['.pdf', '.docx', '.doc', '.txt']
+            should_use_gpt = use_gpt or (is_document and not is_json)
+            
+            # Parse JSON or convert document
+            try:
+                with transaction.atomic():
+                    obj.status = 'processing'
+                    obj.error_message = 'Processing file...'
+                    obj.save()  # Save first to get the ID
+                
+                if is_json:
+                    # Direct JSON parsing
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        obj.parsed_data = json.load(f)
+                    obj.error_message = '✓ Successfully loaded JSON file.'
+                elif should_use_gpt and is_document:
+                    # Convert document to JSON using GPT (outside transaction to avoid long-running calls)
+                    obj.error_message = 'Converting document to JSON using GPT...'
+                    obj.save()
+                    
+                    # Convert document using GPT with schema
+                    try:
+                        # This calls GPT API with the math section schema from MATH_SECTION_JSON_SCHEMA.md
+                        math_data = convert_document_to_math_json(str(file_path), uploaded_file.name)
+                        
+                        # Verify we got valid data
+                        if not math_data or not isinstance(math_data, dict):
+                            raise ValueError("GPT returned invalid data: expected a dictionary")
+                        if 'section_id' not in math_data or 'title' not in math_data or 'questions' not in math_data:
+                            raise ValueError(f"GPT returned incomplete data. Missing required fields. Got: {list(math_data.keys())}")
+                        
+                        # Update in a new transaction to ensure data is saved
+                        with transaction.atomic():
+                            obj.refresh_from_db()
+                            obj.parsed_data = math_data
+                            obj.error_message = f'✓ Successfully converted document to JSON using GPT. Found {len(math_data.get("questions", []))} questions.'
+                            obj.status = 'pending'  # Reset to pending so background processing can run
+                            obj.save()
+                    except Exception as gpt_error:
+                        # GPT conversion failed - don't proceed to processing
+                        import traceback
+                        error_trace = traceback.format_exc()
+                        with transaction.atomic():
+                            obj.refresh_from_db()
+                            obj.status = 'failed'
+                            obj.error_message = f'Failed to convert document to JSON using GPT: {str(gpt_error)}\n\nTraceback:\n{error_trace}'
+                            obj.save()  # Save error state
+                        return  # Don't start background processing
+                else:
+                    raise ValueError(f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.')
+            except Exception as e:
+                obj.status = 'failed'
+                obj.error_message = f'Failed to process file: {str(e)}'
+                obj.save()  # Save error state
+                return  # Don't start background processing
+            
+            # Save ingestion (only if we got here without errors and we have parsed_data)
+            # For GPT conversion, we already saved above, so only save if it's JSON
+            if is_json:
+                obj.save()
+            
+            # CRITICAL: Refresh from DB to ensure we have the latest parsed_data before starting background processing
+            # This prevents race conditions where the in-memory object doesn't match the database
+            # Wait a moment for transaction to commit, then refresh
+            import time
+            time.sleep(0.3)  # Small delay to ensure transaction committed
+            obj.refresh_from_db()  # Refresh again after delay
+            
+            # Process in background (only if we have parsed_data and didn't fail)
+            # Double-check from database to be absolutely sure
+            if obj.status != 'failed' and obj.parsed_data:
+                def process_in_background(ingestion_id):
+                    import time
+                    import traceback
+                    from django.db import connection
+                    # Small delay to ensure transaction has committed
+                    time.sleep(0.5)
+                    connection.close()
+                    from django import db
+                    db.connections.close_all()
+                    from .models import MathSectionIngestion
+                    # Try to get the object, with retry logic
+                    ingestion = None
+                    for attempt in range(5):  # More retries
+                        try:
+                            ingestion = MathSectionIngestion.objects.get(pk=ingestion_id)
+                            # Refresh to ensure we have the latest parsed_data
+                            ingestion.refresh_from_db()
+                            if ingestion.parsed_data:
+                                break
+                            elif attempt < 4:
+                                time.sleep(1.0)  # Longer delay between retries
+                            else:
+                                # Last attempt - check error message to see if GPT conversion failed
+                                if ingestion.error_message and 'Failed to convert' in ingestion.error_message:
+                                    # GPT conversion failed - don't try to process
+                                    return
+                                raise ValueError(f"parsed_data is still empty after {attempt + 1} retries. Status: {ingestion.status}, Error: {ingestion.error_message[:200] if ingestion.error_message else 'None'}")
+                        except MathSectionIngestion.DoesNotExist:
+                            if attempt < 4:
+                                time.sleep(1.0)
+                            else:
+                                raise
+                    
+                    if ingestion and ingestion.parsed_data:
+                        try:
+                            process_math_ingestion(ingestion)
+                        except Exception as e:
+                            ingestion.status = 'failed'
+                            ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
+                            ingestion.save()
+                    else:
+                        # Log error if we can't get the object or it has no parsed_data
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        if ingestion:
+                            logger.error(f"MathSectionIngestion {ingestion_id} has no parsed_data after retries. Status: {ingestion.status}, Error: {ingestion.error_message[:500] if ingestion.error_message else 'None'}")
+                            # Update error message in database
+                            try:
+                                ingestion.status = 'failed'
+                                ingestion.error_message = f"Background processing failed: parsed_data is empty. Original error: {ingestion.error_message[:500] if ingestion.error_message else 'None'}"
+                                ingestion.save()
+                            except:
+                                pass
+                        else:
+                            logger.error(f"MathSectionIngestion {ingestion_id} does not exist after retries")
+                
+                # Mark as processing in a new transaction
+                try:
+                    with transaction.atomic():
+                        MathSectionIngestion.objects.filter(pk=obj.pk).update(status='processing')
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f'Failed to update status to processing: {e}')
+                
+                thread = threading.Thread(target=process_in_background, args=(obj.pk,))
+                thread.daemon = True
+                thread.start()
+                
+                from django.contrib import messages
+                messages.info(request, "Processing started automatically in the background.")
+        else:
+            super().save_model(request, obj, form, change)
+
+
+@admin.register(MathSection)
+class MathSectionAdmin(nested_admin.NestedModelAdmin):
+    """Admin interface for math sections"""
+    list_display = ['title', 'section_id', 'difficulty', 'tier', 'question_count', 'asset_count', 'created_at']
+    list_filter = ['difficulty', 'tier', 'created_at']
+    search_fields = ['title', 'section_id']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'asset_count_display']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'section_id', 'title', 'difficulty', 'tier')
+        }),
+        ('Metadata', {
+            'fields': ('question_count_display', 'asset_count_display', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def question_count(self, obj):
+        """Display number of questions for this math section"""
+        if obj.pk:
+            return obj.questions.count()
+        return 0
+    question_count.short_description = 'Questions'
+    
+    def asset_count(self, obj):
+        """Display number of assets for this math section"""
+        if obj.pk:
+            return obj.assets.count()
+        return 0
+    asset_count.short_description = 'Assets'
+    
+    def question_count_display(self, obj):
+        """Read-only field showing question count"""
+        if obj.pk:
+            count = obj.questions.count()
+            return f"{count} question{'s' if count != 1 else ''}"
+        return "Save math section to see question count"
+    question_count_display.short_description = 'Question Count'
+    
+    def asset_count_display(self, obj):
+        """Read-only field showing asset count"""
+        if obj.pk:
+            count = obj.assets.count()
+            return f"{count} asset{'s' if count != 1 else ''}"
+        return "Save math section to see asset count"
+    asset_count_display.short_description = 'Asset Count'
+
+
+@admin.register(MathQuestion)
+class MathQuestionAdmin(nested_admin.NestedModelAdmin):
+    """Admin interface for math questions"""
+    list_display = ['prompt_short', 'math_section', 'question_id', 'order', 'correct_answer_index']
+    list_filter = ['math_section', 'created_at']
+    search_fields = ['prompt', 'question_id', 'math_section__title']
+    
+    def prompt_short(self, obj):
+        return obj.prompt[:100] + '...' if len(obj.prompt) > 100 else obj.prompt
+    prompt_short.short_description = 'Question'
+
+
+@admin.register(MathQuestionOption)
+class MathQuestionOptionAdmin(admin.ModelAdmin):
+    """Admin interface for math question options"""
+    list_display = ['text_short', 'question', 'order']
+    list_filter = ['question__math_section', 'created_at']
+    search_fields = ['text', 'question__prompt']
+    
+    def text_short(self, obj):
+        return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
+    text_short.short_description = 'Option'
+
+
+@admin.register(MathAsset)
+class MathAssetAdmin(admin.ModelAdmin):
+    """Admin interface for math assets"""
+    list_display = ['asset_id', 'math_section', 'type', 's3_url_short']
+    list_filter = ['type', 'math_section', 'created_at']
+    search_fields = ['asset_id', 'math_section__title', 's3_url']
+    
+    def s3_url_short(self, obj):
+        return obj.s3_url[:50] + '...' if len(obj.s3_url) > 50 else obj.s3_url
+    s3_url_short.short_description = 'S3 URL'
+

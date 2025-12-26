@@ -23,7 +23,22 @@ This document describes the expected JSON format for lesson ingestion. Use this 
   "title": "string (required, lesson title)",
   "difficulty": "string (optional, one of: 'Easy', 'Medium', 'Hard', default: 'Medium')",
   "tier": "string (optional, one of: 'free', 'premium', default: 'free')",
+  "shared_assets": [ /* optional array of asset objects for diagrams/images (for math lessons) */ ],
   "chunks": [ /* array of chunk objects (required) */ ]
+}
+```
+
+## Shared Assets (Optional - for math lessons with diagrams)
+If the lesson contains diagrams or images, include them in the `shared_assets` array:
+```json
+{
+  "shared_assets": [
+    {
+      "asset_id": "diagram-1",
+      "type": "image",
+      "s3_url": "https://s3.amazonaws.com/bucket/diagram-1.png"
+    }
+  ]
 }
 ```
 
@@ -89,13 +104,15 @@ Multiple choice question embedded in the lesson. Questions are extracted and sto
     "I did my laundry, made my bed, and performed my nightly breathing exercises.",
     "I did, my laundry, made my bed, and performed my nightly breathing exercises."
   ],
-  "correct_answer_index": 2  // optional, integer index (0-based) of correct answer, defaults to 0 if not provided. If provided, must be >= 0 and < length of choices array
+  "correct_answer_index": 2,  // optional, integer index (0-based) of correct answer, defaults to 0 if not provided. If provided, must be >= 0 and < length of choices array
+  "assets": ["diagram-1"]  // optional, array of asset_id strings from shared_assets (for math questions with diagrams)
 }
 ```
 **Important:** 
 - `prompt` is **REQUIRED** - the question will fail validation if missing
 - `choices` is **REQUIRED** - must be a non-empty array, or validation will fail
 - `correct_answer_index` is optional. If not provided, defaults to 0 (first choice). If provided, must be a valid index (0-based) within the choices array, otherwise validation will fail.
+- `assets` is optional. If the question references a diagram/image from `shared_assets`, include the `asset_id` in this array.
 
 ### 7. List
 Ordered list (numbered).
@@ -266,12 +283,114 @@ def convert_document_to_lesson_json(file_path, file_name):
     if not extracted_text or not extracted_text.strip():
         raise Exception("No text could be extracted from the document. The file may be empty or corrupted.")
     
+    # Extract diagrams from document (for math lessons)
+    from .math_gpt_utils import extract_diagrams_from_document, upload_image_to_s3
+    diagrams = extract_diagrams_from_document(file_path, file_name)
+    
+    # Upload diagrams to S3 and create a mapping of asset_id to S3 URL
+    diagram_s3_map = {}  # Maps asset_id to S3 URL
+    temp_dir = None
+    
+    # Create a temporary lesson_id for organizing uploads
+    # Sanitize: remove colons, special chars, and limit length
+    temp_lesson_id = os.path.splitext(file_name)[0].replace(' ', '-').replace(':', '-').replace('/', '-').replace('\\', '-').lower()[:50]
+    
+    if diagrams:
+        import shutil
+        aws_storage_bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', '')
+        
+        for diagram in diagrams:
+            try:
+                # Upload to S3 (using lesson path instead of math-section path)
+                s3_url = upload_image_to_s3(
+                    diagram['image_path'],
+                    diagram['asset_id'],
+                    f"lessons/{temp_lesson_id}"  # Use lessons/ prefix for lessons
+                )
+                diagram_s3_map[diagram['asset_id']] = s3_url
+                print(f"✓ Uploaded diagram {diagram['asset_id']} to S3: {s3_url}")
+            except Exception as e:
+                error_msg = f"✗ Failed to upload diagram {diagram['asset_id']} to S3: {str(e)}"
+                print(error_msg)
+                # Log the error but continue with other diagrams
+                # We'll still include the diagram in the JSON but with a placeholder URL
+                diagram_s3_map[diagram['asset_id']] = f"https://s3.amazonaws.com/{aws_storage_bucket_name}/lessons/{temp_lesson_id}/{diagram['asset_id']}.png"
+                continue
+        
+        # Store temp_dir for cleanup later
+        if diagrams and len(diagrams) > 0:
+            temp_dir = os.path.dirname(diagrams[0]['image_path'])
+    
     # Call GPT to convert to JSON
     from openai import OpenAI
     client = OpenAI(api_key=api_key)
     
     schema_prompt = get_lesson_schema_prompt()
-    user_prompt = f"{schema_prompt}\n\nDocument content:\n\n{extracted_text}"
+    
+    # Add diagram instructions if we extracted diagrams
+    diagram_instructions = ""
+    if diagrams and len(diagrams) > 0:
+        asset_ids = [d['asset_id'] for d in diagrams]
+        diagram_instructions = f"""
+    
+## CRITICAL: Diagram Handling Instructions
+
+The backend has extracted {len(diagrams)} diagram(s) from the document. You MUST use these exact asset_ids.
+
+EXTRACTED DIAGRAMS:
+"""
+        for idx, diagram in enumerate(diagrams, 1):
+            s3_url = diagram_s3_map.get(diagram['asset_id'], f"https://s3.amazonaws.com/bucket/lessons/{temp_lesson_id}/{diagram['asset_id']}.png")
+            page_info = f" (Page {diagram['page_num']})" if diagram.get('page_num') else ""
+            diagram_instructions += f"{idx}. asset_id: \"{diagram['asset_id']}\"{page_info}\n   s3_url: \"{s3_url}\"\n"
+        
+        diagram_instructions += f"""
+
+MANDATORY REQUIREMENTS:
+1. You MUST include ALL {len(diagrams)} diagram(s) in the shared_assets array using the EXACT asset_ids listed above
+2. Use the EXACT s3_url values provided above for each asset_id
+3. **CRITICAL: Match diagrams to questions intelligently** - For each question chunk, analyze which diagram(s) belong to it:
+   - Read the question text carefully - does it reference a diagram, figure, graph, or visual element?
+   - Check the document context - which diagram appears near or with this question?
+   - Consider the question content - does it ask about something shown in a diagram?
+   - Look at the order - diagrams are extracted in document order, questions appear in document order
+   - **Match by proximity**: If a diagram appears right before or after a question in the document, they likely belong together
+   - **Match by content**: If a question asks "What is shown in the diagram?" or references visual elements, include the nearest diagram
+   - **Match by context**: If multiple questions share a diagram, include that asset_id in all relevant question chunks
+4. For each question chunk that needs a diagram, include the asset_id(s) in the question chunk's "assets" array
+5. **Be precise**: Only include asset_ids for diagrams that actually relate to that specific question
+
+IMPORTANT: 
+- DO NOT create new asset_ids - only use the ones listed above: {', '.join(asset_ids)}
+- DO NOT use placeholder URLs - use the actual s3_url values provided
+- DO NOT guess randomly - analyze the document content to match diagrams to questions correctly
+- Every question that clearly references or needs a diagram MUST have an "assets" array with the appropriate asset_id(s)
+- If a diagram doesn't clearly belong to any question, you can still include it in shared_assets but don't link it to questions
+
+Example structure:
+```json
+{{
+  "shared_assets": [
+    {{
+      "asset_id": "{diagrams[0]['asset_id'] if diagrams else 'diagram-1'}",
+      "type": "image",
+      "s3_url": "{diagram_s3_map.get(diagrams[0]['asset_id'], '') if diagrams else ''}"
+    }}
+  ],
+  "chunks": [
+    {{
+      "type": "question",
+      "prompt": "What is shown in the diagram?",
+      "assets": ["{diagrams[0]['asset_id'] if diagrams else 'diagram-1'}"],
+      "choices": ["Option A", "Option B", "Option C", "Option D"],
+      ...
+    }}
+  ]
+}}
+```
+"""
+    
+    user_prompt = f"{schema_prompt}{diagram_instructions}\n\nDocument content:\n\n{extracted_text}"
     
     try:
         try:
@@ -307,6 +426,49 @@ def convert_document_to_lesson_json(file_path, file_name):
         
         # Parse JSON
         lesson_data = json.loads(json_text)
+        
+        # Validate and update shared_assets if we extracted diagrams
+        if diagrams and len(diagrams) > 0:
+            # Ensure shared_assets array exists
+            if 'shared_assets' not in lesson_data:
+                lesson_data['shared_assets'] = []
+            elif not isinstance(lesson_data['shared_assets'], list):
+                lesson_data['shared_assets'] = []
+            
+            # Get all extracted asset_ids
+            extracted_asset_ids = {d['asset_id'] for d in diagrams}
+            
+            # Get asset_ids that GPT included
+            gpt_asset_ids = {asset.get('asset_id') for asset in lesson_data['shared_assets'] if asset.get('asset_id')}
+            
+            # Check if all extracted diagrams are included
+            missing_assets = extracted_asset_ids - gpt_asset_ids
+            if missing_assets:
+                # Add missing assets automatically
+                for diagram in diagrams:
+                    if diagram['asset_id'] in missing_assets:
+                        s3_url = diagram_s3_map.get(diagram['asset_id'])
+                        if s3_url:
+                            lesson_data['shared_assets'].append({
+                                'asset_id': diagram['asset_id'],
+                                'type': 'image',
+                                's3_url': s3_url
+                            })
+                            print(f"Warning: GPT did not include extracted diagram '{diagram['asset_id']}', adding it automatically")
+            
+            # Update all assets with actual S3 URLs
+            for asset in lesson_data['shared_assets']:
+                asset_id = asset.get('asset_id')
+                if asset_id in diagram_s3_map:
+                    asset['s3_url'] = diagram_s3_map[asset_id]
+        
+        # Clean up temporary directory
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                import shutil
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except:
+                pass
         
         # Validate basic structure
         if not isinstance(lesson_data, dict):
