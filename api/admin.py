@@ -480,6 +480,31 @@ class PassageIngestionAdmin(admin.ModelAdmin):
     readonly_fields = ['id', 'file_name', 'file_path', 'file_type', 'extracted_text_preview', 'parsed_data_preview', 'status', 'error_message', 'created_passage_link', 'created_at', 'updated_at']
     actions = ['process_selected']
     
+    def get_queryset(self, request):
+        """Override queryset to handle missing parsed_data column gracefully"""
+        qs = super().get_queryset(request)
+        # Defer parsed_data to avoid SQL errors if column doesn't exist
+        # The parsed_data_preview method will handle accessing it safely
+        try:
+            return qs.defer('parsed_data')
+        except Exception:
+            # If defer fails (unlikely), return queryset as-is
+            return qs
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Dynamically include parsed_data_preview only if column exists"""
+        readonly = ['id', 'file_name', 'file_path', 'file_type', 'extracted_text_preview', 'status', 'error_message', 'created_passage_link', 'created_at', 'updated_at']
+        try:
+            # Check if we can safely access parsed_data
+            if obj and hasattr(obj, 'parsed_data'):
+                readonly.insert(5, 'parsed_data_preview')
+            elif obj is None:
+                # For new objects, include it (will be handled gracefully)
+                readonly.insert(5, 'parsed_data_preview')
+        except Exception:
+            pass
+        return readonly
+    
     class Media:
         js = ('admin/js/ingestion_admin.js',)
     
@@ -511,9 +536,16 @@ class PassageIngestionAdmin(admin.ModelAdmin):
     
     def parsed_data_preview(self, obj):
         """Display preview of parsed JSON data"""
-        if obj.parsed_data:
-            preview = json.dumps(obj.parsed_data, indent=2)[:1000] + '...' if len(json.dumps(obj.parsed_data)) > 1000 else json.dumps(obj.parsed_data, indent=2)
-            return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        try:
+            # Check if parsed_data field exists and has a value
+            if hasattr(obj, 'parsed_data'):
+                parsed_data = getattr(obj, 'parsed_data', None)
+                if parsed_data:
+                    preview = json.dumps(parsed_data, indent=2)[:1000] + '...' if len(json.dumps(parsed_data)) > 1000 else json.dumps(parsed_data, indent=2)
+                    return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        except Exception:
+            # Handle case where column doesn't exist in database yet
+            pass
         return '-'
     parsed_data_preview.short_description = 'Parsed Data Preview'
     
@@ -849,9 +881,16 @@ class LessonIngestionAdmin(admin.ModelAdmin):
     
     def parsed_data_preview(self, obj):
         """Display preview of parsed JSON data"""
-        if obj.parsed_data:
-            preview = json.dumps(obj.parsed_data, indent=2)[:1000] + '...' if len(json.dumps(obj.parsed_data)) > 1000 else json.dumps(obj.parsed_data, indent=2)
-            return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        try:
+            # Check if parsed_data field exists and has a value
+            if hasattr(obj, 'parsed_data'):
+                parsed_data = getattr(obj, 'parsed_data', None)
+                if parsed_data:
+                    preview = json.dumps(parsed_data, indent=2)[:1000] + '...' if len(json.dumps(parsed_data)) > 1000 else json.dumps(parsed_data, indent=2)
+                    return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        except Exception:
+            # Handle case where column doesn't exist in database yet
+            pass
         return '-'
     parsed_data_preview.short_description = 'Parsed Data Preview'
     
@@ -1149,9 +1188,16 @@ class WritingSectionIngestionAdmin(admin.ModelAdmin):
     
     def parsed_data_preview(self, obj):
         """Display preview of parsed JSON data"""
-        if obj.parsed_data:
-            preview = json.dumps(obj.parsed_data, indent=2)[:1000] + '...' if len(json.dumps(obj.parsed_data)) > 1000 else json.dumps(obj.parsed_data, indent=2)
-            return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        try:
+            # Check if parsed_data field exists and has a value
+            if hasattr(obj, 'parsed_data'):
+                parsed_data = getattr(obj, 'parsed_data', None)
+                if parsed_data:
+                    preview = json.dumps(parsed_data, indent=2)[:1000] + '...' if len(json.dumps(parsed_data)) > 1000 else json.dumps(parsed_data, indent=2)
+                    return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        except Exception:
+            # Handle case where column doesn't exist in database yet
+            pass
         return '-'
     parsed_data_preview.short_description = 'Parsed Data Preview'
     
@@ -1510,9 +1556,16 @@ class MathSectionIngestionAdmin(admin.ModelAdmin):
     
     def parsed_data_preview(self, obj):
         """Display preview of parsed JSON data"""
-        if obj.parsed_data:
-            preview = json.dumps(obj.parsed_data, indent=2)[:1000] + '...' if len(json.dumps(obj.parsed_data)) > 1000 else json.dumps(obj.parsed_data, indent=2)
-            return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        try:
+            # Check if parsed_data field exists and has a value
+            if hasattr(obj, 'parsed_data'):
+                parsed_data = getattr(obj, 'parsed_data', None)
+                if parsed_data:
+                    preview = json.dumps(parsed_data, indent=2)[:1000] + '...' if len(json.dumps(parsed_data)) > 1000 else json.dumps(parsed_data, indent=2)
+                    return format_html('<pre style="max-height: 200px; overflow: auto; font-size: 11px;">{}</pre>', escape(preview))
+        except Exception:
+            # Handle case where column doesn't exist in database yet
+            pass
         return '-'
     parsed_data_preview.short_description = 'Parsed Data Preview'
     
