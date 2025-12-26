@@ -788,9 +788,13 @@ class LessonViewSet(viewsets.ReadOnlyModelViewSet):
         )
         difficulty = self.request.query_params.get('difficulty', None)
         tier = self.request.query_params.get('tier', None)
+        lesson_type = self.request.query_params.get('lesson_type', None)
         
         if difficulty:
             queryset = queryset.filter(difficulty=difficulty)
+        
+        if lesson_type:
+            queryset = queryset.filter(lesson_type=lesson_type)
         
         # Get user for premium check
         user = get_user_from_request(self.request)

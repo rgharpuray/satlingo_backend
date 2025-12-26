@@ -135,6 +135,48 @@
             border-bottom: 2px solid #3498DB;
         }
         
+        .category-picker {
+            display: flex;
+            gap: 0;
+            background: white;
+            border-radius: 10px;
+            padding: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        
+        .category-picker button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            color: #666;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 6px;
+        }
+        
+        .category-picker button.active {
+            background: #3498DB;
+            color: white;
+        }
+        
+        .category-picker button:hover:not(.active) {
+            background: #f5f5f5;
+        }
+        
+        .category-content {
+            display: none;
+        }
+        
+        .category-content.active {
+            display: block;
+        }
+        
         .sidebar {
             background: white;
             border-radius: 10px;
@@ -1024,28 +1066,56 @@
             
             <div class="main-content">
                 <div class="content-column">
-                    <!-- Lessons List View -->
-                    <div class="passages-section" id="lessonsListSection" style="margin-bottom: 40px;">
-                        <h2>Lessons</h2>
-                        <div id="lessonsList"></div>
+                    <!-- Category Picker -->
+                    <div class="category-picker">
+                        <button class="active" onclick="switchCategory('reading')" id="category-reading-btn">📚 Reading</button>
+                        <button onclick="switchCategory('writing')" id="category-writing-btn">✍️ Writing</button>
+                        <button onclick="switchCategory('math')" id="category-math-btn">🔢 Math</button>
                     </div>
                     
-                    <!-- Writing Sections List View -->
-                    <div class="passages-section" id="writingSectionsListSection" style="margin-bottom: 40px;">
-                        <h2>Writing Sections</h2>
-                        <div id="writingSectionsList"></div>
+                    <!-- Reading Category Content -->
+                    <div class="category-content active" id="category-reading">
+                        <!-- Reading Lessons List View -->
+                        <div class="passages-section" id="readingLessonsListSection" style="margin-bottom: 40px;">
+                            <h2>Reading Lessons</h2>
+                            <div id="readingLessonsList"></div>
+                        </div>
+                        
+                        <!-- Reading Passages List View -->
+                        <div class="passages-section" id="passagesListSection">
+                            <h2>Reading Passages</h2>
+                            <div id="passagesList"></div>
+                        </div>
                     </div>
                     
-                    <!-- Math Sections List View -->
-                    <div class="passages-section" id="mathSectionsListSection" style="margin-bottom: 40px;">
-                        <h2>Math Sections</h2>
-                        <div id="mathSectionsList"></div>
+                    <!-- Writing Category Content -->
+                    <div class="category-content" id="category-writing">
+                        <!-- Writing Lessons List View -->
+                        <div class="passages-section" id="writingLessonsListSection" style="margin-bottom: 40px;">
+                            <h2>Writing Lessons</h2>
+                            <div id="writingLessonsList"></div>
+                        </div>
+                        
+                        <!-- Writing Sections List View -->
+                        <div class="passages-section" id="writingSectionsListSection">
+                            <h2>Writing Sections</h2>
+                            <div id="writingSectionsList"></div>
+                        </div>
                     </div>
                     
-                    <!-- Passages List View -->
-                    <div class="passages-section" id="passagesListSection">
-                        <h2>Reading Passages</h2>
-                        <div id="passagesList"></div>
+                    <!-- Math Category Content -->
+                    <div class="category-content" id="category-math">
+                        <!-- Math Lessons List View -->
+                        <div class="passages-section" id="mathLessonsListSection" style="margin-bottom: 40px;">
+                            <h2>Math Lessons</h2>
+                            <div id="mathLessonsList"></div>
+                        </div>
+                        
+                        <!-- Math Sections List View -->
+                        <div class="passages-section" id="mathSectionsListSection">
+                            <h2>Math Sections</h2>
+                            <div id="mathSectionsList"></div>
+                        </div>
                     </div>
                     
                     <!-- Passage/Lesson Detail View -->
@@ -1204,26 +1274,14 @@
                     btn.classList.remove('active');
                 }
             });
-            // Reset to passages list view
-            document.getElementById('passagesListSection').style.display = 'block';
+            // Reset to list view
             document.getElementById('passageDetailSection').style.display = 'none';
             // Update URL
             if (window.location.hash !== '#passages') {
                 window.history.replaceState(null, '', window.location.pathname + '#passages');
             }
-            // Load lessons, writing sections, math sections, and passages if not already loaded
-            if (document.getElementById('lessonsList').innerHTML === '') {
-                loadLessons();
-            }
-            if (document.getElementById('writingSectionsList').innerHTML === '') {
-                loadWritingSections();
-            }
-            if (document.getElementById('mathSectionsList').innerHTML === '') {
-                loadMathSections();
-            }
-            if (document.getElementById('passagesList').innerHTML === '') {
-                loadPassages();
-            }
+            // Load content for the current category
+            switchCategory(currentCategory);
         }
         
         async function checkAuth() {
@@ -1334,17 +1392,59 @@
             }
         }
         
-        async function loadLessons() {
+        let currentCategory = 'reading';
+        
+        function switchCategory(category) {
+            currentCategory = category;
+            
+            // Update button states
+            document.querySelectorAll('.category-picker button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`category-${category}-btn`).classList.add('active');
+            
+            // Update content visibility
+            document.querySelectorAll('.category-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`category-${category}`).classList.add('active');
+            
+            // Load content for the selected category
+            if (category === 'reading') {
+                if (document.getElementById('readingLessonsList').innerHTML === '') {
+                    loadLessonsByType('reading', 'readingLessonsList');
+                }
+                if (document.getElementById('passagesList').innerHTML === '') {
+                    loadPassages();
+                }
+            } else if (category === 'writing') {
+                if (document.getElementById('writingLessonsList').innerHTML === '') {
+                    loadLessonsByType('writing', 'writingLessonsList');
+                }
+                if (document.getElementById('writingSectionsList').innerHTML === '') {
+                    loadWritingSections();
+                }
+            } else if (category === 'math') {
+                if (document.getElementById('mathLessonsList').innerHTML === '') {
+                    loadLessonsByType('math', 'mathLessonsList');
+                }
+                if (document.getElementById('mathSectionsList').innerHTML === '') {
+                    loadMathSections();
+                }
+            }
+        }
+        
+        async function loadLessonsByType(lessonType, listElementId) {
             try {
                 const headers = {};
                 if (authToken) {
                     headers['Authorization'] = `Bearer ${authToken}`;
                 }
                 
-                const response = await fetch(`${API_BASE}/lessons/`, {headers});
+                const response = await fetch(`${API_BASE}/lessons/?lesson_type=${lessonType}`, {headers});
                 const data = await response.json();
                 
-                const lessonsList = document.getElementById('lessonsList');
+                const lessonsList = document.getElementById(listElementId);
                 lessonsList.innerHTML = '';
                 
                 if (data.results && data.results.length > 0) {
@@ -1364,8 +1464,8 @@
                     lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
                 }
             } catch (error) {
-                console.error('Failed to load lessons:', error);
-                const lessonsList = document.getElementById('lessonsList');
+                console.error(`Failed to load ${lessonType} lessons:`, error);
+                const lessonsList = document.getElementById(listElementId);
                 lessonsList.innerHTML = '<p style="color: #999;">Unable to load lessons.</p>';
             }
         }
@@ -1650,10 +1750,9 @@
         
         function displayLesson(lesson) {
             // Hide all list sections, show detail view
-            document.getElementById('passagesListSection').style.display = 'none';
-            document.getElementById('lessonsListSection').style.display = 'none';
-            document.getElementById('writingSectionsListSection').style.display = 'none';
-            document.getElementById('mathSectionsListSection').style.display = 'none';
+            document.querySelectorAll('.category-content').forEach(content => {
+                content.style.display = 'none';
+            });
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Clear attempt history button
@@ -3071,10 +3170,14 @@
         }
         
         function backToPassagesList() {
-            document.getElementById('passagesListSection').style.display = 'block';
-            document.getElementById('lessonsListSection').style.display = 'block';
-            document.getElementById('writingSectionsListSection').style.display = 'block';
-            document.getElementById('mathSectionsListSection').style.display = 'block';
+            // Show category content for current category
+            document.querySelectorAll('.category-content').forEach(content => {
+                if (content.id === `category-${currentCategory}`) {
+                    content.style.display = 'block';
+                } else {
+                    content.style.display = 'none';
+                }
+            });
             document.getElementById('passageDetailSection').style.display = 'none';
             currentPassageId = null;
             currentPassageData = null;
