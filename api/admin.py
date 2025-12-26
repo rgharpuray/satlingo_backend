@@ -10,7 +10,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -161,21 +161,38 @@ class PassageAdminForm(forms.ModelForm):
 class PassageAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for passages with inline questions, options, and annotations"""
     form = PassageAdminForm
-    list_display = ['title', 'difficulty', 'tier', 'question_count', 'annotation_count', 'created_at', 'preview_link']
+    list_display = ['title', 'difficulty', 'tier', 'display_order', 'question_count', 'annotation_count', 'created_at', 'preview_link']
     list_filter = ['difficulty', 'tier', 'created_at']
     search_fields = ['title', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'annotation_count_display']
     inlines = [PassageAnnotationInline, QuestionInline]
+    actions = ['move_up', 'move_down']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+            'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'display_order')
         }),
         ('Metadata', {
             'fields': ('question_count_display', 'annotation_count_display', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def move_up(self, request, queryset):
+        """Move selected items up (increase display_order)"""
+        for obj in queryset:
+            obj.display_order += 1
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} item(s) up.")
+    move_up.short_description = "Move up (increase order)"
+    
+    def move_down(self, request, queryset):
+        """Move selected items down (decrease display_order)"""
+        for obj in queryset:
+            obj.display_order = max(0, obj.display_order - 1)
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} item(s) down.")
+    move_down.short_description = "Move down (decrease order)"
     
     def question_count(self, obj):
         """Display number of questions for this passage"""
@@ -1057,15 +1074,16 @@ class LessonIngestionAdmin(admin.ModelAdmin):
 @admin.register(Lesson)
 class LessonAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for lessons"""
-    list_display = ['title', 'lesson_id', 'difficulty', 'tier', 'question_count', 'created_at']
-    list_filter = ['difficulty', 'tier', 'created_at']
+    list_display = ['title', 'lesson_id', 'lesson_type', 'difficulty', 'tier', 'display_order', 'question_count', 'created_at']
+    list_filter = ['lesson_type', 'difficulty', 'tier', 'created_at']
     search_fields = ['title', 'lesson_id', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display']
     inlines = []
+    actions = ['move_up', 'move_down', 'set_as_reading', 'set_as_writing', 'set_as_math']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'lesson_id', 'title', 'difficulty', 'tier')
+            'fields': ('id', 'lesson_id', 'title', 'lesson_type', 'difficulty', 'tier', 'display_order')
         }),
         ('Content', {
             'fields': ('chunks', 'content'),
@@ -1075,6 +1093,40 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def move_up(self, request, queryset):
+        """Move selected items up (increase display_order)"""
+        for obj in queryset:
+            obj.display_order += 1
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} item(s) up.")
+    move_up.short_description = "Move up (increase order)"
+    
+    def move_down(self, request, queryset):
+        """Move selected items down (decrease display_order)"""
+        for obj in queryset:
+            obj.display_order = max(0, obj.display_order - 1)
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} item(s) down.")
+    move_down.short_description = "Move down (decrease order)"
+    
+    def set_as_reading(self, request, queryset):
+        """Set selected lessons as reading type"""
+        count = queryset.update(lesson_type='reading')
+        self.message_user(request, f"Set {count} lesson(s) as reading.")
+    set_as_reading.short_description = "Set as Reading"
+    
+    def set_as_writing(self, request, queryset):
+        """Set selected lessons as writing type"""
+        count = queryset.update(lesson_type='writing')
+        self.message_user(request, f"Set {count} lesson(s) as writing.")
+    set_as_writing.short_description = "Set as Writing"
+    
+    def set_as_math(self, request, queryset):
+        """Set selected lessons as math type"""
+        count = queryset.update(lesson_type='math')
+        self.message_user(request, f"Set {count} lesson(s) as math.")
+    set_as_math.short_description = "Set as Math"
     
     def question_count(self, obj):
         """Display number of questions for this lesson"""
@@ -1413,20 +1465,37 @@ class WritingSectionIngestionAdmin(admin.ModelAdmin):
 @admin.register(WritingSection)
 class WritingSectionAdmin(admin.ModelAdmin):
     """Admin interface for writing sections"""
-    list_display = ['title', 'difficulty', 'tier', 'selection_count', 'question_count', 'created_at']
+    list_display = ['title', 'difficulty', 'tier', 'display_order', 'selection_count', 'question_count', 'created_at']
     list_filter = ['difficulty', 'tier', 'created_at']
     search_fields = ['title', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at']
+    actions = ['move_up', 'move_down']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+            'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'display_order')
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def move_up(self, request, queryset):
+        """Move selected items up (increase display_order)"""
+        for obj in queryset:
+            obj.display_order += 1
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} item(s) up.")
+    move_up.short_description = "Move up (increase order)"
+    
+    def move_down(self, request, queryset):
+        """Move selected items down (decrease display_order)"""
+        for obj in queryset:
+            obj.display_order = max(0, obj.display_order - 1)
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} item(s) down.")
+    move_down.short_description = "Move down (decrease order)"
     
     def selection_count(self, obj):
         """Display number of selections"""
@@ -1822,20 +1891,37 @@ class MathSectionIngestionAdmin(admin.ModelAdmin):
 @admin.register(MathSection)
 class MathSectionAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for math sections"""
-    list_display = ['title', 'section_id', 'difficulty', 'tier', 'question_count', 'asset_count', 'created_at']
+    list_display = ['title', 'section_id', 'difficulty', 'tier', 'display_order', 'question_count', 'asset_count', 'created_at']
     list_filter = ['difficulty', 'tier', 'created_at']
     search_fields = ['title', 'section_id']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'asset_count_display']
+    actions = ['move_up', 'move_down']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'section_id', 'title', 'difficulty', 'tier')
+            'fields': ('id', 'section_id', 'title', 'difficulty', 'tier', 'display_order')
         }),
         ('Metadata', {
             'fields': ('question_count_display', 'asset_count_display', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def move_up(self, request, queryset):
+        """Move selected items up (increase display_order)"""
+        for obj in queryset:
+            obj.display_order += 1
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} item(s) up.")
+    move_up.short_description = "Move up (increase order)"
+    
+    def move_down(self, request, queryset):
+        """Move selected items down (decrease display_order)"""
+        for obj in queryset:
+            obj.display_order = max(0, obj.display_order - 1)
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} item(s) down.")
+    move_down.short_description = "Move down (decrease order)"
     
     def question_count(self, obj):
         """Display number of questions for this math section"""
@@ -1902,4 +1988,42 @@ class MathAssetAdmin(admin.ModelAdmin):
     def s3_url_short(self, obj):
         return obj.s3_url[:50] + '...' if len(obj.s3_url) > 50 else obj.s3_url
     s3_url_short.short_description = 'S3 URL'
+
+
+# Custom Admin Classes for Category Views - Filter by lesson_type
+class ReadingLessonAdmin(LessonAdmin):
+    """Admin for reading lessons only"""
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.filter(lesson_type='reading')
+
+
+class WritingLessonAdmin(LessonAdmin):
+    """Admin for writing lessons only"""
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.filter(lesson_type='writing')
+
+
+class MathLessonAdmin(LessonAdmin):
+    """Admin for math lessons only"""
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.filter(lesson_type='math')
+
+
+# Register category-specific admins using proxy models
+@admin.register(ReadingLesson)
+class ReadingLessonProxyAdmin(ReadingLessonAdmin):
+    pass
+
+
+@admin.register(WritingLesson)
+class WritingLessonProxyAdmin(WritingLessonAdmin):
+    pass
+
+
+@admin.register(MathLesson)
+class MathLessonProxyAdmin(MathLessonAdmin):
+    pass
 

@@ -24,6 +24,7 @@ class Passage(models.Model):
     content = models.TextField()
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
+    display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -32,8 +33,9 @@ class Passage(models.Model):
         indexes = [
             models.Index(fields=['difficulty']),
             models.Index(fields=['tier']),
+            models.Index(fields=['display_order']),
         ]
-        ordering = ['-created_at']
+        ordering = ['-display_order', '-created_at']
     
     def __str__(self):
         return self.title
@@ -350,6 +352,12 @@ class Lesson(models.Model):
         ('premium', 'Premium'),
     ]
     
+    LESSON_TYPE_CHOICES = [
+        ('reading', 'Reading'),
+        ('writing', 'Writing'),
+        ('math', 'Math'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     lesson_id = models.CharField(max_length=255, unique=True, help_text="Unique identifier from JSON (e.g., 'commas')")
     title = models.CharField(max_length=255)
@@ -357,6 +365,8 @@ class Lesson(models.Model):
     content = models.TextField(blank=True, help_text="Rendered/flattened content for display")
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='Medium')
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
+    lesson_type = models.CharField(max_length=20, choices=LESSON_TYPE_CHOICES, default='reading', help_text="Category: reading, writing, or math")
+    display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -366,11 +376,35 @@ class Lesson(models.Model):
             models.Index(fields=['lesson_id']),
             models.Index(fields=['difficulty']),
             models.Index(fields=['tier']),
+            models.Index(fields=['lesson_type']),
+            models.Index(fields=['display_order']),
         ]
-        ordering = ['-created_at']
+        ordering = ['-display_order', '-created_at']
     
     def __str__(self):
         return self.title
+
+
+# Proxy models for category-specific admin views
+class ReadingLesson(Lesson):
+    class Meta:
+        proxy = True
+        verbose_name = "Reading Lesson"
+        verbose_name_plural = "Reading Lessons"
+
+
+class WritingLesson(Lesson):
+    class Meta:
+        proxy = True
+        verbose_name = "Writing Lesson"
+        verbose_name_plural = "Writing Lessons"
+
+
+class MathLesson(Lesson):
+    class Meta:
+        proxy = True
+        verbose_name = "Math Lesson"
+        verbose_name_plural = "Math Lessons"
 
 
 class LessonQuestion(models.Model):
@@ -507,6 +541,7 @@ class WritingSection(models.Model):
     content = models.TextField()
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
+    display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -515,8 +550,9 @@ class WritingSection(models.Model):
         indexes = [
             models.Index(fields=['difficulty']),
             models.Index(fields=['tier']),
+            models.Index(fields=['display_order']),
         ]
-        ordering = ['-created_at']
+        ordering = ['-display_order', '-created_at']
     
     def __str__(self):
         return self.title
@@ -783,6 +819,7 @@ class MathSection(models.Model):
     title = models.CharField(max_length=255)
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='Medium')
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
+    display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -792,8 +829,9 @@ class MathSection(models.Model):
             models.Index(fields=['section_id']),
             models.Index(fields=['difficulty']),
             models.Index(fields=['tier']),
+            models.Index(fields=['display_order']),
         ]
-        ordering = ['-created_at']
+        ordering = ['-display_order', '-created_at']
     
     def __str__(self):
         return self.title
