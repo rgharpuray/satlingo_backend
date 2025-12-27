@@ -92,6 +92,9 @@ def process_lesson_ingestion(ingestion):
             lesson.title = lesson_data['title']
             lesson.chunks = lesson_data['chunks']
             lesson.content = _render_lesson_content(lesson_data['chunks'])
+            # Update lesson_type if provided in JSON
+            if 'lesson_type' in lesson_data:
+                lesson.lesson_type = lesson_data['lesson_type']
             lesson.save()
             
             # Delete old questions and assets
@@ -106,6 +109,7 @@ def process_lesson_ingestion(ingestion):
                 content=_render_lesson_content(lesson_data['chunks']),
                 difficulty=lesson_data.get('difficulty', 'Medium'),
                 tier=lesson_data.get('tier', 'free'),
+                lesson_type=lesson_data.get('lesson_type', 'reading'),  # Support lesson_type in JSON
             )
         else:
             lesson = ingestion.created_lesson

@@ -10,7 +10,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -167,6 +167,66 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'annotation_count_display']
     inlines = [PassageAnnotationInline, QuestionInline]
     actions = ['move_up', 'move_down']
+    
+    def get_queryset(self, request):
+        """Override queryset to handle missing display_order column gracefully"""
+        qs = super().get_queryset(request)
+        try:
+            # Try to access display_order to see if column exists
+            qs.model._meta.get_field('display_order')
+        except Exception:
+            # Column doesn't exist, defer it to avoid SQL errors
+            try:
+                return qs.defer('display_order')
+            except Exception:
+                pass
+        return qs
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Dynamically exclude display_order if column doesn't exist"""
+        readonly = ['id', 'created_at', 'updated_at', 'question_count_display', 'annotation_count_display']
+        try:
+            # Check if display_order field exists
+            if obj:
+                obj._meta.get_field('display_order')
+            elif self.model:
+                self.model._meta.get_field('display_order')
+        except Exception:
+            # Field doesn't exist, don't include it
+            pass
+        return readonly
+    
+    def get_fieldsets(self, request, obj=None):
+        """Dynamically exclude display_order from fieldsets if column doesn't exist"""
+        fieldsets = (
+            ('Basic Information', {
+                'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+            }),
+            ('Metadata', {
+                'fields': ('question_count_display', 'annotation_count_display', 'created_at', 'updated_at'),
+                'classes': ('collapse',)
+            }),
+        )
+        try:
+            # Check if display_order field exists
+            if obj:
+                obj._meta.get_field('display_order')
+            elif self.model:
+                self.model._meta.get_field('display_order')
+            # Field exists, add it to fieldsets
+            fieldsets = (
+                ('Basic Information', {
+                    'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'display_order')
+                }),
+                ('Metadata', {
+                    'fields': ('question_count_display', 'annotation_count_display', 'created_at', 'updated_at'),
+                    'classes': ('collapse',)
+                }),
+            )
+        except Exception:
+            # Field doesn't exist, use fieldsets without display_order
+            pass
+        return fieldsets
     
     fieldsets = (
         ('Basic Information', {
@@ -498,15 +558,32 @@ class PassageIngestionAdmin(admin.ModelAdmin):
     actions = ['process_selected']
     
     def get_queryset(self, request):
-        """Override queryset to handle missing parsed_data column gracefully"""
+        """Override queryset to handle missing columns gracefully"""
         qs = super().get_queryset(request)
         # Defer parsed_data to avoid SQL errors if column doesn't exist
-        # The parsed_data_preview method will handle accessing it safely
         try:
-            return qs.defer('parsed_data')
+            qs = qs.defer('parsed_data')
         except Exception:
-            # If defer fails (unlikely), return queryset as-is
-            return qs
+            pass
+        
+        # Also defer display_order from related Passage model if it doesn't exist
+        try:
+            from .models import Passage
+            Passage._meta.get_field('display_order')
+        except Exception:
+            # display_order doesn't exist on Passage, use select_related with only() to exclude it
+            try:
+                qs = qs.select_related('created_passage').only(
+                    'id', 'file_name', 'file_path', 'file_paths', 'file_type', 'status',
+                    'extracted_text', 'parsed_data', 'error_message', 'created_passage_id',
+                    'created_at', 'updated_at',
+                    'created_passage__id', 'created_passage__title', 'created_passage__difficulty',
+                    'created_passage__tier', 'created_passage__created_at'
+                )
+            except Exception:
+                pass
+        
+        return qs
     
     def get_readonly_fields(self, request, obj=None):
         """Dynamically include parsed_data_preview only if column exists"""
@@ -840,10 +917,15 @@ class LessonIngestionForm(forms.ModelForm):
         initial=False,
         help_text="Check this to convert document to JSON using GPT (auto-detected for non-JSON files)"
     )
+    lesson_type = forms.ChoiceField(
+        required=False,
+        choices=[('', 'Auto-detect from JSON'), ('reading', 'Reading'), ('writing', 'Writing'), ('math', 'Math')],
+        help_text="Set lesson type. If left blank, will use 'lesson_type' from JSON (defaults to 'reading' if not in JSON)."
+    )
     
     class Meta:
         model = LessonIngestion
-        fields = ['file', 'use_gpt_conversion']
+        fields = ['file', 'use_gpt_conversion', 'lesson_type']
     
     def clean_file(self):
         """Validate uploaded file"""
@@ -880,8 +962,8 @@ class LessonIngestionAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('File Upload', {
-            'fields': ('file', 'use_gpt_conversion'),
-            'description': 'Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT. Check "Use GPT conversion" to force GPT conversion even for JSON files.'
+            'fields': ('file', 'use_gpt_conversion', 'lesson_type'),
+            'description': 'Upload a JSON file OR a document (PDF, DOCX, TXT). Documents will be automatically converted to JSON using GPT. Check "Use GPT conversion" to force GPT conversion even for JSON files. Set lesson type here or include it in the JSON as "lesson_type".'
         }),
         ('Processing Status', {
             'fields': ('id', 'status', 'file_path', 'error_message')
@@ -1032,6 +1114,11 @@ class LessonIngestionAdmin(admin.ModelAdmin):
                         obj.error_message = f'✓ Successfully converted document to JSON using GPT.'
                     else:
                         raise ValueError(f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.')
+                    
+                    # Inject lesson_type from form if provided
+                    lesson_type = form.cleaned_data.get('lesson_type', '').strip()
+                    if lesson_type and obj.parsed_data:
+                        obj.parsed_data['lesson_type'] = lesson_type
                 except Exception as e:
                     obj.status = 'failed'
                     obj.error_message = f'Failed to process file: {str(e)}'
@@ -1074,16 +1161,35 @@ class LessonIngestionAdmin(admin.ModelAdmin):
 @admin.register(Lesson)
 class LessonAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for lessons"""
-    list_display = ['title', 'lesson_id', 'lesson_type', 'difficulty', 'tier', 'display_order', 'question_count', 'created_at']
-    list_filter = ['lesson_type', 'difficulty', 'tier', 'created_at']
+    list_display = ['title', 'lesson_id', 'lesson_type', 'header', 'order_within_header', 'difficulty', 'tier', 'question_count', 'created_at']
+    list_filter = ['lesson_type', 'header', 'difficulty', 'tier', 'created_at']
     search_fields = ['title', 'lesson_id', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display']
     inlines = []
-    actions = ['move_up', 'move_down', 'set_as_reading', 'set_as_writing', 'set_as_math']
+    actions = ['move_up', 'move_down', 'set_as_reading', 'set_as_writing', 'set_as_math', 'move_up_in_header', 'move_down_in_header']
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Filter headers by lesson type when assigning to lessons"""
+        if db_field.name == 'header':
+            # Get the lesson being edited (if any)
+            lesson_id = request.resolver_match.kwargs.get('object_id')
+            if lesson_id:
+                try:
+                    lesson = Lesson.objects.get(pk=lesson_id)
+                    # Filter headers to only show those matching the lesson's category
+                    kwargs['queryset'] = Header.objects.filter(category=lesson.lesson_type)
+                except Lesson.DoesNotExist:
+                    pass
+            # For new lessons, we can't filter yet - user needs to set lesson_type first
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'lesson_id', 'title', 'lesson_type', 'difficulty', 'tier', 'display_order')
+            'fields': ('id', 'lesson_id', 'title', 'lesson_type', 'difficulty', 'tier')
+        }),
+        ('Organization', {
+            'fields': ('header', 'order_within_header', 'display_order'),
+            'description': 'Assign lesson to a header/section and set its order within that header. Only headers matching the lesson type will be shown.'
         }),
         ('Content', {
             'fields': ('chunks', 'content'),
@@ -1127,6 +1233,24 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
         count = queryset.update(lesson_type='math')
         self.message_user(request, f"Set {count} lesson(s) as math.")
     set_as_math.short_description = "Set as Math"
+    
+    def move_up_in_header(self, request, queryset):
+        """Move selected lessons up within their header (increase order_within_header)"""
+        for obj in queryset:
+            if obj.header:
+                obj.order_within_header += 1
+                obj.save()
+        self.message_user(request, f"Moved {queryset.count()} lesson(s) up within their headers.")
+    move_up_in_header.short_description = "Move up within header"
+    
+    def move_down_in_header(self, request, queryset):
+        """Move selected lessons down within their header (decrease order_within_header)"""
+        for obj in queryset:
+            if obj.header:
+                obj.order_within_header = max(0, obj.order_within_header - 1)
+                obj.save()
+        self.message_user(request, f"Moved {queryset.count()} lesson(s) down within their headers.")
+    move_down_in_header.short_description = "Move down within header"
     
     def question_count(self, obj):
         """Display number of questions for this lesson"""
@@ -2026,4 +2150,55 @@ class WritingLessonProxyAdmin(WritingLessonAdmin):
 @admin.register(MathLesson)
 class MathLessonProxyAdmin(MathLessonAdmin):
     pass
+
+
+@admin.register(Header)
+class HeaderAdmin(admin.ModelAdmin):
+    """Admin interface for headers/sections"""
+    list_display = ['title', 'category', 'display_order', 'lesson_count', 'created_at']
+    list_filter = ['category', 'created_at']
+    search_fields = ['title']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'lesson_count_display']
+    actions = ['move_up', 'move_down']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'title', 'category', 'display_order')
+        }),
+        ('Metadata', {
+            'fields': ('lesson_count_display', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def move_up(self, request, queryset):
+        """Move selected headers up (increase display_order)"""
+        for obj in queryset:
+            obj.display_order += 1
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} header(s) up.")
+    move_up.short_description = "Move up (increase order)"
+    
+    def move_down(self, request, queryset):
+        """Move selected headers down (decrease display_order)"""
+        for obj in queryset:
+            obj.display_order = max(0, obj.display_order - 1)
+            obj.save()
+        self.message_user(request, f"Moved {queryset.count()} header(s) down.")
+    move_down.short_description = "Move down (decrease order)"
+    
+    def lesson_count(self, obj):
+        """Display number of lessons in this header"""
+        if obj.pk:
+            return obj.lessons.count()
+        return 0
+    lesson_count.short_description = 'Lessons'
+    
+    def lesson_count_display(self, obj):
+        """Read-only field showing lesson count"""
+        if obj.pk:
+            count = obj.lessons.count()
+            return f"{count} lesson{'s' if count != 1 else ''}"
+        return "Save header to see lesson count"
+    lesson_count_display.short_description = 'Lesson Count'
 

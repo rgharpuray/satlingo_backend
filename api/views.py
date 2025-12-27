@@ -785,7 +785,7 @@ class LessonViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = Lesson.objects.annotate(
             question_count=Count('questions')
-        )
+        ).select_related('header')  # Optimize header loading
         difficulty = self.request.query_params.get('difficulty', None)
         tier = self.request.query_params.get('tier', None)
         lesson_type = self.request.query_params.get('lesson_type', None)

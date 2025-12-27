@@ -4,7 +4,8 @@ from .models import (
     UserProgress, UserAnswer, PassageAnnotation, WordOfTheDay,
     Lesson, LessonQuestion, LessonQuestionOption, LessonAsset, LessonQuestionAsset,
     WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption,
-    MathSection, MathQuestion, MathQuestionOption, MathAsset, MathQuestionAsset, MathSectionAttempt
+    MathSection, MathQuestion, MathQuestionOption, MathAsset, MathQuestionAsset, MathSectionAttempt,
+    Header
 )
 
 
@@ -293,12 +294,20 @@ class LessonQuestionSerializer(serializers.ModelSerializer):
         return LessonAssetSerializer(assets, many=True).data
 
 
+class HeaderSerializer(serializers.ModelSerializer):
+    """Serializer for headers"""
+    class Meta:
+        model = Header
+        fields = ['id', 'title', 'category', 'display_order']
+
+
 class LessonListSerializer(serializers.ModelSerializer):
     question_count = serializers.SerializerMethodField()
+    header = HeaderSerializer(read_only=True)
     
     class Meta:
         model = Lesson
-        fields = ['id', 'lesson_id', 'title', 'difficulty', 'tier', 'question_count', 'created_at']
+        fields = ['id', 'lesson_id', 'title', 'difficulty', 'tier', 'question_count', 'header', 'order_within_header', 'created_at']
     
     def get_question_count(self, obj):
         return obj.questions.count()

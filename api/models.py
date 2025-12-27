@@ -367,6 +367,8 @@ class Lesson(models.Model):
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
     lesson_type = models.CharField(max_length=20, choices=LESSON_TYPE_CHOICES, default='reading', help_text="Category: reading, writing, or math")
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
+    header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='lessons', help_text="Header/section this lesson belongs to")
+    order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -378,11 +380,40 @@ class Lesson(models.Model):
             models.Index(fields=['tier']),
             models.Index(fields=['lesson_type']),
             models.Index(fields=['display_order']),
+            models.Index(fields=['header']),
+            models.Index(fields=['order_within_header']),
         ]
-        ordering = ['-display_order', '-created_at']
+        ordering = ['header', '-order_within_header', '-display_order', '-created_at']
     
     def __str__(self):
         return self.title
+
+
+class Header(models.Model):
+    """Headers/sections that group lessons (like chapters in a book)"""
+    CATEGORY_CHOICES = [
+        ('reading', 'Reading'),
+        ('writing', 'Writing'),
+        ('math', 'Math'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255, help_text="Header title (e.g., 'Algebra Basics', 'Grammar Rules')")
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, help_text="Category this header belongs to")
+    display_order = models.IntegerField(default=0, help_text="Order for display within category (higher numbers appear first)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'headers'
+        indexes = [
+            models.Index(fields=['category']),
+            models.Index(fields=['display_order']),
+        ]
+        ordering = ['category', '-display_order', 'title']
+    
+    def __str__(self):
+        return f"{self.get_category_display()}: {self.title}"
 
 
 # Proxy models for category-specific admin views
