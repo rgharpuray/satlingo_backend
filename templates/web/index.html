@@ -1235,8 +1235,13 @@
         // Listen for hash changes
         window.addEventListener('hashchange', handleHashRoute);
         
-        // Initial route handling
-        handleHashRoute();
+        // Initial route handling - wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', handleHashRoute);
+        } else {
+            // DOM is already ready, but add small delay to ensure all elements are accessible
+            setTimeout(handleHashRoute, 50);
+        }
         
         // Check if user is logged in on load
         if (authToken) {
@@ -1395,7 +1400,7 @@
         
         let currentCategory = 'reading';
         
-        function switchCategory(category) {
+        function switchCategory(category, forceReload = false) {
             currentCategory = category;
             
             // Update button states
@@ -1411,28 +1416,37 @@
             document.getElementById(`category-${category}`).classList.add('active');
             
             // Load content for the selected category
-            if (category === 'reading') {
-                if (document.getElementById('readingLessonsList').innerHTML === '') {
-                    loadLessonsByType('reading', 'readingLessonsList');
+            // Use setTimeout to ensure DOM is ready
+            setTimeout(() => {
+                if (category === 'reading') {
+                    const readingLessonsEl = document.getElementById('readingLessonsList');
+                    const passagesEl = document.getElementById('passagesList');
+                    if (forceReload || !readingLessonsEl || readingLessonsEl.innerHTML === '') {
+                        loadLessonsByType('reading', 'readingLessonsList');
+                    }
+                    if (forceReload || !passagesEl || passagesEl.innerHTML === '') {
+                        loadPassages();
+                    }
+                } else if (category === 'writing') {
+                    const writingLessonsEl = document.getElementById('writingLessonsList');
+                    const writingSectionsEl = document.getElementById('writingSectionsList');
+                    if (forceReload || !writingLessonsEl || writingLessonsEl.innerHTML === '') {
+                        loadLessonsByType('writing', 'writingLessonsList');
+                    }
+                    if (forceReload || !writingSectionsEl || writingSectionsEl.innerHTML === '') {
+                        loadWritingSections();
+                    }
+                } else if (category === 'math') {
+                    const mathLessonsEl = document.getElementById('mathLessonsList');
+                    const mathSectionsEl = document.getElementById('mathSectionsList');
+                    if (forceReload || !mathLessonsEl || mathLessonsEl.innerHTML === '') {
+                        loadLessonsByType('math', 'mathLessonsList');
+                    }
+                    if (forceReload || !mathSectionsEl || mathSectionsEl.innerHTML === '') {
+                        loadMathSections();
+                    }
                 }
-                if (document.getElementById('passagesList').innerHTML === '') {
-                    loadPassages();
-                }
-            } else if (category === 'writing') {
-                if (document.getElementById('writingLessonsList').innerHTML === '') {
-                    loadLessonsByType('writing', 'writingLessonsList');
-                }
-                if (document.getElementById('writingSectionsList').innerHTML === '') {
-                    loadWritingSections();
-                }
-            } else if (category === 'math') {
-                if (document.getElementById('mathLessonsList').innerHTML === '') {
-                    loadLessonsByType('math', 'mathLessonsList');
-                }
-                if (document.getElementById('mathSectionsList').innerHTML === '') {
-                    loadMathSections();
-                }
-            }
+            }, 0);
         }
         
         async function loadLessonsByType(lessonType, listElementId) {
