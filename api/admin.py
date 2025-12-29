@@ -1115,65 +1115,119 @@ class LessonIngestionAdmin(admin.ModelAdmin):
                 is_document = file_ext.lower() in ['.pdf', '.docx', '.doc', '.txt']
                 should_use_gpt = use_gpt or (is_document and not is_json)
                 
-                # Parse JSON or convert document
-                try:
-                    if is_json:
-                        # Direct JSON parsing
+                # Save ingestion record first
+                obj.status = 'processing'
+                obj.error_message = 'Processing file...'
+                obj.save()  # Save first to get the ID
+                
+                # Get lesson_type from form for later use
+                lesson_type = form.cleaned_data.get('lesson_type', '').strip()
+                
+                # Handle JSON files directly (synchronous, fast)
+                if is_json:
+                    try:
                         with open(file_path, 'r', encoding='utf-8') as f:
                             obj.parsed_data = json.load(f)
-                    elif should_use_gpt and is_document:
-                        # Convert document to JSON using GPT
-                        from .lesson_gpt_utils import convert_document_to_lesson_json
-                        obj.status = 'processing'
-                        obj.error_message = 'Converting document to JSON using GPT...'
-                        obj.save()  # Save first to get the ID
                         
-                        # Convert document
-                        lesson_data = convert_document_to_lesson_json(str(file_path), uploaded_file.name)
-                        obj.parsed_data = lesson_data
-                        obj.error_message = f'✓ Successfully converted document to JSON using GPT.'
-                    else:
-                        raise ValueError(f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.')
-                    
-                    # Inject lesson_type from form if provided
-                    lesson_type = form.cleaned_data.get('lesson_type', '').strip()
-                    if lesson_type and obj.parsed_data:
-                        obj.parsed_data['lesson_type'] = lesson_type
-                except Exception as e:
-                    obj.status = 'failed'
-                    obj.error_message = f'Failed to process file: {str(e)}'
-                
-                # Save ingestion
-                obj.save()
-                
-                # Process in background
-                if obj.status != 'failed' and obj.parsed_data:
-                    from .lesson_ingestion_utils import process_lesson_ingestion
-                    
-                    def process_in_background(ingestion_id):
+                        # Inject lesson_type from form if provided
+                        if lesson_type and obj.parsed_data:
+                            obj.parsed_data['lesson_type'] = lesson_type
+                        
+                        obj.error_message = '✓ Successfully loaded JSON file.'
+                        obj.save()
+                        
+                        # Process in background
+                        from .lesson_ingestion_utils import process_lesson_ingestion
+                        
+                        def process_in_background(ingestion_id):
+                            import traceback
+                            from django.db import connection
+                            connection.close()
+                            from django import db
+                            db.connections.close_all()
+                            from .models import LessonIngestion
+                            ingestion = LessonIngestion.objects.get(pk=ingestion_id)
+                            try:
+                                process_lesson_ingestion(ingestion)
+                            except Exception as e:
+                                ingestion.status = 'failed'
+                                ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
+                                ingestion.save()
+                        
+                        # Mark as processing
+                        LessonIngestion.objects.filter(pk=obj.pk).update(status='processing')
+                        
+                        thread = threading.Thread(target=process_in_background, args=(obj.pk,))
+                        thread.daemon = True
+                        thread.start()
+                        
+                        from django.contrib import messages
+                        messages.info(request, "Processing started automatically in the background.")
+                    except Exception as e:
                         import traceback
+                        obj.status = 'failed'
+                        obj.error_message = f'Failed to process JSON file: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
+                        obj.save()
+                
+                # Handle document files with GPT conversion (asynchronous to avoid timeout)
+                elif should_use_gpt and is_document:
+                    from .lesson_gpt_utils import convert_document_to_lesson_json
+                    
+                    def convert_and_process_in_background(ingestion_id, file_path_str, file_name, lesson_type_value):
+                        import traceback
+                        import time
                         from django.db import connection
                         connection.close()
                         from django import db
                         db.connections.close_all()
                         from .models import LessonIngestion
+                        from .lesson_ingestion_utils import process_lesson_ingestion
+                        
+                        # Wait a moment for transaction to commit
+                        time.sleep(0.5)
+                        
                         ingestion = LessonIngestion.objects.get(pk=ingestion_id)
                         try:
+                            # Update status
+                            ingestion.error_message = 'Converting document to JSON using GPT...'
+                            ingestion.save()
+                            
+                            # Convert document using GPT
+                            lesson_data = convert_document_to_lesson_json(file_path_str, file_name)
+                            
+                            # Inject lesson_type from form if provided
+                            if lesson_type_value and lesson_data:
+                                lesson_data['lesson_type'] = lesson_type_value
+                            
+                            # Update with parsed data
+                            ingestion.parsed_data = lesson_data
+                            ingestion.error_message = f'✓ Successfully converted document to JSON using GPT.'
+                            ingestion.status = 'processing'
+                            ingestion.save()
+                            
+                            # Now process the ingestion
                             process_lesson_ingestion(ingestion)
                         except Exception as e:
+                            ingestion.refresh_from_db()
                             ingestion.status = 'failed'
                             ingestion.error_message = f'Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}'
                             ingestion.save()
                     
-                    # Mark as processing
-                    LessonIngestion.objects.filter(pk=obj.pk).update(status='processing')
+                    # Update status and start background thread
+                    obj.error_message = 'Converting document to JSON using GPT (this may take a while)...'
+                    obj.save()
                     
-                    thread = threading.Thread(target=process_in_background, args=(obj.pk,))
+                    thread = threading.Thread(target=convert_and_process_in_background, args=(obj.pk, str(file_path), uploaded_file.name, lesson_type))
                     thread.daemon = True
                     thread.start()
                     
                     from django.contrib import messages
-                    messages.info(request, "Processing started automatically in the background.")
+                    messages.info(request, "File uploaded. GPT conversion and processing started in the background. This may take several minutes.")
+                
+                else:
+                    obj.status = 'failed'
+                    obj.error_message = f'Unsupported file type: {file_ext}. Use JSON or enable GPT conversion for documents.'
+                    obj.save()
         else:
             super().save_model(request, obj, form, change)
 
