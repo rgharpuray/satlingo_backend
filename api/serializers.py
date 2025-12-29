@@ -51,14 +51,22 @@ class PassageAnnotationSerializer(serializers.ModelSerializer):
         fields = ['id', 'question_id', 'start_char', 'end_char', 'selected_text', 'explanation', 'order']
 
 
+class HeaderSerializer(serializers.ModelSerializer):
+    """Serializer for headers"""
+    class Meta:
+        model = Header
+        fields = ['id', 'title', 'category', 'display_order']
+
+
 class PassageListSerializer(serializers.ModelSerializer):
+    header = HeaderSerializer(read_only=True)
     question_count = serializers.SerializerMethodField()
     attempt_count = serializers.SerializerMethodField()
     attempt_summary = serializers.SerializerMethodField()
     
     class Meta:
         model = Passage
-        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'question_count', 'attempt_count', 'attempt_summary',
+        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'header', 'order_within_header', 'question_count', 'attempt_count', 'attempt_summary',
                  'created_at', 'updated_at']
     
     def get_question_count(self, obj):
@@ -294,13 +302,6 @@ class LessonQuestionSerializer(serializers.ModelSerializer):
         return LessonAssetSerializer(assets, many=True).data
 
 
-class HeaderSerializer(serializers.ModelSerializer):
-    """Serializer for headers"""
-    class Meta:
-        model = Header
-        fields = ['id', 'title', 'category', 'display_order']
-
-
 class LessonListSerializer(serializers.ModelSerializer):
     question_count = serializers.SerializerMethodField()
     header = HeaderSerializer(read_only=True)
@@ -344,6 +345,7 @@ class WritingSectionQuestionSerializer(serializers.ModelSerializer):
 
 
 class WritingSectionListSerializer(serializers.ModelSerializer):
+    header = HeaderSerializer(read_only=True)
     question_count = serializers.SerializerMethodField()
     selection_count = serializers.SerializerMethodField()
     attempt_count = serializers.SerializerMethodField()
@@ -351,7 +353,7 @@ class WritingSectionListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = WritingSection
-        fields = ['id', 'title', 'difficulty', 'tier', 'question_count', 'selection_count', 
+        fields = ['id', 'title', 'difficulty', 'tier', 'header', 'order_within_header', 'question_count', 'selection_count', 
                  'attempt_count', 'attempt_summary', 'created_at']
     
     def get_question_count(self, obj):
@@ -473,6 +475,7 @@ class MathQuestionSerializer(serializers.ModelSerializer):
 
 
 class MathSectionListSerializer(serializers.ModelSerializer):
+    header = HeaderSerializer(read_only=True)
     question_count = serializers.SerializerMethodField()
     asset_count = serializers.SerializerMethodField()
     attempt_count = serializers.SerializerMethodField()
@@ -480,7 +483,7 @@ class MathSectionListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = MathSection
-        fields = ['id', 'section_id', 'title', 'difficulty', 'tier', 'question_count', 
+        fields = ['id', 'section_id', 'title', 'difficulty', 'tier', 'header', 'order_within_header', 'question_count', 
                  'asset_count', 'attempt_count', 'attempt_summary', 'created_at']
     
     def get_question_count(self, obj):

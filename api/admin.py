@@ -5,6 +5,7 @@ from django.urls import reverse
 from django import forms
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
+from django.db.models import Q
 import nested_admin
 import os
 import json
@@ -161,12 +162,23 @@ class PassageAdminForm(forms.ModelForm):
 class PassageAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for passages with inline questions, options, and annotations"""
     form = PassageAdminForm
-    list_display = ['title', 'difficulty', 'tier', 'display_order', 'question_count', 'annotation_count', 'created_at', 'preview_link']
-    list_filter = ['difficulty', 'tier', 'created_at']
+    list_display = ['title', 'difficulty', 'tier', 'header', 'order_within_header', 'display_order', 'question_count', 'annotation_count', 'created_at', 'preview_link']
+    list_filter = ['difficulty', 'tier', 'header', 'created_at']
     search_fields = ['title', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'annotation_count_display']
     inlines = [PassageAnnotationInline, QuestionInline]
-    actions = ['move_up', 'move_down']
+    actions = ['move_up', 'move_down', 'move_up_in_header', 'move_down_in_header']
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Filter headers by reading category and content_type when assigning to passages"""
+        if db_field.name == 'header':
+            # Filter headers to only show reading category headers for sections/passages
+            kwargs['queryset'] = Header.objects.filter(
+                category='reading'
+            ).filter(
+                Q(content_type='section') | Q(content_type='both')
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
     
     def get_queryset(self, request):
         """Override queryset to handle missing display_order column gracefully"""
@@ -216,7 +228,11 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             # Field exists, add it to fieldsets
             fieldsets = (
                 ('Basic Information', {
-                    'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'display_order')
+                    'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+                }),
+                ('Organization', {
+                    'fields': ('header', 'order_within_header', 'display_order'),
+                    'description': 'Assign passage to a header/section and set its order within that header. Only reading category headers will be shown.'
                 }),
                 ('Metadata', {
                     'fields': ('question_count_display', 'annotation_count_display', 'created_at', 'updated_at'),
@@ -230,7 +246,11 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'display_order')
+            'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+        }),
+        ('Organization', {
+            'fields': ('header', 'order_within_header', 'display_order'),
+            'description': 'Assign passage to a header/section and set its order within that header. Only reading category headers will be shown.'
         }),
         ('Metadata', {
             'fields': ('question_count_display', 'annotation_count_display', 'created_at', 'updated_at'),
@@ -1169,15 +1189,19 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
     actions = ['move_up', 'move_down', 'set_as_reading', 'set_as_writing', 'set_as_math', 'move_up_in_header', 'move_down_in_header']
     
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        """Filter headers by lesson type when assigning to lessons"""
+        """Filter headers by lesson type and content_type when assigning to lessons"""
         if db_field.name == 'header':
             # Get the lesson being edited (if any)
             lesson_id = request.resolver_match.kwargs.get('object_id')
             if lesson_id:
                 try:
                     lesson = Lesson.objects.get(pk=lesson_id)
-                    # Filter headers to only show those matching the lesson's category
-                    kwargs['queryset'] = Header.objects.filter(category=lesson.lesson_type)
+                    # Filter headers to only show those matching the lesson's category and for lessons
+                    kwargs['queryset'] = Header.objects.filter(
+                        category=lesson.lesson_type
+                    ).filter(
+                        Q(content_type='lesson') | Q(content_type='both')
+                    )
                 except Lesson.DoesNotExist:
                     pass
             # For new lessons, we can't filter yet - user needs to set lesson_type first
@@ -1589,15 +1613,30 @@ class WritingSectionIngestionAdmin(admin.ModelAdmin):
 @admin.register(WritingSection)
 class WritingSectionAdmin(admin.ModelAdmin):
     """Admin interface for writing sections"""
-    list_display = ['title', 'difficulty', 'tier', 'display_order', 'selection_count', 'question_count', 'created_at']
-    list_filter = ['difficulty', 'tier', 'created_at']
+    list_display = ['title', 'difficulty', 'tier', 'header', 'order_within_header', 'display_order', 'selection_count', 'question_count', 'created_at']
+    list_filter = ['difficulty', 'tier', 'header', 'created_at']
     search_fields = ['title', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    actions = ['move_up', 'move_down']
+    actions = ['move_up', 'move_down', 'move_up_in_header', 'move_down_in_header']
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Filter headers by writing category and content_type when assigning to writing sections"""
+        if db_field.name == 'header':
+            # Filter headers to only show writing category headers for sections
+            kwargs['queryset'] = Header.objects.filter(
+                category='writing'
+            ).filter(
+                Q(content_type='section') | Q(content_type='both')
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'display_order')
+            'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+        }),
+        ('Organization', {
+            'fields': ('header', 'order_within_header', 'display_order'),
+            'description': 'Assign writing section to a header/section and set its order within that header. Only writing category headers will be shown.'
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
@@ -1620,6 +1659,24 @@ class WritingSectionAdmin(admin.ModelAdmin):
             obj.save()
         self.message_user(request, f"Moved {queryset.count()} item(s) down.")
     move_down.short_description = "Move down (decrease order)"
+    
+    def move_up_in_header(self, request, queryset):
+        """Move selected writing sections up within their header (increase order_within_header)"""
+        for obj in queryset:
+            if obj.header:
+                obj.order_within_header += 1
+                obj.save()
+        self.message_user(request, f"Moved {queryset.count()} writing section(s) up within their headers.")
+    move_up_in_header.short_description = "Move up within header"
+    
+    def move_down_in_header(self, request, queryset):
+        """Move selected writing sections down within their header (decrease order_within_header)"""
+        for obj in queryset:
+            if obj.header:
+                obj.order_within_header = max(0, obj.order_within_header - 1)
+                obj.save()
+        self.message_user(request, f"Moved {queryset.count()} writing section(s) down within their headers.")
+    move_down_in_header.short_description = "Move down within header"
     
     def selection_count(self, obj):
         """Display number of selections"""
@@ -2015,15 +2072,30 @@ class MathSectionIngestionAdmin(admin.ModelAdmin):
 @admin.register(MathSection)
 class MathSectionAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for math sections"""
-    list_display = ['title', 'section_id', 'difficulty', 'tier', 'display_order', 'question_count', 'asset_count', 'created_at']
-    list_filter = ['difficulty', 'tier', 'created_at']
+    list_display = ['title', 'section_id', 'difficulty', 'tier', 'header', 'order_within_header', 'display_order', 'question_count', 'asset_count', 'created_at']
+    list_filter = ['difficulty', 'tier', 'header', 'created_at']
     search_fields = ['title', 'section_id']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'asset_count_display']
-    actions = ['move_up', 'move_down']
+    actions = ['move_up', 'move_down', 'move_up_in_header', 'move_down_in_header']
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Filter headers by math category and content_type when assigning to math sections"""
+        if db_field.name == 'header':
+            # Filter headers to only show math category headers for sections
+            kwargs['queryset'] = Header.objects.filter(
+                category='math'
+            ).filter(
+                Q(content_type='section') | Q(content_type='both')
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'section_id', 'title', 'difficulty', 'tier', 'display_order')
+            'fields': ('id', 'section_id', 'title', 'difficulty', 'tier')
+        }),
+        ('Organization', {
+            'fields': ('header', 'order_within_header', 'display_order'),
+            'description': 'Assign math section to a header/section and set its order within that header. Only math category headers will be shown.'
         }),
         ('Metadata', {
             'fields': ('question_count_display', 'asset_count_display', 'created_at', 'updated_at'),
@@ -2046,6 +2118,24 @@ class MathSectionAdmin(nested_admin.NestedModelAdmin):
             obj.save()
         self.message_user(request, f"Moved {queryset.count()} item(s) down.")
     move_down.short_description = "Move down (decrease order)"
+    
+    def move_up_in_header(self, request, queryset):
+        """Move selected math sections up within their header (increase order_within_header)"""
+        for obj in queryset:
+            if obj.header:
+                obj.order_within_header += 1
+                obj.save()
+        self.message_user(request, f"Moved {queryset.count()} math section(s) up within their headers.")
+    move_up_in_header.short_description = "Move up within header"
+    
+    def move_down_in_header(self, request, queryset):
+        """Move selected math sections down within their header (decrease order_within_header)"""
+        for obj in queryset:
+            if obj.header:
+                obj.order_within_header = max(0, obj.order_within_header - 1)
+                obj.save()
+        self.message_user(request, f"Moved {queryset.count()} math section(s) down within their headers.")
+    move_down_in_header.short_description = "Move down within header"
     
     def question_count(self, obj):
         """Display number of questions for this math section"""
@@ -2155,18 +2245,19 @@ class MathLessonProxyAdmin(MathLessonAdmin):
 @admin.register(Header)
 class HeaderAdmin(admin.ModelAdmin):
     """Admin interface for headers/sections"""
-    list_display = ['title', 'category', 'display_order', 'lesson_count', 'created_at']
-    list_filter = ['category', 'created_at']
+    list_display = ['title', 'category', 'content_type', 'display_order', 'lesson_count_display', 'passage_count_display', 'writing_section_count_display', 'math_section_count_display', 'created_at']
+    list_filter = ['category', 'content_type', 'created_at']
     search_fields = ['title']
-    readonly_fields = ['id', 'created_at', 'updated_at', 'lesson_count_display']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'lesson_count_display', 'passage_count_display', 'writing_section_count_display', 'math_section_count_display']
     actions = ['move_up', 'move_down']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'title', 'category', 'display_order')
+            'fields': ('id', 'title', 'category', 'content_type', 'display_order'),
+            'description': 'content_type: "Lesson" for lessons only, "Section/Passage" for sections/passages only, "Both" for both types'
         }),
         ('Metadata', {
-            'fields': ('lesson_count_display', 'created_at', 'updated_at'),
+            'fields': ('lesson_count_display', 'passage_count_display', 'writing_section_count_display', 'math_section_count_display', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
@@ -2201,4 +2292,28 @@ class HeaderAdmin(admin.ModelAdmin):
             return f"{count} lesson{'s' if count != 1 else ''}"
         return "Save header to see lesson count"
     lesson_count_display.short_description = 'Lesson Count'
+    
+    def passage_count_display(self, obj):
+        """Read-only field showing passage count"""
+        if obj.pk:
+            count = obj.passages.count()
+            return f"{count} passage{'s' if count != 1 else ''}"
+        return "Save header to see passage count"
+    passage_count_display.short_description = 'Passage Count'
+    
+    def writing_section_count_display(self, obj):
+        """Read-only field showing writing section count"""
+        if obj.pk:
+            count = obj.writing_sections.count()
+            return f"{count} writing section{'s' if count != 1 else ''}"
+        return "Save header to see writing section count"
+    writing_section_count_display.short_description = 'Writing Section Count'
+    
+    def math_section_count_display(self, obj):
+        """Read-only field showing math section count"""
+        if obj.pk:
+            count = obj.math_sections.count()
+            return f"{count} math section{'s' if count != 1 else ''}"
+        return "Save header to see math section count"
+    math_section_count_display.short_description = 'Math Section Count'
 

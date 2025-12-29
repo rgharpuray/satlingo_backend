@@ -76,6 +76,8 @@ class PassageViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = Passage.objects.annotate(
             question_count=Count('questions')
+        ).select_related('header').order_by(
+            'header__display_order', '-order_within_header', '-display_order', '-created_at'
         )
         difficulty = self.request.query_params.get('difficulty', None)
         tier = self.request.query_params.get('tier', None)
@@ -851,6 +853,8 @@ class WritingSectionViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = WritingSection.objects.annotate(
             question_count=Count('questions'),
             selection_count=Count('selections')
+        ).select_related('header').order_by(
+            'header__display_order', '-order_within_header', '-display_order', '-created_at'
         )
         difficulty = self.request.query_params.get('difficulty', None)
         tier = self.request.query_params.get('tier', None)
@@ -941,6 +945,8 @@ class MathSectionViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = MathSection.objects.annotate(
             question_count=Count('questions'),
             asset_count=Count('assets')
+        ).select_related('header').order_by(
+            'header__display_order', '-order_within_header', '-display_order', '-created_at'
         )
         difficulty = self.request.query_params.get('difficulty', None)
         tier = self.request.query_params.get('tier', None)

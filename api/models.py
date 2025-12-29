@@ -25,6 +25,8 @@ class Passage(models.Model):
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
+    header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='passages', help_text="Header/section this passage belongs to")
+    order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -34,8 +36,10 @@ class Passage(models.Model):
             models.Index(fields=['difficulty']),
             models.Index(fields=['tier']),
             models.Index(fields=['display_order']),
+            models.Index(fields=['header']),
+            models.Index(fields=['order_within_header']),
         ]
-        ordering = ['-display_order', '-created_at']
+        ordering = ['header', '-order_within_header', '-display_order', '-created_at']
     
     def __str__(self):
         return self.title
@@ -390,16 +394,23 @@ class Lesson(models.Model):
 
 
 class Header(models.Model):
-    """Headers/sections that group lessons (like chapters in a book)"""
+    """Headers/sections that group lessons and sections/passages (like chapters in a book)"""
     CATEGORY_CHOICES = [
         ('reading', 'Reading'),
         ('writing', 'Writing'),
         ('math', 'Math'),
     ]
     
+    CONTENT_TYPE_CHOICES = [
+        ('lesson', 'Lesson'),
+        ('section', 'Section/Passage'),
+        ('both', 'Both'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255, help_text="Header title (e.g., 'Algebra Basics', 'Grammar Rules')")
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, help_text="Category this header belongs to")
+    content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES, default='both', help_text="Type of content this header is for: lessons, sections/passages, or both")
     display_order = models.IntegerField(default=0, help_text="Order for display within category (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -573,6 +584,8 @@ class WritingSection(models.Model):
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
+    header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='writing_sections', help_text="Header/section this writing section belongs to")
+    order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -582,8 +595,10 @@ class WritingSection(models.Model):
             models.Index(fields=['difficulty']),
             models.Index(fields=['tier']),
             models.Index(fields=['display_order']),
+            models.Index(fields=['header']),
+            models.Index(fields=['order_within_header']),
         ]
-        ordering = ['-display_order', '-created_at']
+        ordering = ['header', '-order_within_header', '-display_order', '-created_at']
     
     def __str__(self):
         return self.title
@@ -851,6 +866,8 @@ class MathSection(models.Model):
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='Medium')
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
+    header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='math_sections', help_text="Header/section this math section belongs to")
+    order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -861,8 +878,10 @@ class MathSection(models.Model):
             models.Index(fields=['difficulty']),
             models.Index(fields=['tier']),
             models.Index(fields=['display_order']),
+            models.Index(fields=['header']),
+            models.Index(fields=['order_within_header']),
         ]
-        ordering = ['-display_order', '-created_at']
+        ordering = ['header', '-order_within_header', '-display_order', '-created_at']
     
     def __str__(self):
         return self.title

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SAT Prep Reading Comprehension</title>
+    <title>Keuvi</title>
     <style>
         * {
             margin: 0;
@@ -705,7 +705,8 @@
             border-radius: 16px;
             padding: 100px 40px;
             text-align: center;
-            margin-bottom: 60px;
+            max-width: 800px;
+            margin: 0 auto 60px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             border: 1px solid #e0e0e0;
             animation: fadeIn 0.8s ease-in;
@@ -716,55 +717,41 @@
         }
         
         .hero-logo img {
-            height: 120px;
+            height: 100px;
             width: auto;
             display: block;
             margin: 0 auto;
         }
         
-        .hero-subtitle {
-            font-size: 20px;
-            color: var(--navy);
-            font-weight: 500;
-            margin-bottom: 32px;
-            font-style: italic;
-        }
-        
-        .landing-hero h1 {
-            font-size: 48px;
+        .hero-title {
+            font-size: 56px;
             font-weight: 700;
             color: #000;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             line-height: 1.2;
         }
         
-        .landing-hero p {
-            font-size: 19px;
-            color: #555;
-            margin-bottom: 50px;
-            line-height: 1.7;
-            max-width: 720px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        
-        .hero-cta {
-            margin-top: 50px;
-            padding-top: 50px;
-            border-top: 2px solid #f0f0f0;
-        }
-        
-        .hero-cta h2 {
-            color: var(--navy);
-            font-size: 32px;
-            font-weight: 600;
-            margin-bottom: 16px;
-        }
-        
-        .hero-cta p {
-            font-size: 17px;
-            color: #666;
+        .hero-tagline {
+            font-size: 22px;
+            color: #000;
             margin-bottom: 32px;
+            font-weight: 700;
+        }
+        
+        .hero-features {
+            margin-bottom: 40px;
+        }
+        
+        .hero-features p {
+            font-size: 18px;
+            color: #000;
+            margin-bottom: 12px;
+            line-height: 1.6;
+            font-weight: 400;
+        }
+        
+        .hero-features p:last-child {
+            margin-bottom: 0;
         }
         
         .btn-large {
@@ -931,11 +918,19 @@
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
             .landing-hero {
-                padding: 60px 24px;
+                padding: 80px 24px;
             }
             
-            .landing-hero h1 {
-                font-size: 36px;
+            .hero-title {
+                font-size: 48px;
+            }
+            
+            .hero-tagline {
+                font-size: 20px;
+            }
+            
+            .hero-features p {
+                font-size: 16px;
             }
             
             .preview-cards {
@@ -1004,16 +999,14 @@
                 <div class="hero-logo">
                     <img src="{% static 'web/images/keuvi.png' %}" alt="Keuvi Logo">
                 </div>
-                <p class="hero-subtitle">Your SAT wingman</p>
-                <h1>Master SAT Reading, Writing, and Math</h1>
-                <p>Level up your  skills with expertly crafted passages and questions that mirror the real SAT. Start free, unlock premium content when you're ready to go deeper.</p>
-                <div class="hero-cta">
-                    <h2>Ready to Start Practicing?</h2>
-                    <p>Browse our collection of reading passages and begin your SAT prep journey today.</p>
-                    <button class="btn-large" onclick="showPassages()">Enter Keuvi!</button>
+                <p class="hero-tagline">An SAT tutor in your pocket.</p>
+                <div class="hero-features">
+                    <p>Lessons covering everything on the test.</p>
+                    <p>Hundreds of practice questions</p>
+                    <p>All of it written by people</p>
                 </div>
+                <button class="btn-large" onclick="showPassages()">Get Started</button>
             </div>
-        
             
             <!-- Why Keuwi Section -->
             <div class="why-keuwi">
@@ -1724,55 +1717,156 @@
                 passagesList.innerHTML = '';
                 
                 if (data.results && data.results.length > 0) {
+                    // Group passages by header
+                    const passagesByHeader = {};
+                    const passagesWithoutHeader = [];
+                    
                     data.results.forEach(passage => {
-                        const card = document.createElement('div');
-                        card.className = `passage-card ${passage.tier === 'premium' ? 'premium' : ''}`;
-                        const attemptCount = passage.attempt_count || 0;
-                        const attemptText = attemptCount > 0 ? ` | ${attemptCount} attempt${attemptCount !== 1 ? 's' : ''}` : '';
-                        
-                        let attemptSummaryHTML = '';
-                        if (passage.attempt_summary && attemptCount > 0) {
-                            const summary = passage.attempt_summary;
-                            attemptSummaryHTML = `
-                                <div style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px;">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                        <span style="color: #666;"><strong>Best Score:</strong></span>
-                                        <span style="color: #3498DB; font-weight: bold;">${summary.best_score}%</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                        <span style="color: #666;"><strong>Latest Score:</strong></span>
-                                        <span style="color: #000; font-weight: bold;">${summary.latest_score}%</span>
-                                    </div>
-                                    ${summary.recent_attempts && summary.recent_attempts.length > 0 ? `
-                                        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
-                                            <div style="color: #666; margin-bottom: 6px; font-size: 12px;"><strong>Recent Attempts:</strong></div>
-                                            ${summary.recent_attempts.map((attempt, idx) => {
-                                                const date = new Date(attempt.completed_at);
-                                                const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                                                return `
-                                                    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 4px;">
-                                                        <span>${dateStr}</span>
-                                                        <span style="font-weight: bold; color: #000;">${attempt.score}%</span>
-                                                    </div>
-                                                `;
-                                            }).join('')}
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            `;
+                        if (passage.header && passage.header.id) {
+                            const headerId = passage.header.id;
+                            if (!passagesByHeader[headerId]) {
+                                passagesByHeader[headerId] = {
+                                    header: passage.header,
+                                    passages: []
+                                };
+                            }
+                            passagesByHeader[headerId].passages.push(passage);
+                        } else {
+                            passagesWithoutHeader.push(passage);
                         }
-                        
-                        const isPremium = passage.tier === 'premium';
-                        const hasAccess = !isPremium || (currentUser && (currentUser.is_premium || currentUser.has_active_subscription));
-                        card.innerHTML = `
-                            <h3>${passage.title} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
-                            <p>Questions: ${passage.question_count}${attemptText}</p>
-                            ${attemptSummaryHTML}
-                            ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showAttemptHistory('${passage.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
-                        `;
-                        card.onclick = () => openPassage(passage.id);
-                        passagesList.appendChild(card);
                     });
+                    
+                    // Sort headers by display_order (higher first)
+                    const sortedHeaders = Object.values(passagesByHeader).sort((a, b) => 
+                        (b.header.display_order || 0) - (a.header.display_order || 0)
+                    );
+                    
+                    // Sort passages within each header by order_within_header (higher first)
+                    sortedHeaders.forEach(headerGroup => {
+                        headerGroup.passages.sort((a, b) => 
+                            (b.order_within_header || 0) - (a.order_within_header || 0)
+                        );
+                    });
+                    
+                    // Display headers with their passages
+                    sortedHeaders.forEach(headerGroup => {
+                        // Header section
+                        const headerDiv = document.createElement('div');
+                        headerDiv.style.cssText = 'margin-bottom: 30px;';
+                        headerDiv.innerHTML = `
+                            <h3 style="color: #3498DB; font-size: 24px; font-weight: 600; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #3498DB;">
+                                ${escapeHtml(headerGroup.header.title)}
+                            </h3>
+                        `;
+                        passagesList.appendChild(headerDiv);
+                        
+                        // Passages under this header
+                        const passagesContainer = document.createElement('div');
+                        passagesContainer.style.cssText = 'margin-left: 20px;';
+                        headerGroup.passages.forEach(passage => {
+                            const card = document.createElement('div');
+                            card.className = `passage-card ${passage.tier === 'premium' ? 'premium' : ''}`;
+                            card.style.cssText = 'margin-bottom: 15px;';
+                            const attemptCount = passage.attempt_count || 0;
+                            const attemptText = attemptCount > 0 ? ` | ${attemptCount} attempt${attemptCount !== 1 ? 's' : ''}` : '';
+                            
+                            let attemptSummaryHTML = '';
+                            if (passage.attempt_summary && attemptCount > 0) {
+                                const summary = passage.attempt_summary;
+                                attemptSummaryHTML = `
+                                    <div style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px;">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                            <span style="color: #666;"><strong>Best Score:</strong></span>
+                                            <span style="color: #3498DB; font-weight: bold;">${summary.best_score}%</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                            <span style="color: #666;"><strong>Latest Score:</strong></span>
+                                            <span style="color: #000; font-weight: bold;">${summary.latest_score}%</span>
+                                        </div>
+                                        ${summary.recent_attempts && summary.recent_attempts.length > 0 ? `
+                                            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
+                                                <div style="color: #666; margin-bottom: 6px; font-size: 12px;"><strong>Recent Attempts:</strong></div>
+                                                ${summary.recent_attempts.map((attempt, idx) => {
+                                                    const date = new Date(attempt.completed_at);
+                                                    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                                    return `
+                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 4px;">
+                                                            <span>${dateStr}</span>
+                                                            <span style="font-weight: bold; color: #000;">${attempt.score}%</span>
+                                                        </div>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }
+                            
+                            const isPremium = passage.tier === 'premium';
+                            card.innerHTML = `
+                                <h3>${escapeHtml(passage.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
+                                <p>Questions: ${passage.question_count}${attemptText}</p>
+                                ${attemptSummaryHTML}
+                                ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showAttemptHistory('${passage.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
+                            `;
+                            card.onclick = () => openPassage(passage.id);
+                            passagesContainer.appendChild(card);
+                        });
+                        headerDiv.appendChild(passagesContainer);
+                    });
+                    
+                    // Display passages without headers
+                    if (passagesWithoutHeader.length > 0) {
+                        passagesWithoutHeader.forEach(passage => {
+                            const card = document.createElement('div');
+                            card.className = `passage-card ${passage.tier === 'premium' ? 'premium' : ''}`;
+                            card.style.cssText = 'margin-bottom: 15px;';
+                            const attemptCount = passage.attempt_count || 0;
+                            const attemptText = attemptCount > 0 ? ` | ${attemptCount} attempt${attemptCount !== 1 ? 's' : ''}` : '';
+                            
+                            let attemptSummaryHTML = '';
+                            if (passage.attempt_summary && attemptCount > 0) {
+                                const summary = passage.attempt_summary;
+                                attemptSummaryHTML = `
+                                    <div style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px;">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                            <span style="color: #666;"><strong>Best Score:</strong></span>
+                                            <span style="color: #3498DB; font-weight: bold;">${summary.best_score}%</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                            <span style="color: #666;"><strong>Latest Score:</strong></span>
+                                            <span style="color: #000; font-weight: bold;">${summary.latest_score}%</span>
+                                        </div>
+                                        ${summary.recent_attempts && summary.recent_attempts.length > 0 ? `
+                                            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
+                                                <div style="color: #666; margin-bottom: 6px; font-size: 12px;"><strong>Recent Attempts:</strong></div>
+                                                ${summary.recent_attempts.map((attempt, idx) => {
+                                                    const date = new Date(attempt.completed_at);
+                                                    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                                    return `
+                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 4px;">
+                                                            <span>${dateStr}</span>
+                                                            <span style="font-weight: bold; color: #000;">${attempt.score}%</span>
+                                                        </div>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }
+                            
+                            const isPremium = passage.tier === 'premium';
+                            card.innerHTML = `
+                                <h3>${escapeHtml(passage.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
+                                <p>Questions: ${passage.question_count}${attemptText}</p>
+                                ${attemptSummaryHTML}
+                                ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showAttemptHistory('${passage.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
+                            `;
+                            card.onclick = () => openPassage(passage.id);
+                            passagesList.appendChild(card);
+                        });
+                    }
                 } else {
                     passagesList.innerHTML = '<p>No passages available.</p>';
                 }
