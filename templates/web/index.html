@@ -1241,11 +1241,18 @@
                 }, 100);
             } else if (hash.startsWith('math-section/')) {
                 const sectionId = hash.split('/')[1];
-                showPassages(true);
-                setTimeout(() => {
-                    console.log('Opening math section from hash:', sectionId);
-                    openMathSection(sectionId);
-                }, 100);
+                // Don't reload if we're already opening this section
+                if (!isOpeningMathSection || currentMathSectionId !== sectionId) {
+                    // Show passages view but don't reload content (we're opening a detail view)
+                    document.getElementById('landingPage').style.display = 'none';
+                    document.getElementById('passagesView').style.display = 'block';
+                    document.querySelector('header').style.display = 'flex';
+                    // Don't call showPassages(true) as it will show the list - we want to show the detail
+                    setTimeout(() => {
+                        console.log('Opening math section from hash:', sectionId);
+                        openMathSection(sectionId);
+                    }, 100);
+                }
             } else if (hash === 'passages' || hash === 'lessons' || hash === 'writing-sections' || hash === 'math-sections' || hash === '') {
                 console.log('Showing passages view from hash');
                 showPassages(true);
@@ -2667,6 +2674,7 @@
         }
         
         let isOpeningPassage = false; // Flag to prevent hashchange loop
+        let isOpeningMathSection = false; // Flag to prevent hashchange loop for math sections
         
         async function openPassage(passageId) {
             console.log('openPassage called with ID:', passageId);
@@ -3155,7 +3163,14 @@
         }
         
         async function openMathSection(mathSectionId) {
+            // Prevent re-triggering if already opening this section
+            if (isOpeningMathSection && currentMathSectionId === mathSectionId) {
+                console.log('Already opening this math section, skipping');
+                return;
+            }
+            
             try {
+                isOpeningMathSection = true;
                 currentMathSectionId = mathSectionId;
                 currentPassageId = null;
                 currentPassageData = null;
@@ -3180,12 +3195,14 @@
                     if (previewResponse.ok) {
                         const sectionData = await previewResponse.json();
                         displayMathSectionPreview(sectionData);
+                        isOpeningMathSection = false;
                         return;
                     }
                 }
                 
                 if (!sectionResponse.ok) {
                     alert('Failed to fetch math section. Please try again.');
+                    isOpeningMathSection = false;
                     return;
                 }
                 
@@ -3194,6 +3211,7 @@
                 // Check if premium and user doesn't have access
                 if (sectionData.tier === 'premium' && (!currentUser || (!currentUser.is_premium && !currentUser.has_active_subscription))) {
                     displayMathSectionPreview(sectionData);
+                    isOpeningMathSection = false;
                     return;
                 }
                 
@@ -3201,6 +3219,7 @@
                 const questionsResponse = await fetch(`${API_BASE}/math-sections/${mathSectionId}/questions/`, {headers});
                 if (!questionsResponse.ok) {
                     alert('Failed to fetch questions. Please try again.');
+                    isOpeningMathSection = false;
                     return;
                 }
                 const questionsData = await questionsResponse.json();
@@ -3214,6 +3233,9 @@
             } catch (error) {
                 console.error('Failed to open math section:', error);
                 alert('Network error. Please try again.');
+            } finally {
+                // Always clear the flag
+                isOpeningMathSection = false;
             }
         }
         
