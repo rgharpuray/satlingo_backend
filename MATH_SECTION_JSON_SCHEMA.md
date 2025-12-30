@@ -260,3 +260,4 @@ For the GPT conversion process:
 Note: The actual diagram extraction and S3 upload will be handled by the backend during GPT conversion. GPT should identify which parts of the document are diagrams and provide instructions for extraction.
 
 
+

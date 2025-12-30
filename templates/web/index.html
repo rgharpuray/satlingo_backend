@@ -1996,8 +1996,18 @@
             
             // Debug logging
             console.log('Lesson assets:', lesson.assets);
+            console.log('Lesson lesson_id:', lesson.lesson_id);
             console.log('Question assets map:', questionAssetsMap);
             console.log('Lesson chunks with assets:', lesson.chunks?.filter(c => c.type === 'question' && c.assets));
+            
+            // Check for sentinels in chunks
+            if (lesson.chunks) {
+                lesson.chunks.forEach((chunk, idx) => {
+                    if (chunk.text && chunk.text.includes('[[Diagram')) {
+                        console.log(`Chunk ${idx} (type: ${chunk.type}) contains sentinel:`, chunk.text.substring(0, 200));
+                    }
+                });
+            }
             
             // Log each question's assets
             if (lesson.questions) {
@@ -2021,23 +2031,35 @@
                     const tag = `h${Math.min(level + 1, 6)}`;
                     contentHTML += `<${tag} style="color: #3498DB; margin-top: 20px; margin-bottom: 10px;">${escapeHtml(text)}</${tag}>`;
                 } else if (chunkType === 'paragraph') {
-                    contentHTML += `<p style="margin-bottom: 15px; line-height: 1.6; color: #000;">${escapeHtml(chunk.text || '')}</p>`;
+                    const chunkText = chunk.text || '';
+                    // Debug: log if this paragraph contains a sentinel
+                    if (chunkText.includes('[[Diagram')) {
+                        console.log(`Paragraph chunk ${chunkIdx} contains sentinel. Text:`, chunkText.substring(0, 200));
+                    }
+                    const processedText = replaceDiagramSentinels(chunkText, lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<p style="margin-bottom: 15px; line-height: 1.6; color: #000;">${processedText}</p>`;
                 } else if (chunkType === 'example') {
-                    contentHTML += `<div style="background: #f0f8ff; border-left: 4px solid #3498DB; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">${escapeHtml(chunk.text || '')}</div>`;
+                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<div style="background: #f0f8ff; border-left: 4px solid #3498DB; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">${processedText}</div>`;
                 } else if (chunkType === 'example_correct') {
-                    contentHTML += `<div style="background: #f0fff0; border-left: 4px solid #28a745; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✓ ${escapeHtml(chunk.text || '')}</div>`;
+                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<div style="background: #f0fff0; border-left: 4px solid #28a745; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✓ ${processedText}</div>`;
                 } else if (chunkType === 'example_incorrect') {
-                    contentHTML += `<div style="background: #fff0f0; border-left: 4px solid #dc3545; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✗ ${escapeHtml(chunk.text || '')}</div>`;
+                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<div style="background: #fff0f0; border-left: 4px solid #dc3545; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✗ ${processedText}</div>`;
                 } else if (chunkType === 'rule') {
-                    contentHTML += `<div style="background: #fff9e6; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; font-weight: bold; color: #000;">Rule: ${escapeHtml(chunk.text || '')}</div>`;
+                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<div style="background: #fff9e6; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; font-weight: bold; color: #000;">Rule: ${processedText}</div>`;
                 } else if (chunkType === 'definition') {
-                    contentHTML += `<div style="margin: 15px 0;"><strong style="color: #3498DB;">${escapeHtml(chunk.term || '')}:</strong> <span style="color: #000;">${escapeHtml(chunk.text || '')}</span></div>`;
+                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<div style="margin: 15px 0;"><strong style="color: #3498DB;">${escapeHtml(chunk.term || '')}:</strong> <span style="color: #000;">${processedText}</span></div>`;
                 } else if (chunkType === 'list' || chunkType === 'bullet_list') {
                     const items = chunk.items || [];
                     const listType = chunkType === 'bullet_list' ? 'ul' : 'ol';
                     contentHTML += `<${listType} style="margin: 15px 0; padding-left: 30px; color: #000;">`;
                     items.forEach(item => {
-                        contentHTML += `<li style="margin-bottom: 8px;">${escapeHtml(item)}</li>`;
+                        const processedItem = replaceDiagramSentinels(item, lesson.assets || [], lesson.lesson_id);
+                        contentHTML += `<li style="margin-bottom: 8px;">${processedItem}</li>`;
                     });
                     contentHTML += `</${listType}>`;
                 } else if (chunkType === 'question') {
@@ -2047,7 +2069,8 @@
                     
                     // Render question directly from chunk (questions are embedded in chunks)
                     contentHTML += `<div class="question-card" style="margin: 20px 0; padding: 15px; border: 2px solid #3498DB; border-radius: 8px; background: #f9f9f9;">`;
-                    contentHTML += `<h4 style="color: #000; margin-bottom: 10px;">${escapeHtml(chunk.prompt || '')}</h4>`;
+                    const processedPrompt = replaceDiagramSentinels(chunk.prompt || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<h4 style="color: #000; margin-bottom: 10px;">${processedPrompt}</h4>`;
                     
                     // Display assets (diagrams) if this question has them
                     let questionAssets = questionAssetsMap[chunkIdx];
@@ -2134,11 +2157,14 @@
                     contentHTML += `</div>`;
                     contentHTML += `</div>`;
                 } else if (chunkType === 'note') {
-                    contentHTML += `<div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 10px 15px; margin: 15px 0; color: #000;">📝 Note: ${escapeHtml(chunk.text || '')}</div>`;
+                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 10px 15px; margin: 15px 0; color: #000;">📝 Note: ${processedText}</div>`;
                 } else if (chunkType === 'warning') {
-                    contentHTML += `<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; color: #000;">⚠️ Warning: ${escapeHtml(chunk.text || '')}</div>`;
+                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; color: #000;">⚠️ Warning: ${processedText}</div>`;
                 } else if (chunkType === 'summary') {
-                    contentHTML += `<div style="background: #f0f0f0; border: 2px solid #666; padding: 15px; margin: 20px 0; border-radius: 8px; color: #000;"><strong>Summary:</strong> ${escapeHtml(chunk.text || '')}</div>`;
+                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    contentHTML += `<div style="background: #f0f0f0; border: 2px solid #666; padding: 15px; margin: 20px 0; border-radius: 8px; color: #000;"><strong>Summary:</strong> ${processedText}</div>`;
                 }
             });
             
@@ -2446,6 +2472,127 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+        
+        /**
+         * Replace sentinel markers like [[Diagram asset_id]] with image tags
+         * @param {string} text - The text containing sentinels
+         * @param {Array} assets - Array of asset objects with asset_id and s3_url
+         * @param {string} lessonId - Lesson ID for constructing URLs if needed
+         * @returns {string} - HTML with sentinels replaced by images
+         */
+        function replaceDiagramSentinels(text, assets, lessonId) {
+            if (!text) {
+                console.log('replaceDiagramSentinels: No text provided');
+                return text;
+            }
+            if (!assets || !Array.isArray(assets) || assets.length === 0) {
+                console.log('replaceDiagramSentinels: No assets provided', {assets, lessonId});
+                return text;
+            }
+            
+            // Only log if text actually contains the marker (reduce noise)
+            if (!text.includes('[[Diagram') && !text.includes('[[diagram') && !text.includes('[[DIAGRAM')) {
+                return text; // Early return if no sentinel
+            }
+            
+            console.log('🔍 replaceDiagramSentinels called with sentinel in text');
+            
+            // Check if text contains the sentinel pattern (case-insensitive check first)
+            const hasDiagramMarker = text.includes('[[Diagram') || text.includes('[[diagram') || text.includes('[[DIAGRAM');
+            
+            if (hasDiagramMarker) {
+                console.log('Text contains [[Diagram marker. Full text:', text);
+                console.log('Text length:', text.length);
+                // Show character codes around the marker to check for encoding issues
+                const markerIndex = text.indexOf('[[Diagram');
+                if (markerIndex >= 0) {
+                    const snippet = text.substring(Math.max(0, markerIndex - 20), Math.min(text.length, markerIndex + 50));
+                    console.log('Snippet around marker:', snippet);
+                    console.log('Character codes:', Array.from(snippet).map(c => c.charCodeAt(0)));
+                }
+            }
+            
+            // Pattern to match [[Diagram asset_id]] - be more flexible
+            // Match: [[Diagram asset_id]] with optional whitespace (use \s* instead of \s+)
+            // Use non-greedy match and allow for various whitespace scenarios
+            let sentinelPattern = /\[\[Diagram\s*([^\]]+?)\s*\]\]/gi;
+            
+            const matches = text.match(sentinelPattern);
+            if (matches) {
+                console.log('✅ Found sentinel matches:', matches);
+            } else if (hasDiagramMarker) {
+                console.log('❌ Text contains [[Diagram but pattern did not match!');
+                console.log('Full text for debugging:', JSON.stringify(text));
+                
+                // Try alternative patterns - use the most permissive one that works
+                console.log('Trying alternative patterns...');
+                
+                // Pattern 1: Without requiring space after Diagram
+                const altPattern1 = /\[\[Diagram([^\]]+)\]\]/gi;
+                const altMatches1 = text.match(altPattern1);
+                if (altMatches1) {
+                    console.log('✅ Alternative pattern 1 (no space required) matched:', altMatches1);
+                    sentinelPattern = altPattern1;
+                } else {
+                    // Pattern 2: More permissive - any characters between Diagram and ]]
+                    const altPattern2 = /\[\[Diagram\s*([^\]]+?)\s*\]\]/gi;
+                    const altMatches2 = text.match(altPattern2);
+                    if (altMatches2) {
+                        console.log('✅ Alternative pattern 2 (flexible whitespace) matched:', altMatches2);
+                        sentinelPattern = altPattern2;
+                    } else {
+                        // Pattern 3: Very permissive - match anything between [[Diagram and ]]
+                        const altPattern3 = /\[\[Diagram\s*([^\]]+)\]\]/gi;
+                        const altMatches3 = text.match(altPattern3);
+                        if (altMatches3) {
+                            console.log('✅ Alternative pattern 3 (very permissive) matched:', altMatches3);
+                            sentinelPattern = altPattern3;
+                        }
+                    }
+                }
+            }
+            
+            return text.replace(sentinelPattern, (match, assetId) => {
+                // Trim whitespace from asset_id
+                assetId = assetId.trim();
+                console.log(`Processing sentinel: "${match}" with asset_id: "${assetId}"`);
+                
+                // Find the asset by asset_id
+                const asset = assets.find(a => a.asset_id === assetId);
+                console.log(`Found asset for "${assetId}":`, asset);
+                
+                if (asset && asset.s3_url) {
+                    // Use the S3 URL from the asset
+                    let imageUrl = asset.s3_url;
+                    
+                    // Clean up malformed URLs
+                    imageUrl = imageUrl.trim().replace(/[: ]+$/, '');
+                    
+                    // Fix malformed URLs
+                    if (imageUrl.endsWith('/') || imageUrl.match(/lessons\/[^/]+:$/)) {
+                        imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId || 'unknown'}/${assetId}.png`;
+                    }
+                    
+                    // Ensure URL has proper extension
+                    if (!/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(imageUrl)) {
+                        if (!imageUrl.includes('.')) {
+                            imageUrl += '.png';
+                        }
+                    }
+                    
+                    // Return image tag
+                    return `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                } else if (assetId && lessonId) {
+                    // If asset not found but we have asset_id and lesson_id, construct URL
+                    const constructedUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}.png`;
+                    return `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                } else {
+                    // Asset not found, return placeholder
+                    console.warn(`Diagram sentinel [[Diagram ${assetId}]] found but asset not found in lesson assets`);
+                    return `<span style="color: #999; font-style: italic;">[Diagram ${escapeHtml(assetId)} not found]</span>`;
+                }
+            });
         }
         
         function formatWritingSectionContent(content, selections) {
@@ -3189,7 +3336,7 @@
                         </div>
                         ${(reviewAnswer && reviewAnswer.explanation) || question.explanation ? `
                             <div class="explanation">
-                                <strong>Explanation:</strong> ${(reviewAnswer && reviewAnswer.explanation) || question.explanation || ''}
+                                <strong>Explanation:</strong> ${replaceDiagramSentinels((reviewAnswer && reviewAnswer.explanation) || question.explanation || '', lessonData.assets || [], lessonData.lesson_id)}
                             </div>
                         ` : ''}
                     </div>
@@ -3271,7 +3418,7 @@
                         </div>
                         ${question.explanation ? `
                             <div class="explanation" style="margin-top: 15px; padding: 12px; background: #f0f8ff; border-left: 4px solid #3498DB; border-radius: 4px;">
-                                <strong>Explanation:</strong> ${escapeHtml(question.explanation)}
+                                <strong>Explanation:</strong> ${replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id)}
                             </div>
                         ` : ''}
                     </div>
@@ -3344,7 +3491,7 @@
                         </div>
                         ${question.explanation ? `
                             <div class="explanation">
-                                <strong>Explanation:</strong> ${question.explanation}
+                                <strong>Explanation:</strong> ${replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id)}
                             </div>
                         ` : ''}
                     </div>

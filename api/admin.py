@@ -11,7 +11,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -1232,6 +1232,81 @@ class LessonIngestionAdmin(admin.ModelAdmin):
             super().save_model(request, obj, form, change)
 
 
+class LessonAssetForm(forms.ModelForm):
+    """Custom form for lesson assets with file upload"""
+    image_file = forms.FileField(
+        required=False,
+        help_text="Upload an image file. It will be automatically uploaded to S3 and the S3 URL will be set. Use sentinel format [[Diagram asset_id]] in lesson text.",
+        widget=forms.FileInput(attrs={'accept': 'image/*'})
+    )
+    
+    class Meta:
+        model = LessonAsset
+        fields = ['asset_id', 'type', 'image_file', 's3_url']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make s3_url read-only if it exists
+        if self.instance and self.instance.s3_url:
+            self.fields['s3_url'].widget.attrs['readonly'] = True
+    
+    def save(self, commit=True):
+        """Handle image upload and S3 upload"""
+        instance = super().save(commit=False)
+        
+        # Handle file upload if provided
+        if 'image_file' in self.cleaned_data and self.cleaned_data['image_file']:
+            image_file = self.cleaned_data['image_file']
+            
+            # Upload to S3
+            from .lesson_gpt_utils import upload_lesson_asset_to_s3
+            import tempfile
+            
+            # Save uploaded file temporarily
+            file_ext = os.path.splitext(image_file.name)[1].lower()
+            if file_ext not in ['.png', '.jpg', '.jpeg', '.svg', '.gif']:
+                file_ext = '.png'
+            
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_ext)
+            for chunk in image_file.chunks():
+                temp_file.write(chunk)
+            temp_file.close()
+            
+            try:
+                # Upload to S3
+                asset_id = instance.asset_id or os.path.splitext(image_file.name)[0]
+                lesson_id = instance.lesson.lesson_id if instance.lesson else 'unknown'
+                s3_url = upload_lesson_asset_to_s3(temp_file.name, asset_id, lesson_id)
+                instance.s3_url = s3_url
+            except Exception as e:
+                # Store error in form for display
+                self.add_error('image_file', f"Failed to upload image to S3: {str(e)}")
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_file.name):
+                    os.unlink(temp_file.name)
+        
+        if commit:
+            instance.save()
+        return instance
+
+
+class LessonAssetInline(nested_admin.NestedTabularInline):
+    """Inline editor for lesson assets (diagrams/images)"""
+    model = LessonAsset
+    form = LessonAssetForm
+    extra = 1
+    fields = ('asset_id', 'type', 'image_file', 's3_url', 'preview')
+    readonly_fields = ('preview',)
+    
+    def preview(self, obj):
+        """Show preview of the image if S3 URL exists"""
+        if obj and obj.s3_url:
+            return format_html('<img src="{}" style="max-width: 200px; max-height: 200px;" />', obj.s3_url)
+        return "-"
+    preview.short_description = "Preview"
+
+
 @admin.register(Lesson)
 class LessonAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for lessons"""
@@ -1239,7 +1314,7 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
     list_filter = ['lesson_type', 'header', 'difficulty', 'tier', 'created_at']
     search_fields = ['title', 'lesson_id', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display']
-    inlines = []
+    inlines = [LessonAssetInline]
     actions = ['move_up', 'move_down', 'set_as_reading', 'set_as_writing', 'set_as_math', 'move_up_in_header', 'move_down_in_header']
     
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
