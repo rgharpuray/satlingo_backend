@@ -115,13 +115,14 @@ def upload_image_to_s3(image_path, asset_id, math_section_id):
         file_ext = '.png'  # Default to PNG
     
     # Create S3 key (path in bucket)
-    # Use lessons/ prefix to match bucket policy (same as lesson assets)
+    # Use lessons/ prefix directly (same as lesson assets) to work with bucket policy
     # Support both math-sections and lessons paths for backwards compatibility
     if math_section_id.startswith('lessons/'):
         s3_key = f"{math_section_id}/{asset_id}{file_ext}"
     else:
-        # Use lessons/math-sections/ prefix to work with existing bucket policy
-        s3_key = f"lessons/math-sections/{math_section_id}/{asset_id}{file_ext}"
+        # Use lessons/ prefix directly (not lessons/math-sections/) to match bucket policy
+        # This ensures it works the same way as lesson assets
+        s3_key = f"lessons/{math_section_id}/{asset_id}{file_ext}"
     
     try:
         # Check if file exists
@@ -163,11 +164,13 @@ def upload_image_to_s3(image_path, asset_id, math_section_id):
                 # Re-raise if it's a different error
                 raise
         
-        # Construct public URL
+        # Construct public URL - URL encode the key to handle special characters like #
+        from urllib.parse import quote
+        encoded_key = quote(s3_key, safe='/')
         if aws_s3_region_name == 'us-east-1':
-            s3_url = f"https://{aws_storage_bucket_name}.s3.amazonaws.com/{s3_key}"
+            s3_url = f"https://{aws_storage_bucket_name}.s3.amazonaws.com/{encoded_key}"
         else:
-            s3_url = f"https://{aws_storage_bucket_name}.s3.{aws_s3_region_name}.amazonaws.com/{s3_key}"
+            s3_url = f"https://{aws_storage_bucket_name}.s3.{aws_s3_region_name}.amazonaws.com/{encoded_key}"
         
         print(f"Successfully uploaded {s3_key} to S3: {s3_url}")
         return s3_url
@@ -442,7 +445,7 @@ def convert_document_to_math_json(file_path, file_name):
                 print(error_msg)
                 # Log the error but continue with other diagrams
                 # We'll still include the diagram in the JSON but with a placeholder URL
-                diagram_s3_map[diagram['asset_id']] = f"https://s3.amazonaws.com/{aws_storage_bucket_name}/math-sections/{temp_section_id}/{diagram['asset_id']}.png"
+                diagram_s3_map[diagram['asset_id']] = f"https://s3.amazonaws.com/{aws_storage_bucket_name}/lessons/{temp_section_id}/{diagram['asset_id']}.png"
                 continue
         
         # Clean up temporary extracted images
@@ -474,7 +477,7 @@ The backend has extracted {len(diagrams)} diagram(s) from the document. You MUST
 EXTRACTED DIAGRAMS:
 """
         for idx, diagram in enumerate(diagrams, 1):
-            s3_url = diagram_s3_map.get(diagram['asset_id'], f"https://s3.amazonaws.com/bucket/math-sections/{temp_section_id}/{diagram['asset_id']}.png")
+            s3_url = diagram_s3_map.get(diagram['asset_id'], f"https://s3.amazonaws.com/bucket/lessons/{temp_section_id}/{diagram['asset_id']}.png")
             page_info = f" (Page {diagram['page_num']})" if diagram.get('page_num') else ""
             diagram_instructions += f"{idx}. asset_id: \"{diagram['asset_id']}\"{page_info}\n   s3_url: \"{s3_url}\"\n"
         
