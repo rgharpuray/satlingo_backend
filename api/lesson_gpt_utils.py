@@ -208,7 +208,8 @@ Multiple choice question embedded in the lesson. Questions are extracted and sto
     "I did, my laundry, made my bed, and performed my nightly breathing exercises."
   ],
   "correct_answer_index": 2,  // optional, integer index (0-based) of correct answer, defaults to 0 if not provided. If provided, must be >= 0 and < length of choices array
-  "assets": ["diagram-1"]  // optional, array of asset_id strings from shared_assets (for math questions with diagrams)
+  "assets": ["diagram-1"],  // optional, array of asset_id strings from shared_assets (for math questions with diagrams)
+  "explanation": "The correct answer uses proper comma placement..."  // optional, explanation text (can also be extracted from following "Tell me why:" paragraph)
 }
 ```
 **Important:** 
@@ -216,6 +217,9 @@ Multiple choice question embedded in the lesson. Questions are extracted and sto
 - `choices` is **REQUIRED** - must be a non-empty array, or validation will fail
 - `correct_answer_index` is optional. If not provided, defaults to 0 (first choice). If provided, must be a valid index (0-based) within the choices array, otherwise validation will fail.
 - `assets` is optional. If the question references a diagram/image from `shared_assets`, include the `asset_id` in this array.
+- `explanation` is optional. If the document contains "Tell me why:" immediately after a question, you can either:
+  1. Include the explanation text directly in the question chunk's `explanation` field, OR
+  2. Create a separate paragraph chunk with the explanation text (the system will automatically extract it from the following paragraph if it starts with "Tell me why:")
 
 ### 7. List
 Ordered list (numbered).
@@ -519,7 +523,34 @@ at that location in the chunks array.
 The first page starts automatically, so you don't need a page_break at the very beginning of the document.
 """
     
-    user_prompt = f"{schema_prompt}{diagram_instructions}{page_break_instructions}\n\nDocument content:\n\n{extracted_text}"
+    # Add explanation extraction instructions
+    explanation_instructions = """
+## Question Explanation Handling
+If a question is immediately followed by text that starts with "Tell me why:" (or "Tell me why" without colon), this is the explanation for that question. You have two options:
+
+**Option 1 (Recommended)**: Include the explanation directly in the question chunk's `explanation` field:
+```json
+{
+  "type": "question",
+  "prompt": "What is the answer?",
+  "choices": ["A", "B", "C", "D"],
+  "correct_answer_index": 0,
+  "explanation": "The correct answer is A because..."
+}
+```
+
+**Option 2**: Create a separate paragraph chunk with the explanation text starting with "Tell me why:" (the system will automatically extract it):
+```json
+{
+  "type": "paragraph",
+  "text": "Tell me why: The correct answer is A because..."
+}
+```
+
+The explanation will be stored with the question and shown to users only after they select an answer.
+"""
+    
+    user_prompt = f"{schema_prompt}{diagram_instructions}{page_break_instructions}{explanation_instructions}\n\nDocument content:\n\n{extracted_text}"
     
     try:
         try:

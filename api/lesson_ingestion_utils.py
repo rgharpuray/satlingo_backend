@@ -67,6 +67,26 @@ def process_lesson_ingestion(ingestion):
                 if correct_index >= len(choices):
                     raise ValueError(f"Question chunk at index {idx} has 'correct_answer_index' ({correct_index}) that is out of range (choices length: {len(choices)})")
                 
+                # Extract explanation from question chunk if present
+                explanation = chunk.get('explanation', '').strip()
+                
+                # If no explanation in question chunk, check the next chunk for "Tell me why:" sentinel
+                if not explanation and idx + 1 < len(lesson_data['chunks']):
+                    next_chunk = lesson_data['chunks'][idx + 1]
+                    if isinstance(next_chunk, dict) and next_chunk.get('type') == 'paragraph':
+                        next_text = next_chunk.get('text', '').strip()
+                        # Check if the paragraph starts with "Tell me why:" (case-insensitive, with optional colon)
+                        if next_text.lower().startswith('tell me why'):
+                            # Extract explanation (remove "Tell me why:" prefix)
+                            explanation = next_text
+                            # Remove "Tell me why:" or "Tell me why" prefix (case-insensitive)
+                            import re
+                            explanation = re.sub(r'^tell me why:?\s*', '', explanation, flags=re.IGNORECASE).strip()
+                            
+                            # Remove the explanation paragraph from chunks (so it doesn't render separately)
+                            # We'll mark it for removal later
+                            next_chunk['_remove_after_extraction'] = True
+                
                 questions_data.append({
                     'chunk_index': idx,
                     'order': question_order,
@@ -74,7 +94,12 @@ def process_lesson_ingestion(ingestion):
                     'choices': choices,
                     'correct_answer_index': correct_index,
                     'assets': chunk.get('assets', []),  # Include assets from chunk
+                    'explanation': explanation,  # Include explanation
                 })
+        
+        # Remove chunks that were marked for removal (explanation paragraphs that were extracted)
+        # Do this before saving the lesson so the cleaned chunks are stored
+        lesson_data['chunks'] = [chunk for chunk in lesson_data['chunks'] if not chunk.get('_remove_after_extraction', False)]
         
         ingestion.error_message = f'Step 2/3: Found {len(questions_data)} questions in chunks.'
         ingestion.save()
@@ -137,6 +162,7 @@ def process_lesson_ingestion(ingestion):
                 lesson=lesson,
                 text=q_data['text'],
                 correct_answer_index=q_data['correct_answer_index'],
+                explanation=q_data.get('explanation', '').strip() or None,  # Store explanation, or None if empty
                 order=q_data['order'],
                 chunk_index=q_data['chunk_index'],
             )

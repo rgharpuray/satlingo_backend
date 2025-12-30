@@ -1201,24 +1201,41 @@
         // Check URL hash to determine initial view
         function handleHashRoute() {
             const hash = window.location.hash.substring(1); // Remove #
+            console.log('Hash route handler called with hash:', hash);
             
             if (hash.startsWith('passage/')) {
                 const passageId = hash.split('/')[1];
-                showPassages(true);
-                setTimeout(() => openPassage(passageId), 100);
+                // Only open if we're not already opening this passage (prevent loop)
+                if (!isOpeningPassage || currentPassageId !== passageId) {
+                    showPassages(true);
+                    setTimeout(() => {
+                        console.log('Opening passage from hash:', passageId);
+                        openPassage(passageId);
+                    }, 100);
+                }
             } else if (hash.startsWith('lesson/')) {
                 const lessonId = hash.split('/')[1];
                 showPassages(true);
-                setTimeout(() => openLesson(lessonId), 100);
+                setTimeout(() => {
+                    console.log('Opening lesson from hash:', lessonId);
+                    openLesson(lessonId);
+                }, 100);
             } else if (hash.startsWith('writing-section/')) {
                 const sectionId = hash.split('/')[1];
                 showPassages(true);
-                setTimeout(() => openWritingSection(sectionId), 100);
+                setTimeout(() => {
+                    console.log('Opening writing section from hash:', sectionId);
+                    openWritingSection(sectionId);
+                }, 100);
             } else if (hash.startsWith('math-section/')) {
                 const sectionId = hash.split('/')[1];
                 showPassages(true);
-                setTimeout(() => openMathSection(sectionId), 100);
-            } else if (hash === 'passages' || hash === 'lessons' || hash === 'writing-sections' || hash === 'math-sections') {
+                setTimeout(() => {
+                    console.log('Opening math section from hash:', sectionId);
+                    openMathSection(sectionId);
+                }, 100);
+            } else if (hash === 'passages' || hash === 'lessons' || hash === 'writing-sections' || hash === 'math-sections' || hash === '') {
+                console.log('Showing passages view from hash');
                 showPassages(true);
             } else {
                 showLanding();
@@ -1272,8 +1289,15 @@
                     btn.classList.remove('active');
                 }
             });
-            // Reset to list view
+            // Reset to list view - make sure all list sections are visible
             document.getElementById('passageDetailSection').style.display = 'none';
+            // Make sure list sections are visible
+            const passagesListSection = document.getElementById('passagesListSection');
+            const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+            const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+            if (passagesListSection) passagesListSection.style.display = 'block';
+            if (writingSectionsListSection) writingSectionsListSection.style.display = 'block';
+            if (mathSectionsListSection) mathSectionsListSection.style.display = 'block';
             // Update URL only if hash doesn't match expected patterns
             const currentHash = window.location.hash.substring(1);
             if (currentHash !== 'passages' && !currentHash.startsWith('passage/') && !currentHash.startsWith('lesson/') && !currentHash.startsWith('writing-section/') && !currentHash.startsWith('math-section/')) {
@@ -1559,19 +1583,38 @@
         
         async function loadWritingSections() {
             try {
+                console.log('Loading writing sections...');
                 const headers = {};
                 if (authToken) {
                     headers['Authorization'] = `Bearer ${authToken}`;
                 }
                 
                 const response = await fetch(`${API_BASE}/writing-sections/`, {headers});
+                if (!response.ok) {
+                    console.error('Failed to fetch writing sections:', response.status, response.statusText);
+                    const writingSectionsList = document.getElementById('writingSectionsList');
+                    if (writingSectionsList) {
+                        writingSectionsList.innerHTML = '<p style="color: #999;">Failed to load writing sections. Please try again.</p>';
+                    }
+                    return;
+                }
+                
                 const data = await response.json();
+                console.log('Writing sections data received:', data);
                 
                 const writingSectionsList = document.getElementById('writingSectionsList');
+                if (!writingSectionsList) {
+                    console.error('writingSectionsList element not found!');
+                    return;
+                }
                 writingSectionsList.innerHTML = '';
                 
-                if (data.results && data.results.length > 0) {
-                    data.results.forEach(writingSection => {
+                // Handle both paginated (data.results) and non-paginated (data is array) responses
+                const writingSections = Array.isArray(data) ? data : (data.results || []);
+                console.log('Processing writing sections:', writingSections.length, 'sections');
+                
+                if (writingSections && writingSections.length > 0) {
+                    writingSections.forEach(writingSection => {
                         const card = document.createElement('div');
                         card.className = `passage-card ${writingSection.tier === 'premium' ? 'premium' : ''}`;
                         const attemptCount = writingSection.attempt_count || 0;
@@ -1617,34 +1660,67 @@
                             ${attemptSummaryHTML}
                             ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showWritingSectionAttemptHistory('${writingSection.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                         `;
-                        card.onclick = () => openWritingSection(writingSection.id);
+                        card.addEventListener('click', (e) => {
+                            // Don't trigger if clicking on a button
+                            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                                return;
+                            }
+                            console.log('Writing section card clicked:', writingSection.id, writingSection.title);
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openWritingSection(writingSection.id);
+                        });
+                        card.style.cursor = 'pointer';
                         writingSectionsList.appendChild(card);
                     });
                 } else {
+                    console.log('No writing sections found in response');
                     writingSectionsList.innerHTML = '<p style="color: #666; font-style: italic;">No writing sections available yet.</p>';
                 }
             } catch (error) {
                 console.error('Failed to load writing sections:', error);
+                console.error('Error details:', error.message, error.stack);
                 const writingSectionsList = document.getElementById('writingSectionsList');
-                writingSectionsList.innerHTML = '<p style="color: #999;">Unable to load writing sections.</p>';
+                if (writingSectionsList) {
+                    writingSectionsList.innerHTML = `<p style="color: #999;">Error loading writing sections: ${error.message}. Please refresh the page.</p>`;
+                }
             }
         }
         
         async function loadMathSections() {
             try {
+                console.log('Loading math sections...');
                 const headers = {};
                 if (authToken) {
                     headers['Authorization'] = `Bearer ${authToken}`;
                 }
                 
                 const response = await fetch(`${API_BASE}/math-sections/`, {headers});
+                if (!response.ok) {
+                    console.error('Failed to fetch math sections:', response.status, response.statusText);
+                    const mathSectionsList = document.getElementById('mathSectionsList');
+                    if (mathSectionsList) {
+                        mathSectionsList.innerHTML = '<p style="color: #999;">Failed to load math sections. Please try again.</p>';
+                    }
+                    return;
+                }
+                
                 const data = await response.json();
+                console.log('Math sections data received:', data);
                 
                 const mathSectionsList = document.getElementById('mathSectionsList');
+                if (!mathSectionsList) {
+                    console.error('mathSectionsList element not found!');
+                    return;
+                }
                 mathSectionsList.innerHTML = '';
                 
-                if (data.results && data.results.length > 0) {
-                    data.results.forEach(mathSection => {
+                // Handle both paginated (data.results) and non-paginated (data is array) responses
+                const mathSections = Array.isArray(data) ? data : (data.results || []);
+                console.log('Processing math sections:', mathSections.length, 'sections');
+                
+                if (mathSections && mathSections.length > 0) {
+                    mathSections.forEach(mathSection => {
                         const card = document.createElement('div');
                         card.className = `passage-card ${mathSection.tier === 'premium' ? 'premium' : ''}`;
                         const attemptCount = mathSection.attempt_count || 0;
@@ -1690,38 +1766,72 @@
                             ${attemptSummaryHTML}
                             ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showMathSectionAttemptHistory('${mathSection.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                         `;
-                        card.onclick = () => openMathSection(mathSection.id);
+                        card.addEventListener('click', (e) => {
+                            // Don't trigger if clicking on a button
+                            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                                return;
+                            }
+                            console.log('Math section card clicked:', mathSection.id, mathSection.title);
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openMathSection(mathSection.id);
+                        });
+                        card.style.cursor = 'pointer';
                         mathSectionsList.appendChild(card);
                     });
                 } else {
+                    console.log('No math sections found in response');
                     mathSectionsList.innerHTML = '<p style="color: #666; font-style: italic;">No math sections available yet.</p>';
                 }
             } catch (error) {
                 console.error('Failed to load math sections:', error);
+                console.error('Error details:', error.message, error.stack);
                 const mathSectionsList = document.getElementById('mathSectionsList');
-                mathSectionsList.innerHTML = '<p style="color: #999;">Unable to load math sections.</p>';
+                if (mathSectionsList) {
+                    mathSectionsList.innerHTML = `<p style="color: #999;">Error loading math sections: ${error.message}. Please refresh the page.</p>`;
+                }
             }
         }
         
         async function loadPassages() {
             try {
+                console.log('Loading passages...');
                 const headers = {};
                 if (authToken) {
                     headers['Authorization'] = `Bearer ${authToken}`;
                 }
                 
                 const response = await fetch(`${API_BASE}/passages/`, {headers});
+                if (!response.ok) {
+                    console.error('Failed to fetch passages:', response.status, response.statusText);
+                    const passagesList = document.getElementById('passagesList');
+                    if (passagesList) {
+                        passagesList.innerHTML = '<p style="color: #999;">Failed to load passages. Please try again.</p>';
+                    }
+                    return;
+                }
+                
                 const data = await response.json();
+                console.log('Passages data received:', data);
                 
                 const passagesList = document.getElementById('passagesList');
+                if (!passagesList) {
+                    console.error('passagesList element not found!');
+                    return;
+                }
                 passagesList.innerHTML = '';
                 
-                if (data.results && data.results.length > 0) {
+                // Handle both paginated (data.results) and non-paginated (data is array) responses
+                const passages = Array.isArray(data) ? data : (data.results || []);
+                console.log('Processing passages:', passages.length, 'passages');
+                console.log('First passage sample:', passages[0]);
+                
+                if (passages && passages.length > 0) {
                     // Group passages by header
                     const passagesByHeader = {};
                     const passagesWithoutHeader = [];
                     
-                    data.results.forEach(passage => {
+                    passages.forEach(passage => {
                         if (passage.header && passage.header.id) {
                             const headerId = passage.header.id;
                             if (!passagesByHeader[headerId]) {
@@ -1803,13 +1913,24 @@
                             }
                             
                             const isPremium = passage.tier === 'premium';
+                            card.setAttribute('data-passage-id', passage.id);
                             card.innerHTML = `
                                 <h3>${escapeHtml(passage.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
                                 <p>Questions: ${passage.question_count}${attemptText}</p>
                                 ${attemptSummaryHTML}
-                                ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showAttemptHistory('${passage.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
+                                ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); event.preventDefault(); showAttemptHistory('${passage.id}'); return false;" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                             `;
-                            card.onclick = () => openPassage(passage.id);
+                            card.addEventListener('click', (e) => {
+                                // Don't trigger if clicking on a button
+                                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                                    return;
+                                }
+                                console.log('Passage card clicked:', passage.id, passage.title);
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openPassage(passage.id);
+                            });
+                            card.style.cursor = 'pointer';
                             passagesContainer.appendChild(card);
                         });
                         headerDiv.appendChild(passagesContainer);
@@ -1857,21 +1978,38 @@
                             }
                             
                             const isPremium = passage.tier === 'premium';
+                            card.setAttribute('data-passage-id', passage.id);
                             card.innerHTML = `
                                 <h3>${escapeHtml(passage.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
                                 <p>Questions: ${passage.question_count}${attemptText}</p>
                                 ${attemptSummaryHTML}
-                                ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showAttemptHistory('${passage.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
+                                ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); event.preventDefault(); showAttemptHistory('${passage.id}'); return false;" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                             `;
-                            card.onclick = () => openPassage(passage.id);
+                            card.addEventListener('click', (e) => {
+                                // Don't trigger if clicking on a button
+                                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                                    return;
+                                }
+                                console.log('Passage card clicked (no header):', passage.id, passage.title);
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openPassage(passage.id);
+                            });
+                            card.style.cursor = 'pointer';
                             passagesList.appendChild(card);
                         });
                     }
                 } else {
-                    passagesList.innerHTML = '<p>No passages available.</p>';
+                    console.log('No passages found in response');
+                    passagesList.innerHTML = '<p style="color: #666; font-style: italic;">No passages available yet.</p>';
                 }
             } catch (error) {
                 console.error('Failed to load passages:', error);
+                console.error('Error details:', error.message, error.stack);
+                const passagesList = document.getElementById('passagesList');
+                if (passagesList) {
+                    passagesList.innerHTML = `<p style="color: #999;">Error loading passages: ${error.message}. Please refresh the page.</p>`;
+                }
             }
         }
         
@@ -2395,12 +2533,23 @@
             document.getElementById('resultsSection').style.display = 'none';
         }
         
+        let isOpeningPassage = false; // Flag to prevent hashchange loop
+        
         async function openPassage(passageId) {
+            console.log('openPassage called with ID:', passageId);
+            // Prevent re-triggering if already opening this passage
+            if (isOpeningPassage && currentPassageId === passageId) {
+                console.log('Already opening this passage, skipping');
+                return;
+            }
+            
             try {
+                console.log('Opening passage:', passageId);
+                isOpeningPassage = true;
                 currentPassageId = passageId;
                 userAnswers = {};
                 
-                // Update URL hash
+                // Update URL hash (this might trigger hashchange, but we have the flag to prevent loop)
                 window.history.replaceState(null, '', window.location.pathname + `#passage/${passageId}`);
                 
                 const headers = {};
@@ -2420,11 +2569,13 @@
                         // Show upgrade modal instead of alert
                         showUpgradeModal('passage');
                     }
+                    isOpeningPassage = false;
                     return;
                 }
                 
                 if (!passageResponse.ok) {
                     alert('Failed to load passage. Please try again.');
+                    isOpeningPassage = false;
                     return;
                 }
                 
@@ -2435,19 +2586,28 @@
                 const questionsResponse = await fetch(`${API_BASE}/passages/${passageId}/questions`, {headers});
                 if (!questionsResponse.ok) {
                     alert('Failed to load questions. Please try again.');
+                    isOpeningPassage = false;
                     return;
                 }
                 
                 const questionsData = await questionsResponse.json();
                 
                 // Display passage
+                console.log('About to display passage:', passageData.title);
                 displayPassage(passageData, questionsData);
+                console.log('Passage displayed successfully');
                 
             } catch (error) {
                 console.error('Failed to open passage:', error);
+                console.error('Error stack:', error.stack);
                 alert('Network error. Please try again.');
+            } finally {
+                isOpeningPassage = false;
             }
         }
+        
+        // Make openPassage globally accessible
+        window.openPassage = openPassage;
         
         function formatPassageForSAT(content) {
             // First, normalize content: convert literal \n strings to actual newlines
@@ -3007,11 +3167,17 @@
         
         async function displayPassage(passage, questions) {
             // Hide passages list, lessons list, writing sections list, and math sections list, show passage detail
-            document.getElementById('passagesListSection').style.display = 'none';
-            document.getElementById('lessonsListSection').style.display = 'none';
-            document.getElementById('writingSectionsListSection').style.display = 'none';
-            document.getElementById('mathSectionsListSection').style.display = 'none';
-            document.getElementById('passageDetailSection').style.display = 'block';
+            const passagesListSection = document.getElementById('passagesListSection');
+            const lessonsListSection = document.getElementById('lessonsListSection');
+            const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+            const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+            const passageDetailSection = document.getElementById('passageDetailSection');
+            
+            if (passagesListSection) passagesListSection.style.display = 'none';
+            if (lessonsListSection) lessonsListSection.style.display = 'none';
+            if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
+            if (passageDetailSection) passageDetailSection.style.display = 'block';
             
             // Show attempt history button if user is logged in
             const attemptHistoryContainer = document.getElementById('attemptHistoryButtonContainer');
@@ -3045,17 +3211,31 @@
             // Format passage in SAT style (50 chars per line, two columns, line numbers every 5)
             const formattedContent = formatPassageForSAT(passage.content);
             
-            document.getElementById('passageContent').innerHTML = `
+            const passageContent = document.getElementById('passageContent');
+            if (!passageContent) {
+                console.error('passageContent element not found!');
+                return;
+            }
+            passageContent.innerHTML = `
                 <h2 style="color: #3498DB; margin-bottom: 15px;">${passage.title}</h2>
                 <div class="passage-content-sat">${formattedContent}</div>
             `;
             
             // Display questions in two columns
             const questionsContainer = document.getElementById('questionsContainer');
+            if (!questionsContainer) {
+                console.error('questionsContainer element not found!');
+                return;
+            }
             questionsContainer.innerHTML = '<div class="questions-columns"><div class="question-column-left"></div><div class="question-column-right"></div></div>';
             
             const leftColumn = questionsContainer.querySelector('.question-column-left');
             const rightColumn = questionsContainer.querySelector('.question-column-right');
+            
+            if (!leftColumn || !rightColumn) {
+                console.error('Question columns not found!');
+                return;
+            }
             
             // Debug: log questions to see what we're getting
             console.log('Questions received:', questions.questions);
@@ -3089,8 +3269,10 @@
             });
             
             // Show submit button, hide results
-            document.getElementById('submitSection').style.display = 'block';
-            document.getElementById('resultsSection').style.display = 'none';
+            const submitSection = document.getElementById('submitSection');
+            const resultsSection = document.getElementById('resultsSection');
+            if (submitSection) submitSection.style.display = 'block';
+            if (resultsSection) resultsSection.style.display = 'none';
         }
         
         async function displayMathSection(mathSection, questions) {
