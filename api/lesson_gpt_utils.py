@@ -289,6 +289,18 @@ Summary section.
 }
 ```
 
+### 14. Page Break
+Creates a page break for pagination. When the document contains "NEW PAGE" markers, insert a page_break chunk at that location. The frontend will split the lesson into separate pages at these points.
+```json
+{
+  "type": "page_break"
+}
+```
+**Important:**
+- If you encounter "NEW PAGE", "---NEW PAGE---", "NEW PAGE---", or similar page break markers in the document, create a `page_break` chunk at that location.
+- Page breaks should be inserted as separate chunks, not as part of other chunk types.
+- The first page starts automatically, so you don't need a page_break at the very beginning.
+
 ## Important Notes
 1. **Order Matters**: Chunks are rendered in the order they appear in the array. Questions are embedded inline where they appear in the chunks.
 2. **Question Extraction**: Questions are automatically extracted from question chunks and stored separately for tracking purposes. The `chunk_index` field tracks which chunk the question came from.
@@ -493,7 +505,21 @@ Example structure:
 ```
 """
     
-    user_prompt = f"{schema_prompt}{diagram_instructions}\n\nDocument content:\n\n{extracted_text}"
+    # Add page break instructions
+    page_break_instructions = """
+## Page Break Handling
+If the document contains "NEW PAGE" markers (or variations like "---NEW PAGE---", "NEW PAGE---", "---NEW PAGE", etc.), you MUST create a `page_break` chunk at that location. This will split the lesson into separate pages in the frontend with Previous/Next navigation.
+
+Example: If you see "---NEW PAGE---" in the document, insert:
+```json
+{"type": "page_break"}
+```
+at that location in the chunks array.
+
+The first page starts automatically, so you don't need a page_break at the very beginning of the document.
+"""
+    
+    user_prompt = f"{schema_prompt}{diagram_instructions}{page_break_instructions}\n\nDocument content:\n\n{extracted_text}"
     
     try:
         try:
