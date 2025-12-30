@@ -1730,9 +1730,56 @@
                 // Handle both paginated (data.results) and non-paginated (data is array) responses
                 const mathSections = Array.isArray(data) ? data : (data.results || []);
                 console.log('Processing math sections:', mathSections.length, 'sections');
+                console.log('First math section sample:', mathSections[0]);
                 
                 if (mathSections && mathSections.length > 0) {
+                    // Group math sections by header
+                    const sectionsByHeader = {};
+                    const sectionsWithoutHeader = [];
+                    
                     mathSections.forEach(mathSection => {
+                        if (mathSection.header && mathSection.header.id) {
+                            const headerId = mathSection.header.id;
+                            if (!sectionsByHeader[headerId]) {
+                                sectionsByHeader[headerId] = {
+                                    header: mathSection.header,
+                                    sections: []
+                                };
+                            }
+                            sectionsByHeader[headerId].sections.push(mathSection);
+                        } else {
+                            sectionsWithoutHeader.push(mathSection);
+                        }
+                    });
+                    
+                    // Sort headers by display_order (higher first)
+                    const sortedHeaders = Object.values(sectionsByHeader).sort((a, b) => 
+                        (b.header.display_order || 0) - (a.header.display_order || 0)
+                    );
+                    
+                    // Sort sections within each header by order_within_header (higher first)
+                    sortedHeaders.forEach(headerGroup => {
+                        headerGroup.sections.sort((a, b) => 
+                            (b.order_within_header || 0) - (a.order_within_header || 0)
+                        );
+                    });
+                    
+                    // Display headers with their sections
+                    sortedHeaders.forEach(headerGroup => {
+                        // Header section
+                        const headerDiv = document.createElement('div');
+                        headerDiv.style.cssText = 'margin-bottom: 30px;';
+                        headerDiv.innerHTML = `
+                            <h3 style="color: #3498DB; font-size: 24px; font-weight: 600; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #3498DB;">
+                                ${escapeHtml(headerGroup.header.title)}
+                            </h3>
+                        `;
+                        mathSectionsList.appendChild(headerDiv);
+                        
+                        // Sections under this header
+                        const sectionsContainer = document.createElement('div');
+                        sectionsContainer.style.cssText = 'margin-left: 20px;';
+                        headerGroup.sections.forEach(mathSection => {
                         const card = document.createElement('div');
                         card.className = `passage-card ${mathSection.tier === 'premium' ? 'premium' : ''}`;
                         const attemptCount = mathSection.attempt_count || 0;
@@ -1789,8 +1836,72 @@
                             openMathSection(mathSection.id);
                         });
                         card.style.cursor = 'pointer';
-                        mathSectionsList.appendChild(card);
+                        sectionsContainer.appendChild(card);
+                        });
+                        headerDiv.appendChild(sectionsContainer);
                     });
+                    
+                    // Display sections without headers
+                    if (sectionsWithoutHeader.length > 0) {
+                        sectionsWithoutHeader.forEach(mathSection => {
+                            const card = document.createElement('div');
+                            card.className = `passage-card ${mathSection.tier === 'premium' ? 'premium' : ''}`;
+                            const attemptCount = mathSection.attempt_count || 0;
+                            const attemptText = attemptCount > 0 ? ` | ${attemptCount} attempt${attemptCount !== 1 ? 's' : ''}` : '';
+                            
+                            let attemptSummaryHTML = '';
+                            if (mathSection.attempt_summary && attemptCount > 0) {
+                                const summary = mathSection.attempt_summary;
+                                attemptSummaryHTML = `
+                                    <div style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px;">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                            <span style="color: #666;"><strong>Best Score:</strong></span>
+                                            <span style="color: #3498DB; font-weight: bold;">${summary.best_score}%</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                            <span style="color: #666;"><strong>Latest Score:</strong></span>
+                                            <span style="color: #000; font-weight: bold;">${summary.latest_score}%</span>
+                                        </div>
+                                        ${summary.recent_attempts && summary.recent_attempts.length > 0 ? `
+                                            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
+                                                <div style="color: #666; margin-bottom: 6px; font-size: 12px;"><strong>Recent Attempts:</strong></div>
+                                                ${summary.recent_attempts.map((attempt, idx) => {
+                                                    const date = new Date(attempt.completed_at);
+                                                    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                                    return `
+                                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 4px;">
+                                                            <span>${dateStr}</span>
+                                                            <span style="font-weight: bold; color: #000;">${attempt.score}%</span>
+                                                        </div>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }
+                            
+                            const isPremium = mathSection.tier === 'premium';
+                            card.innerHTML = `
+                                <h3>${mathSection.title} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
+                                <p>Questions: ${mathSection.question_count || 0}${attemptText}</p>
+                                ${attemptSummaryHTML}
+                                ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showMathSectionAttemptHistory('${mathSection.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
+                            `;
+                            card.addEventListener('click', (e) => {
+                                // Don't trigger if clicking on a button
+                                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                                    return;
+                                }
+                                console.log('Math section card clicked (no header):', mathSection.id, mathSection.title);
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openMathSection(mathSection.id);
+                            });
+                            card.style.cursor = 'pointer';
+                            mathSectionsList.appendChild(card);
+                        });
+                    }
                 } else {
                     console.log('No math sections found in response');
                     mathSectionsList.innerHTML = '<p style="color: #666; font-style: italic;">No math sections available yet.</p>';
