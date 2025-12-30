@@ -2979,9 +2979,15 @@
                     // Clean up malformed URLs
                     imageUrl = imageUrl.trim().replace(/[: ]+$/, '');
                     
-                    // Fix malformed URLs
-                    if (imageUrl.endsWith('/') || imageUrl.match(/lessons\/[^/]+:$/)) {
-                        imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId || 'unknown'}/${assetId}.png`;
+                    // Fix malformed URLs - check if URL contains math-sections or lessons
+                    if (imageUrl.endsWith('/') || imageUrl.match(/lessons\/[^/]+:$/) || imageUrl.match(/math-sections\/[^/]+:$/)) {
+                        // Determine if this is a math section or lesson based on the asset's S3 URL
+                        const isMathSection = imageUrl.includes('math-sections');
+                        if (isMathSection) {
+                            imageUrl = `https://keuvi.s3.amazonaws.com/math-sections/${lessonId || 'unknown'}/${assetId}.png`;
+                        } else {
+                            imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId || 'unknown'}/${assetId}.png`;
+                        }
                     }
                     
                     // Ensure URL has proper extension
@@ -2991,15 +2997,22 @@
                         }
                     }
                     
+                    console.log(`Using image URL: ${imageUrl}`);
                     // Return image tag
                     return `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
                 } else if (assetId && lessonId) {
                     // If asset not found but we have asset_id and lesson_id, construct URL
-                    const constructedUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}.png`;
+                    // Check if any asset has a math-sections URL to determine type
+                    const hasMathSectionAsset = assets.some(a => a.s3_url && a.s3_url.includes('math-sections'));
+                    const isMathSection = hasMathSectionAsset || (lessonId && !lessonId.includes('lessons/') && lessonId.length > 20); // UUIDs are typically longer, and math sections use UUIDs
+                    const constructedUrl = isMathSection 
+                        ? `https://keuvi.s3.amazonaws.com/math-sections/${lessonId}/${assetId}.png`
+                        : `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}.png`;
+                    console.log(`Constructing fallback URL: ${constructedUrl}`);
                     return `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
                 } else {
                     // Asset not found, return placeholder
-                    console.warn(`Diagram sentinel [[Diagram ${assetId}]] found but asset not found in lesson assets`);
+                    console.warn(`Diagram sentinel [[Diagram ${assetId}]] found but asset not found. Assets:`, assets);
                     return `<span style="color: #999; font-style: italic;">[Diagram ${escapeHtml(assetId)} not found]</span>`;
                 }
             });
@@ -3562,10 +3575,17 @@
                 
                 // Process question prompt with sentinel replacement
                 let questionPrompt = question.prompt || question.text || '';
-                // Replace diagram sentinels in question prompt
-                questionPrompt = replaceDiagramSentinels(questionPrompt, mathSection.assets || [], mathSection.section_id || mathSection.id);
+                // Get assets from mathSection or currentMathSectionData (fallback)
+                const mathAssets = (mathSection && mathSection.assets) || (currentMathSectionData && currentMathSectionData.assets) || [];
+                const mathSectionId = (mathSection && (mathSection.section_id || mathSection.id)) || (currentMathSectionData && (currentMathSectionData.section_id || currentMathSectionData.id)) || 'unknown';
+                console.log('Math section assets for sentinel replacement:', mathAssets, 'sectionId:', mathSectionId, 'questionPrompt:', questionPrompt);
+                // Replace diagram sentinels in question prompt (BEFORE escaping HTML)
+                questionPrompt = replaceDiagramSentinels(questionPrompt, mathAssets, mathSectionId);
                 // Replace underline sentinels
                 questionPrompt = replaceUnderlineSentinels(questionPrompt);
+                // Note: We don't escape HTML here because replaceDiagramSentinels and replaceUnderlineSentinels
+                // add HTML tags (<img> and <u>) that we want to render. The text content should already be safe
+                // from the database.
                 
                 questionCard.innerHTML = `
                     <h4>Question ${questionNumber}</h4>
