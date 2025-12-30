@@ -2142,6 +2142,7 @@
         let currentLessonData = null;
         let currentWritingSectionId = null;
         let currentMathSectionId = null;
+        let currentMathSectionData = null;
         let currentWritingSectionData = null;
         let userAnswers = {};
         
@@ -3204,6 +3205,9 @@
                 }
                 const questionsData = await questionsResponse.json();
                 
+                // Store math section data for sentinel replacement
+                currentMathSectionData = sectionData;
+                
                 // Display math section
                 displayMathSection(sectionData, questionsData);
                 
@@ -3534,16 +3538,16 @@
                 const questionCard = document.createElement('div');
                 questionCard.className = 'question-card';
                 
+                // Process question prompt with sentinel replacement
+                let questionPrompt = question.prompt || question.text || '';
+                // Replace diagram sentinels in question prompt
+                questionPrompt = replaceDiagramSentinels(questionPrompt, mathSection.assets || [], mathSection.section_id || mathSection.id);
+                // Replace underline sentinels
+                questionPrompt = replaceUnderlineSentinels(questionPrompt);
+                
                 questionCard.innerHTML = `
                     <h4>Question ${questionNumber}</h4>
-                    <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${escapeHtml(question.prompt || question.text || '')}</p>
-                    ${question.assets && question.assets.length > 0 ? `
-                        <div style="margin-bottom: 50px; overflow: visible;">
-                            ${question.assets.map(asset => `
-                                <div style="display: inline-block; margin: 15px 0;"><img src="${asset.s3_url || asset.url}" alt="${asset.asset_id || 'Diagram'}" style="transform: scale(2); transform-origin: top left; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" /></div>
-                            `).join('')}
-                        </div>
-                    ` : ''}
+                    <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${questionPrompt}</p>
                     <div class="options-container">
                         ${question.choices && question.choices.length > 0 ? question.choices.map((choice, optIndex) => `
                             <div class="option" onclick="selectOption('${question.id}', ${optIndex})">
@@ -3634,11 +3638,36 @@
                         const questionNumber = question.order !== undefined ? question.order : 
                             (Object.keys(currentQuestionsMap).indexOf(questionId) + 1);
                         
-                        // Process explanation (handle diagrams and underlines if needed)
+                        // Process explanation (handle diagrams and underlines)
+                        // Note: We replace sentinels first (which adds HTML), then escape
+                        // This means the HTML tags from sentinels will be escaped, but that's okay
+                        // because we can use a different approach: replace sentinels with placeholders,
+                        // escape, then replace placeholders with HTML. But for simplicity, let's just
+                        // replace sentinels and trust the database content (like lessons do).
                         let processedExplanation = question.explanation;
-                        // Apply any processing needed (diagrams, underlines, etc.)
-                        // For now, just escape HTML - can add diagram/underline processing later if needed
-                        processedExplanation = escapeHtml(processedExplanation);
+                        
+                        // Apply sentinel replacement for math sections
+                        if (currentMathSectionId && currentMathSectionData) {
+                            processedExplanation = replaceDiagramSentinels(processedExplanation, currentMathSectionData.assets || [], currentMathSectionData.section_id || currentMathSectionData.id);
+                        }
+                        // Apply sentinel replacement for passages (if they get assets in the future)
+                        else if (currentPassageId && currentPassageData) {
+                            // Passages don't have assets currently, but we can add this if needed
+                        }
+                        // Apply sentinel replacement for writing sections (if they get assets in the future)
+                        else if (currentWritingSectionId && currentWritingSectionData) {
+                            // Writing sections don't have assets currently, but we can add this if needed
+                        }
+                        
+                        // Replace underline sentinels
+                        processedExplanation = replaceUnderlineSentinels(processedExplanation);
+                        
+                        // Note: We don't escape here because:
+                        // 1. The data comes from our database (trusted source)
+                        // 2. Sentinels have already been replaced with HTML tags
+                        // 3. Escaping would break the HTML tags we just added
+                        // This matches how lessons handle explanations
+                        
                         questionExplanationContent.innerHTML = `
                             <div style="color: #666; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
                             <div style="color: #333; line-height: 1.6;">${processedExplanation}</div>
@@ -4085,6 +4114,7 @@
             currentWritingSectionId = null;
             currentWritingSectionData = null;
             currentMathSectionId = null;
+            currentMathSectionData = null;
             userAnswers = {};
             lastAttemptData = null;
             currentQuestionsMap = {}; // Clear questions map
