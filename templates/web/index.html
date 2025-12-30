@@ -2982,9 +2982,11 @@
                     // Fix malformed URLs - check if URL contains math-sections or lessons
                     if (imageUrl.endsWith('/') || imageUrl.match(/lessons\/[^/]+:$/) || imageUrl.match(/math-sections\/[^/]+:$/)) {
                         // Determine if this is a math section or lesson based on the asset's S3 URL
-                        const isMathSection = imageUrl.includes('math-sections');
+                        // Check for both old math-sections/ and new lessons/math-sections/ paths
+                        const isMathSection = imageUrl.includes('math-sections') || imageUrl.includes('lessons/math-sections');
                         if (isMathSection) {
-                            imageUrl = `https://keuvi.s3.amazonaws.com/math-sections/${lessonId || 'unknown'}/${assetId}.png`;
+                            // Use lessons/math-sections/ prefix to work with bucket policy
+                            imageUrl = `https://keuvi.s3.amazonaws.com/lessons/math-sections/${lessonId || 'unknown'}/${assetId}.png`;
                         } else {
                             imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId || 'unknown'}/${assetId}.png`;
                         }
@@ -3003,10 +3005,10 @@
                 } else if (assetId && lessonId) {
                     // If asset not found but we have asset_id and lesson_id, construct URL
                     // Check if any asset has a math-sections URL to determine type
-                    const hasMathSectionAsset = assets.some(a => a.s3_url && a.s3_url.includes('math-sections'));
+                    const hasMathSectionAsset = assets.some(a => a.s3_url && (a.s3_url.includes('math-sections') || a.s3_url.includes('lessons/math-sections')));
                     const isMathSection = hasMathSectionAsset || (lessonId && !lessonId.includes('lessons/') && lessonId.length > 20); // UUIDs are typically longer, and math sections use UUIDs
                     const constructedUrl = isMathSection 
-                        ? `https://keuvi.s3.amazonaws.com/math-sections/${lessonId}/${assetId}.png`
+                        ? `https://keuvi.s3.amazonaws.com/lessons/math-sections/${lessonId}/${assetId}.png`
                         : `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}.png`;
                     console.log(`Constructing fallback URL: ${constructedUrl}`);
                     return `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;

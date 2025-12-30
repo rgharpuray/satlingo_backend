@@ -115,11 +115,13 @@ def upload_image_to_s3(image_path, asset_id, math_section_id):
         file_ext = '.png'  # Default to PNG
     
     # Create S3 key (path in bucket)
-    # Support both math-sections and lessons paths
+    # Use lessons/ prefix to match bucket policy (same as lesson assets)
+    # Support both math-sections and lessons paths for backwards compatibility
     if math_section_id.startswith('lessons/'):
         s3_key = f"{math_section_id}/{asset_id}{file_ext}"
     else:
-        s3_key = f"math-sections/{math_section_id}/{asset_id}{file_ext}"
+        # Use lessons/math-sections/ prefix to work with existing bucket policy
+        s3_key = f"lessons/math-sections/{math_section_id}/{asset_id}{file_ext}"
     
     try:
         # Check if file exists
