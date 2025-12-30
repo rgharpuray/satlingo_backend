@@ -325,6 +325,13 @@ Creates a page break for pagination. When the document contains "NEW PAGE" marke
    - `tier`: "free"
    - `correct_answer_index`: 0 (first choice)
 
+## Text Formatting - Underlines
+When text in the document is underlined, convert it to the sentinel format `*text*` in the chunk text fields:
+- If you see underlined text in the document (e.g., "The word **example** is underlined"), convert it to `*example*` in the JSON
+- Use `*text*` format for any underlined words or phrases
+- This applies to all text fields: `text`, `prompt`, `term`, and items in lists
+- Example: If the document shows "The word **important** is underlined", use `"text": "The word *important* is underlined"` in the JSON
+
 ## Conversion Guidelines
 When converting lesson content to this format:
 1. **Break content into logical chunks** (paragraphs, examples, questions, etc.)
@@ -335,15 +342,16 @@ When converting lesson content to this format:
    - Questions for practice problems
 3. **Maintain the natural flow** of the lesson - chunks are rendered in order
 4. **Embed questions inline** where they appear in the content
-5. **Ensure all required fields are present**:
+5. **Detect and convert underlines**: If text is underlined in the document, wrap it with asterisks: `*underlined text*`
+6. **Ensure all required fields are present**:
    - Every chunk must have a `type` field
    - Question chunks MUST have both `prompt` and `choices` (non-empty)
    - If `correct_answer_index` is provided for questions, ensure it's a valid index (0 to length-1)
-6. **Validate structure**:
+7. **Validate structure**:
    - `chunks` must be an array
    - Each chunk must be an object (not a primitive value)
    - Question `choices` must be an array with at least one item
-7. **Use consistent formatting** and structure
+8. **Use consistent formatting** and structure
 
 ## Validation Errors
 The system will catch and report these errors:

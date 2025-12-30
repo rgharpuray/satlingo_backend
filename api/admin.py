@@ -15,7 +15,7 @@ from .models import Passage, Question, QuestionOption, User, UserSession, UserPr
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
-    parse_passage_with_ai, create_passage_from_parsed_data, process_ingestion
+    parse_passage_with_ai, create_passage_from_parsed_data
 )
 from .lesson_ingestion_utils import process_lesson_ingestion
 from .writing_ingestion_utils import process_writing_ingestion
@@ -753,8 +753,8 @@ class PassageIngestionAdmin(admin.ModelAdmin):
                 if ingestion.parsed_data:
                     process_passage_ingestion(ingestion)
                 else:
-                    # Fall back to old process_ingestion for backward compatibility
-                    process_ingestion(ingestion)
+                    # Fall back to old process_passage_ingestion for backward compatibility
+                    process_passage_ingestion(ingestion)
             except Exception as e:
                 # Get full traceback for debugging
                 error_trace = traceback.format_exc()

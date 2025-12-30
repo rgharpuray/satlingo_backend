@@ -30,12 +30,12 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 
 class QuestionListSerializer(serializers.ModelSerializer):
-    """Serializer for questions without correct answers/explanations"""
+    """Serializer for questions without correct answers (but includes explanations)"""
     options = serializers.SerializerMethodField()
     
     class Meta:
         model = Question
-        fields = ['id', 'text', 'options', 'order']
+        fields = ['id', 'text', 'options', 'explanation', 'order']
     
     def get_options(self, obj):
         """Return options as a simple list of strings"""

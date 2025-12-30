@@ -1132,6 +1132,13 @@
                         <div class="loading">Loading...</div>
                     </div>
                     
+                    <div id="questionExplanation" class="hidden" style="display: none; background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h3 style="color: #3498DB; margin-bottom: 15px; font-size: 18px;">Explanation</h3>
+                        <div id="questionExplanationContent" style="color: #333; line-height: 1.6;">
+                            <!-- Explanation will be inserted here -->
+                        </div>
+                    </div>
+                    
                     <div id="userInfo" class="hidden">
                         <div class="user-info">
                             <strong>Logged in as:</strong><br>
@@ -2230,29 +2237,36 @@
                     if (chunkText.includes('[[Diagram')) {
                         console.log(`Paragraph chunk ${chunkIdx} contains sentinel. Text:`, chunkText.substring(0, 200));
                     }
-                    const processedText = replaceDiagramSentinels(chunkText, lesson.assets || [], lesson.lesson_id);
+                    let processedText = replaceDiagramSentinels(chunkText, lesson.assets || [], lesson.lesson_id);
+                    processedText = replaceUnderlineSentinels(processedText);
                     contentHTML += `<p style="margin-bottom: 15px; line-height: 1.6; color: #000;">${processedText}</p>`;
                 } else if (chunkType === 'example') {
-                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    let processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    processedText = replaceUnderlineSentinels(processedText);
                     contentHTML += `<div style="background: #f0f8ff; border-left: 4px solid #3498DB; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">${processedText}</div>`;
                 } else if (chunkType === 'example_correct') {
-                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    let processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    processedText = replaceUnderlineSentinels(processedText);
                     contentHTML += `<div style="background: #f0fff0; border-left: 4px solid #28a745; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✓ ${processedText}</div>`;
                 } else if (chunkType === 'example_incorrect') {
-                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    let processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    processedText = replaceUnderlineSentinels(processedText);
                     contentHTML += `<div style="background: #fff0f0; border-left: 4px solid #dc3545; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✗ ${processedText}</div>`;
                 } else if (chunkType === 'rule') {
-                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    let processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    processedText = replaceUnderlineSentinels(processedText);
                     contentHTML += `<div style="background: #fff9e6; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; font-weight: bold; color: #000;">Rule: ${processedText}</div>`;
                 } else if (chunkType === 'definition') {
-                    const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    let processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
+                    processedText = replaceUnderlineSentinels(processedText);
                     contentHTML += `<div style="margin: 15px 0;"><strong style="color: #3498DB;">${escapeHtml(chunk.term || '')}:</strong> <span style="color: #000;">${processedText}</span></div>`;
                 } else if (chunkType === 'list' || chunkType === 'bullet_list') {
                     const items = chunk.items || [];
                     const listType = chunkType === 'bullet_list' ? 'ul' : 'ol';
                     contentHTML += `<${listType} style="margin: 15px 0; padding-left: 30px; color: #000;">`;
                     items.forEach(item => {
-                        const processedItem = replaceDiagramSentinels(item, lesson.assets || [], lesson.lesson_id);
+                        let processedItem = replaceDiagramSentinels(item, lesson.assets || [], lesson.lesson_id);
+                        processedItem = replaceUnderlineSentinels(processedItem);
                         contentHTML += `<li style="margin-bottom: 8px;">${processedItem}</li>`;
                     });
                     contentHTML += `</${listType}>`;
@@ -2263,7 +2277,8 @@
                     
                     // Render question directly from chunk (questions are embedded in chunks)
                     contentHTML += `<div class="question-card" style="margin: 20px 0; padding: 15px; border: 2px solid #3498DB; border-radius: 8px; background: #f9f9f9;">`;
-                    const processedPrompt = replaceDiagramSentinels(chunk.prompt || '', lesson.assets || [], lesson.lesson_id);
+                    let processedPrompt = replaceDiagramSentinels(chunk.prompt || '', lesson.assets || [], lesson.lesson_id);
+                    processedPrompt = replaceUnderlineSentinels(processedPrompt);
                     contentHTML += `<h4 style="color: #000; margin-bottom: 10px;">${processedPrompt}</h4>`;
                     
                     // Display assets (diagrams) if this question has them
@@ -2353,7 +2368,8 @@
                     // Add explanation container (hidden initially, shown after selection)
                     const explanation = questionObj ? questionObj.explanation : null;
                     if (explanation) {
-                        const processedExplanation = replaceDiagramSentinels(explanation, lesson.assets || [], lesson.lesson_id);
+                        let processedExplanation = replaceDiagramSentinels(explanation, lesson.assets || [], lesson.lesson_id);
+                        processedExplanation = replaceUnderlineSentinels(processedExplanation);
                         contentHTML += `<div id="explanation_${questionId}" style="display: none; margin-top: 15px; padding: 12px; background: #f0f8ff; border-left: 4px solid #3498DB; border-radius: 4px;">
                             <strong>Explanation:</strong> ${processedExplanation}
                         </div>`;
@@ -2741,6 +2757,15 @@
          * @param {string} lessonId - Lesson ID for constructing URLs if needed
          * @returns {string} - HTML with sentinels replaced by images
          */
+        function replaceUnderlineSentinels(text) {
+            if (!text) return text;
+            // Replace *text* with <u>text</u> for underlines
+            // Use non-greedy matching to handle multiple underlines in the same text
+            // Match *word* but not **bold** (which uses double asterisks)
+            // Pattern: *text* where text doesn't contain asterisks
+            return text.replace(/\*([^*]+?)\*/g, '<u>$1</u>');
+        }
+        
         function replaceDiagramSentinels(text, assets, lessonId) {
             if (!text) {
                 console.log('replaceDiagramSentinels: No text provided');
@@ -3080,6 +3105,15 @@
             document.getElementById('mathSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
+            // Hide word of the day, show explanation container
+            const wordOfDay = document.getElementById('wordOfDay');
+            const questionExplanation = document.getElementById('questionExplanation');
+            if (wordOfDay) wordOfDay.style.display = 'none';
+            if (questionExplanation) {
+                questionExplanation.style.display = 'block';
+                questionExplanation.classList.remove('hidden');
+            }
+            
             // Show attempt history button if user is logged in
             const attemptHistoryContainer = document.getElementById('attemptHistoryButtonContainer');
             if (authToken && writingSection.id) {
@@ -3123,6 +3157,12 @@
             
             const leftColumn = questionsContainer.querySelector('.question-column-left');
             const rightColumn = questionsContainer.querySelector('.question-column-right');
+            
+            // Store questions in map for explanation access
+            currentQuestionsMap = {};
+            (questions.questions || []).forEach(question => {
+                currentQuestionsMap[question.id] = question;
+            });
             
             (questions.questions || []).forEach((question, index) => {
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
@@ -3178,6 +3218,15 @@
             if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
             if (passageDetailSection) passageDetailSection.style.display = 'block';
+            
+            // Hide word of the day, show explanation container
+            const wordOfDay = document.getElementById('wordOfDay');
+            const questionExplanation = document.getElementById('questionExplanation');
+            if (wordOfDay) wordOfDay.style.display = 'none';
+            if (questionExplanation) {
+                questionExplanation.style.display = 'block';
+                questionExplanation.classList.remove('hidden');
+            }
             
             // Show attempt history button if user is logged in
             const attemptHistoryContainer = document.getElementById('attemptHistoryButtonContainer');
@@ -3240,6 +3289,12 @@
             // Debug: log questions to see what we're getting
             console.log('Questions received:', questions.questions);
             
+            // Store questions in map for explanation access
+            currentQuestionsMap = {};
+            questions.questions.forEach(question => {
+                currentQuestionsMap[question.id] = question;
+            });
+            
             questions.questions.forEach((question, index) => {
                 // Use question.order if available, otherwise use index + 1
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
@@ -3283,6 +3338,15 @@
             document.getElementById('mathSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
+            // Hide word of the day, show explanation container
+            const wordOfDay = document.getElementById('wordOfDay');
+            const questionExplanation = document.getElementById('questionExplanation');
+            if (wordOfDay) wordOfDay.style.display = 'none';
+            if (questionExplanation) {
+                questionExplanation.style.display = 'block';
+                questionExplanation.classList.remove('hidden');
+            }
+            
             // Show attempt history button if user is logged in
             const attemptHistoryContainer = document.getElementById('attemptHistoryButtonContainer');
             if (authToken && mathSection.id) {
@@ -3322,6 +3386,13 @@
             const rightColumn = questionsContainer.querySelector('.question-column-right');
             
             const questionsList = questions.results || questions.questions || [];
+            
+            // Store questions in map for explanation access
+            currentQuestionsMap = {};
+            questionsList.forEach(question => {
+                currentQuestionsMap[question.id] = question;
+            });
+            
             questionsList.forEach((question, index) => {
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
                 const questionCard = document.createElement('div');
@@ -3398,14 +3469,59 @@
             
             // Update visual selection
             const questionCard = document.querySelector(`input[name="question_${questionId}"]`).closest('.question-card');
-            questionCard.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
-            questionCard.querySelector(`#opt_${questionId}_${optionIndex}`).closest('.option').classList.add('selected');
-            questionCard.querySelector(`#opt_${questionId}_${optionIndex}`).checked = true;
+            if (questionCard) {
+                questionCard.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
+                const selectedOption = questionCard.querySelector(`#opt_${questionId}_${optionIndex}`);
+                if (selectedOption) {
+                    selectedOption.closest('.option').classList.add('selected');
+                    selectedOption.checked = true;
+                }
+            }
             
-            // Show explanation if it exists (only after selection)
-            const explanationDiv = document.getElementById(`explanation_${questionId}`);
-            if (explanationDiv) {
-                explanationDiv.style.display = 'block';
+            // For lessons: show explanation inline (existing behavior)
+            if (currentLessonId && currentLessonData) {
+                const explanationDiv = document.getElementById(`explanation_${questionId}`);
+                if (explanationDiv) {
+                    explanationDiv.style.display = 'block';
+                }
+            } else {
+                // For passages/sections: show explanation in sidebar
+                const question = currentQuestionsMap[questionId];
+                const questionExplanation = document.getElementById('questionExplanation');
+                const questionExplanationContent = document.getElementById('questionExplanationContent');
+                
+                if (questionExplanation && questionExplanationContent) {
+                    if (question && question.explanation) {
+                        // Get question number for display
+                        const questionNumber = question.order !== undefined ? question.order : 
+                            (Object.keys(currentQuestionsMap).indexOf(questionId) + 1);
+                        
+                        // Process explanation (handle diagrams and underlines if needed)
+                        let processedExplanation = question.explanation;
+                        // Apply any processing needed (diagrams, underlines, etc.)
+                        // For now, just escape HTML - can add diagram/underline processing later if needed
+                        processedExplanation = escapeHtml(processedExplanation);
+                        questionExplanationContent.innerHTML = `
+                            <div style="color: #666; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
+                            <div style="color: #333; line-height: 1.6;">${processedExplanation}</div>
+                        `;
+                        questionExplanation.style.display = 'block';
+                        questionExplanation.classList.remove('hidden');
+                        
+                        // Scroll sidebar to explanation if needed
+                        questionExplanation.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    } else {
+                        // No explanation available for this question
+                        const questionNumber = question && question.order !== undefined ? question.order : 
+                            (Object.keys(currentQuestionsMap).indexOf(questionId) + 1);
+                        questionExplanationContent.innerHTML = `
+                            <div style="color: #666; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
+                            <div style="color: #666; font-style: italic;">No explanation available for this question.</div>
+                        `;
+                        questionExplanation.style.display = 'block';
+                        questionExplanation.classList.remove('hidden');
+                    }
+                }
             }
         }
         
@@ -3624,7 +3740,7 @@
                         </div>
                         ${(reviewAnswer && reviewAnswer.explanation) || question.explanation ? `
                             <div class="explanation">
-                                <strong>Explanation:</strong> ${replaceDiagramSentinels((reviewAnswer && reviewAnswer.explanation) || question.explanation || '', lessonData.assets || [], lessonData.lesson_id)}
+                                <strong>Explanation:</strong> ${replaceUnderlineSentinels(replaceDiagramSentinels((reviewAnswer && reviewAnswer.explanation) || question.explanation || '', lessonData.assets || [], lessonData.lesson_id))}
                             </div>
                         ` : ''}
                     </div>
@@ -3648,11 +3764,35 @@
                 return;
             }
             
-            let correctCount = 0;
-            const totalQuestions = lessonData.questions.length;
+            // Get current page index and find questions on current page only
+            const currentPageIndex = lessonData.currentPageIndex || 0;
+            const pages = lessonData.pages || [];
             
-            // Calculate correct answers
-            lessonData.questions.forEach(question => {
+            // Get chunk indices from current page
+            const currentPageChunkIndices = new Set();
+            if (currentPageIndex >= 0 && currentPageIndex < pages.length) {
+                const currentPage = pages[currentPageIndex];
+                currentPage.forEach(({chunkIdx}) => {
+                    currentPageChunkIndices.add(chunkIdx);
+                });
+            }
+            
+            // Filter questions to only those on current page (match by chunk_index)
+            const currentPageQuestions = lessonData.questions.filter(q => {
+                // Check if question's chunk_index is in the current page
+                return q.chunk_index !== undefined && currentPageChunkIndices.has(q.chunk_index);
+            });
+            
+            if (currentPageQuestions.length === 0) {
+                resultsSection.innerHTML = '<p>No questions on this page.</p>';
+                return;
+            }
+            
+            let correctCount = 0;
+            const totalQuestions = currentPageQuestions.length;
+            
+            // Calculate correct answers for current page questions only
+            currentPageQuestions.forEach(question => {
                 const userAnswer = userAnswers[question.id];
                 if (userAnswer === question.correct_answer_index) {
                     correctCount++;
@@ -3663,13 +3803,13 @@
             
             let resultsHTML = `
                 <div class="results-summary">
-                    <h3>Your Results</h3>
+                    <h3>Your Results (Page ${currentPageIndex + 1})</h3>
                     <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
                 </div>
             `;
             
-            // Show each question with correct answer and explanation
-            lessonData.questions.forEach((question, index) => {
+            // Show each question from current page with correct answer and explanation
+            currentPageQuestions.forEach((question, index) => {
                 const userAnswer = userAnswers[question.id];
                 const isCorrect = userAnswer === question.correct_answer_index;
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
@@ -3706,7 +3846,7 @@
                         </div>
                         ${question.explanation ? `
                             <div class="explanation" style="margin-top: 15px; padding: 12px; background: #f0f8ff; border-left: 4px solid #3498DB; border-radius: 4px;">
-                                <strong>Explanation:</strong> ${replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id)}
+                                <strong>Explanation:</strong> ${replaceUnderlineSentinels(replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id))}
                             </div>
                         ` : ''}
                     </div>
@@ -3779,7 +3919,7 @@
                         </div>
                         ${question.explanation ? `
                             <div class="explanation">
-                                <strong>Explanation:</strong> ${replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id)}
+                                <strong>Explanation:</strong> ${replaceUnderlineSentinels(replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id))}
                             </div>
                         ` : ''}
                     </div>
@@ -3809,6 +3949,19 @@
             currentMathSectionId = null;
             userAnswers = {};
             lastAttemptData = null;
+            currentQuestionsMap = {}; // Clear questions map
+            
+            // Show word of the day, hide explanation container
+            const wordOfDay = document.getElementById('wordOfDay');
+            const questionExplanation = document.getElementById('questionExplanation');
+            if (wordOfDay) wordOfDay.style.display = 'block';
+            if (questionExplanation) {
+                questionExplanation.style.display = 'none';
+                questionExplanation.classList.add('hidden');
+                const content = document.getElementById('questionExplanationContent');
+                if (content) content.innerHTML = '';
+            }
+            
             // Update URL hash
             window.history.replaceState(null, '', window.location.pathname + '#passages');
         }
