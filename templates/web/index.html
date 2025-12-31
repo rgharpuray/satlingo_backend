@@ -2206,11 +2206,27 @@
         }
         
         function displayLesson(lesson) {
-            // Hide all list sections, show detail view
+            // Hide all category content containers (which contain the list sections)
             document.querySelectorAll('.category-content').forEach(content => {
                 content.style.display = 'none';
             });
-            document.getElementById('passageDetailSection').style.display = 'block';
+            
+            // Hide all list sections individually as well
+            const passagesListSection = document.getElementById('passagesListSection');
+            const readingLessonsListSection = document.getElementById('readingLessonsListSection');
+            const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+            const writingLessonsListSection = document.getElementById('writingLessonsListSection');
+            const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+            const mathLessonsListSection = document.getElementById('mathLessonsListSection');
+            const passageDetailSection = document.getElementById('passageDetailSection');
+            
+            if (passagesListSection) passagesListSection.style.display = 'none';
+            if (readingLessonsListSection) readingLessonsListSection.style.display = 'none';
+            if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            if (writingLessonsListSection) writingLessonsListSection.style.display = 'none';
+            if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
+            if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
+            if (passageDetailSection) passageDetailSection.style.display = 'block';
             
             // Clear attempt history button
             document.getElementById('attemptHistoryButtonContainer').innerHTML = '';
@@ -2509,6 +2525,49 @@
                 } else if (chunkType === 'summary') {
                     const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
                     contentHTML += `<div style="background: #f0f0f0; border: 2px solid #666; padding: 15px; margin: 20px 0; border-radius: 8px; color: #000;"><strong>Summary:</strong> ${processedText}</div>`;
+                } else if (chunkType === 'side_by_side') {
+                    // Side-by-side layout: explanation on left, diagram on right
+                    const explanation = chunk.explanation || '';
+                    const diagramAssetId = chunk.diagram_asset_id || '';
+                    
+                    // Process explanation text (handle underlines)
+                    let processedExplanation = replaceUnderlineSentinels(explanation);
+                    
+                    // Find the diagram asset
+                    let diagramHtml = '';
+                    if (diagramAssetId && lesson.assets) {
+                        const diagramAsset = lesson.assets.find(asset => asset.asset_id === diagramAssetId);
+                        if (diagramAsset) {
+                            let imageUrl = diagramAsset.s3_url || diagramAsset.url || '';
+                            if (imageUrl) {
+                                imageUrl = imageUrl.trim().replace(/[: ]+$/, '');
+                                if (!/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(imageUrl)) {
+                                    if (!imageUrl.includes('.')) {
+                                        imageUrl += '.png';
+                                    }
+                                }
+                                diagramHtml = `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(diagramAssetId)}" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                            } else if (lesson.lesson_id) {
+                                // Fallback: construct URL
+                                const constructedUrl = `https://keuvi.s3.amazonaws.com/lessons/${lesson.lesson_id}/${diagramAssetId}.png`;
+                                diagramHtml = `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(diagramAssetId)}" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                            }
+                        } else if (lesson.lesson_id) {
+                            // Asset not found in list, try constructing URL
+                            const constructedUrl = `https://keuvi.s3.amazonaws.com/lessons/${lesson.lesson_id}/${diagramAssetId}.png`;
+                            diagramHtml = `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(diagramAssetId)}" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                        }
+                    }
+                    
+                    // Create side-by-side layout using flexbox
+                    contentHTML += `<div style="display: flex; gap: 20px; margin: 20px 0; align-items: flex-start;">
+                        <div style="flex: 1; min-width: 0;">
+                            <p style="margin-bottom: 0; line-height: 1.6; color: #000;">${processedExplanation}</p>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            ${diagramHtml || `<span style="color: #999; font-style: italic;">[Diagram ${escapeHtml(diagramAssetId)} not found]</span>`}
+                        </div>
+                    </div>`;
                 }
             });
             
@@ -3253,17 +3312,26 @@
         }
         
         async function displayWritingSection(writingSection, questions) {
-            // Hide all list sections, show detail view
+            // Hide all category content containers (which contain the list sections)
+            document.querySelectorAll('.category-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            
+            // Hide all list sections individually as well
             const passagesListSection = document.getElementById('passagesListSection');
-            const lessonsListSection = document.getElementById('lessonsListSection');
+            const readingLessonsListSection = document.getElementById('readingLessonsListSection');
             const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+            const writingLessonsListSection = document.getElementById('writingLessonsListSection');
             const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+            const mathLessonsListSection = document.getElementById('mathLessonsListSection');
             const passageDetailSection = document.getElementById('passageDetailSection');
             
             if (passagesListSection) passagesListSection.style.display = 'none';
-            if (lessonsListSection) lessonsListSection.style.display = 'none';
+            if (readingLessonsListSection) readingLessonsListSection.style.display = 'none';
             if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            if (writingLessonsListSection) writingLessonsListSection.style.display = 'none';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
+            if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
             if (passageDetailSection) passageDetailSection.style.display = 'block';
             
             // Hide word of the day, show explanation container
@@ -3369,17 +3437,26 @@
         }
         
         async function displayPassage(passage, questions) {
-            // Hide passages list, lessons list, writing sections list, and math sections list, show passage detail
+            // Hide all category content containers (which contain the list sections)
+            document.querySelectorAll('.category-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            
+            // Hide all list sections individually as well
             const passagesListSection = document.getElementById('passagesListSection');
-            const lessonsListSection = document.getElementById('lessonsListSection');
+            const readingLessonsListSection = document.getElementById('readingLessonsListSection');
             const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+            const writingLessonsListSection = document.getElementById('writingLessonsListSection');
             const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+            const mathLessonsListSection = document.getElementById('mathLessonsListSection');
             const passageDetailSection = document.getElementById('passageDetailSection');
             
             if (passagesListSection) passagesListSection.style.display = 'none';
-            if (lessonsListSection) lessonsListSection.style.display = 'none';
+            if (readingLessonsListSection) readingLessonsListSection.style.display = 'none';
             if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            if (writingLessonsListSection) writingLessonsListSection.style.display = 'none';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
+            if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
             if (passageDetailSection) passageDetailSection.style.display = 'block';
             
             // Hide word of the day, show explanation container
@@ -3494,17 +3571,26 @@
         }
         
         async function displayMathSection(mathSection, questions) {
-            // Hide all list sections, show detail view
+            // Hide all category content containers (which contain the list sections)
+            document.querySelectorAll('.category-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            
+            // Hide all list sections individually as well
             const passagesListSection = document.getElementById('passagesListSection');
-            const lessonsListSection = document.getElementById('lessonsListSection');
+            const readingLessonsListSection = document.getElementById('readingLessonsListSection');
             const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+            const writingLessonsListSection = document.getElementById('writingLessonsListSection');
             const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+            const mathLessonsListSection = document.getElementById('mathLessonsListSection');
             const passageDetailSection = document.getElementById('passageDetailSection');
             
             if (passagesListSection) passagesListSection.style.display = 'none';
-            if (lessonsListSection) lessonsListSection.style.display = 'none';
+            if (readingLessonsListSection) readingLessonsListSection.style.display = 'none';
             if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            if (writingLessonsListSection) writingLessonsListSection.style.display = 'none';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
+            if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
             if (passageDetailSection) passageDetailSection.style.display = 'block';
             
             // Hide word of the day, show explanation container
@@ -4156,7 +4242,28 @@
                     content.style.display = 'none';
                 }
             });
-            document.getElementById('passageDetailSection').style.display = 'none';
+            
+            // Explicitly show list sections for current category
+            if (currentCategory === 'reading') {
+                const readingLessonsListSection = document.getElementById('readingLessonsListSection');
+                const passagesListSection = document.getElementById('passagesListSection');
+                if (readingLessonsListSection) readingLessonsListSection.style.display = 'block';
+                if (passagesListSection) passagesListSection.style.display = 'block';
+            } else if (currentCategory === 'writing') {
+                const writingLessonsListSection = document.getElementById('writingLessonsListSection');
+                const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+                if (writingLessonsListSection) writingLessonsListSection.style.display = 'block';
+                if (writingSectionsListSection) writingSectionsListSection.style.display = 'block';
+            } else if (currentCategory === 'math') {
+                const mathLessonsListSection = document.getElementById('mathLessonsListSection');
+                const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+                if (mathLessonsListSection) mathLessonsListSection.style.display = 'block';
+                if (mathSectionsListSection) mathSectionsListSection.style.display = 'block';
+            }
+            
+            // Hide detail section
+            const passageDetailSection = document.getElementById('passageDetailSection');
+            if (passageDetailSection) passageDetailSection.style.display = 'none';
             currentPassageId = null;
             currentPassageData = null;
             currentLessonId = null;

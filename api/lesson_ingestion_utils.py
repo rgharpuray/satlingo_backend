@@ -264,6 +264,14 @@ def _render_lesson_content(chunks):
         elif chunk_type == 'summary':
             text = chunk.get('text', '')
             content_parts.append(f"Summary: {text}\n\n")
+        
+        elif chunk_type == 'side_by_side':
+            explanation = chunk.get('explanation', '')
+            diagram_asset_id = chunk.get('diagram_asset_id', '')
+            if diagram_asset_id:
+                content_parts.append(f"{explanation} [[Diagram {diagram_asset_id}]]\n\n")
+            else:
+                content_parts.append(f"{explanation}\n\n")
     
     return ''.join(content_parts).strip()
 

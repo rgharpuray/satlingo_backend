@@ -305,6 +305,23 @@ Creates a page break for pagination. When the document contains "NEW PAGE" marke
 - Page breaks should be inserted as separate chunks, not as part of other chunk types.
 - The first page starts automatically, so you don't need a page_break at the very beginning.
 
+### 15. Side-by-Side (Explanation and Diagram)
+Creates a two-column layout with explanation text on the left and a diagram on the right. Use this when the document shows explanatory text alongside a diagram in a side-by-side format.
+```json
+{
+  "type": "side_by_side",
+  "explanation": "This is the explanatory text that appears on the left side.",
+  "diagram_asset_id": "diagram-1"  // REQUIRED - asset_id from shared_assets
+}
+```
+**Important:**
+- Use this chunk type when you see content arranged with explanation text on the left and a diagram/image on the right
+- `explanation` is REQUIRED - contains the text that will appear in the left column
+- `diagram_asset_id` is REQUIRED - must reference an asset_id from the `shared_assets` array
+- The diagram will be rendered using the sentinel format `[[Diagram diagram_asset_id]]` automatically
+- This is specifically for math lessons where diagrams are displayed alongside explanations
+- Only use this when the layout is explicitly side-by-side; if the diagram appears separately, use a regular paragraph with the sentinel instead
+
 ## Important Notes
 1. **Order Matters**: Chunks are rendered in the order they appear in the array. Questions are embedded inline where they appear in the chunks.
 2. **Question Extraction**: Questions are automatically extracted from question chunks and stored separately for tracking purposes. The `chunk_index` field tracks which chunk the question came from.
@@ -317,6 +334,7 @@ Creates a page break for pagination. When the document contains "NEW PAGE" marke
    - Question chunks: `prompt` (string, non-empty), `choices` (array, non-empty)
    - List/Bullet List chunks: `items` (array)
    - Definition chunks: `term` (string), `text` (string)
+   - Side-by-Side chunks: `explanation` (string, non-empty), `diagram_asset_id` (string, must reference shared_assets)
 4. **Optional Fields**:
    - Root level: `difficulty`, `tier`
    - Question chunks: `question_type`, `correct_answer_index`
@@ -340,6 +358,7 @@ When converting lesson content to this format:
    - Paragraphs for explanatory text
    - Examples for sample sentences
    - Questions for practice problems
+   - Side-by-Side for explanation text with diagram displayed side-by-side (for math lessons)
 3. **Maintain the natural flow** of the lesson - chunks are rendered in order
 4. **Embed questions inline** where they appear in the content
 5. **Detect and convert underlines**: If text is underlined in the document, wrap it with asterisks: `*underlined text*`
