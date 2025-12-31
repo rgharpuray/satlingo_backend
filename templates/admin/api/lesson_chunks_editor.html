@@ -1,0 +1,567 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .chunk-editor {
+        margin: 20px 0;
+    }
+    .chunk-item {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background: #f9f9f9;
+    }
+    .chunk-item.side-by-side {
+        border-color: #3498db;
+        background: #e8f4f8;
+    }
+    .chunk-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .chunk-type {
+        font-weight: bold;
+        color: #666;
+        text-transform: uppercase;
+        font-size: 12px;
+    }
+    .chunk-actions {
+        display: flex;
+        gap: 10px;
+    }
+    .btn-small {
+        padding: 4px 8px;
+        font-size: 11px;
+        border-radius: 3px;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        background: white;
+    }
+    .btn-small:hover {
+        background: #f0f0f0;
+    }
+    .btn-primary {
+        background: #417690;
+        color: white;
+        border-color: #417690;
+    }
+    .btn-primary:hover {
+        background: #205067;
+    }
+    .chunk-content {
+        margin-top: 10px;
+    }
+    .chunk-content textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 12px;
+    }
+    .chunk-content input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+    }
+    .chunk-content select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+    }
+    .side-by-side-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-top: 10px;
+    }
+    .field-group {
+        display: flex;
+        flex-direction: column;
+    }
+    .field-group label {
+        font-weight: bold;
+        margin-bottom: 5px;
+        font-size: 12px;
+        color: #666;
+    }
+    .add-chunk-btn {
+        padding: 10px 20px;
+        background: #417690;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-top: 10px;
+    }
+    .add-chunk-btn:hover {
+        background: #205067;
+    }
+    .convert-to-side-by-side {
+        background: #28a745;
+        color: white;
+        border-color: #28a745;
+    }
+    .convert-to-side-by-side:hover {
+        background: #218838;
+    }
+    .diagram-preview {
+        max-width: 200px;
+        max-height: 150px;
+        margin-top: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    .help-text {
+        font-size: 11px;
+        color: #666;
+        margin-top: 5px;
+        font-style: italic;
+    }
+    .side-by-side-row {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background: white;
+    }
+    .row-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+    .row-number {
+        font-weight: bold;
+        color: #666;
+        font-size: 12px;
+    }
+    .add-row-btn {
+        background: #28a745;
+        color: white;
+        border-color: #28a745;
+        margin-top: 10px;
+    }
+    .add-row-btn:hover {
+        background: #218838;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chunk-editor">
+    <h2>Edit Lesson Chunks</h2>
+    <p class="help-text">Edit chunks below. Use "Convert to Side-by-Side" to pair explanation text with a diagram.</p>
+    
+    <div id="chunks-container"></div>
+    
+    <button type="button" class="add-chunk-btn" onclick="addNewChunk()">+ Add New Chunk</button>
+    
+    <form method="post" id="chunks-form">
+        {% csrf_token %}
+        <input type="hidden" name="chunks_json" id="chunks-json-input">
+        <div style="margin-top: 20px;">
+            <button type="submit" class="add-chunk-btn" style="background: #28a745;">Save Chunks</button>
+            <a href="{% url 'admin:api_lesson_change' lesson.id %}" class="add-chunk-btn" style="background: #6c757d; text-decoration: none; display: inline-block; margin-left: 10px;">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    const chunks = {{ chunks_json|safe }};
+    const availableAssets = {{ available_assets|safe }};
+    const lessonId = '{{ lesson.id }}';
+    
+    function renderChunks() {
+        const container = document.getElementById('chunks-container');
+        container.innerHTML = '';
+        
+        chunks.forEach((chunk, index) => {
+            const chunkDiv = document.createElement('div');
+            chunkDiv.className = 'chunk-item' + (chunk.type === 'side_by_side' ? ' side-by-side' : '');
+            chunkDiv.id = `chunk-${index}`;
+            
+            let contentHtml = '';
+            
+            if (chunk.type === 'side_by_side') {
+                // Support both new format (rows array) and legacy format (single explanation/diagram)
+                let rows = [];
+                if (chunk.rows && Array.isArray(chunk.rows)) {
+                    rows = chunk.rows;
+                } else if (chunk.explanation !== undefined || chunk.diagram_asset_id !== undefined) {
+                    // Legacy format: convert to rows array
+                    rows = [{
+                        explanation: chunk.explanation || '',
+                        diagram_asset_id: chunk.diagram_asset_id || ''
+                    }];
+                } else {
+                    // Empty: start with one row
+                    rows = [{ explanation: '', diagram_asset_id: '' }];
+                }
+                
+                // Render all rows
+                const rowsHtml = rows.map((row, rowIndex) => {
+                    const hasDiagram = row.diagram_asset_id && row.diagram_asset_id !== '';
+                    const hasText = row.right_text && row.right_text !== '';
+                    const rightType = hasDiagram ? 'diagram' : (hasText ? 'text' : 'diagram'); // Default to diagram
+                    
+                    return `
+                    <div class="side-by-side-row" id="row-${index}-${rowIndex}">
+                        <div class="row-header">
+                            <span class="row-number">Row ${rowIndex + 1}</span>
+                            <button type="button" class="btn-small" onclick="removeRow(${index}, ${rowIndex})" style="background: #dc3545; color: white; border-color: #dc3545;">Remove Row</button>
+                        </div>
+                        <div class="side-by-side-fields">
+                            <div class="field-group">
+                                <label>Explanation Text (Left Side)</label>
+                                <textarea id="explanation-${index}-${rowIndex}" onchange="updateChunk(${index})">${escapeHtml(row.explanation || '')}</textarea>
+                            </div>
+                            <div class="field-group">
+                                <label>Right Side Type</label>
+                                <select id="right-type-${index}-${rowIndex}" onchange="toggleRightSideType(${index}, ${rowIndex})">
+                                    <option value="diagram" ${rightType === 'diagram' ? 'selected' : ''}>Diagram</option>
+                                    <option value="text" ${rightType === 'text' ? 'selected' : ''}>Text (with formatting)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="right-content-${index}-${rowIndex}">
+                            ${rightType === 'diagram' ? `
+                                <div class="field-group">
+                                    <label>Diagram (Right Side)</label>
+                                    <select id="diagram-${index}-${rowIndex}" onchange="updateChunk(${index}); updateDiagramPreview(${index}, ${rowIndex})">
+                                        <option value="">-- Select Diagram --</option>
+                                        ${availableAssets.map(asset => `
+                                            <option value="${asset.asset_id}" ${row.diagram_asset_id === asset.asset_id ? 'selected' : ''}>
+                                                ${escapeHtml(asset.asset_id)}
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                    <div id="preview-${index}-${rowIndex}"></div>
+                                </div>
+                            ` : `
+                                <div class="field-group">
+                                    <label>Text (Right Side)</label>
+                                    <textarea id="right-text-${index}-${rowIndex}" onchange="updateChunk(${index})" placeholder="Enter text here. Use *bold* for bold and _italic_ for italic.">${escapeHtml(row.right_text || '')}</textarea>
+                                    <p class="help-text">Formatting: Use *text* for <strong>bold</strong> and _text_ for <em>italic</em></p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+                }).join('');
+                
+                contentHtml = `
+                    <div id="rows-container-${index}">
+                        ${rowsHtml}
+                    </div>
+                    <button type="button" class="btn-small add-row-btn" onclick="addRow(${index})">+ Add Another Row</button>
+                `;
+            } else if (chunk.type === 'paragraph') {
+                contentHtml = `
+                    <div class="field-group">
+                        <label>Paragraph Text</label>
+                        <textarea id="text-${index}" onchange="updateChunk(${index})">${escapeHtml(chunk.text || '')}</textarea>
+                    </div>
+                `;
+            } else if (chunk.type === 'header') {
+                contentHtml = `
+                    <div class="field-group">
+                        <label>Header Level</label>
+                        <input type="number" id="level-${index}" value="${chunk.level || 1}" min="1" max="6" onchange="updateChunk(${index})">
+                    </div>
+                    <div class="field-group" style="margin-top: 10px;">
+                        <label>Header Text</label>
+                        <input type="text" id="text-${index}" value="${escapeHtml(chunk.text || '')}" onchange="updateChunk(${index})">
+                    </div>
+                `;
+            } else {
+                // Generic text field for other types
+                const textField = chunk.text !== undefined ? 'text' : (chunk.prompt !== undefined ? 'prompt' : '');
+                if (textField) {
+                    contentHtml = `
+                        <div class="field-group">
+                            <label>${textField.charAt(0).toUpperCase() + textField.slice(1)}</label>
+                            <textarea id="${textField}-${index}" onchange="updateChunk(${index})">${escapeHtml(chunk[textField] || '')}</textarea>
+                        </div>
+                    `;
+                }
+            }
+            
+            const convertBtn = chunk.type === 'paragraph' ? `
+                <button type="button" class="btn-small convert-to-side-by-side" onclick="convertToSideBySide(${index})">
+                    Convert to Side-by-Side
+                </button>
+            ` : '';
+            
+            chunkDiv.innerHTML = `
+                <div class="chunk-header">
+                    <span class="chunk-type">${chunk.type}</span>
+                    <div class="chunk-actions">
+                        ${convertBtn}
+                        <button type="button" class="btn-small" onclick="moveChunk(${index}, -1)">↑ Move Up</button>
+                        <button type="button" class="btn-small" onclick="moveChunk(${index}, 1)">↓ Move Down</button>
+                        <button type="button" class="btn-small" onclick="deleteChunk(${index})" style="background: #dc3545; color: white; border-color: #dc3545;">Delete</button>
+                    </div>
+                </div>
+                <div class="chunk-content">
+                    ${contentHtml}
+                </div>
+            `;
+            
+            container.appendChild(chunkDiv);
+            
+            // Update previews if side_by_side
+            if (chunk.type === 'side_by_side') {
+                // Get rows (support both formats)
+                let rows = [];
+                if (chunk.rows && Array.isArray(chunk.rows)) {
+                    rows = chunk.rows;
+                } else if (chunk.explanation !== undefined || chunk.diagram_asset_id !== undefined) {
+                    rows = [{ explanation: chunk.explanation || '', diagram_asset_id: chunk.diagram_asset_id || '' }];
+                }
+                
+                // Update preview for each row (only if it has a diagram)
+                rows.forEach((row, rowIndex) => {
+                    if (row.diagram_asset_id) {
+                        updateDiagramPreview(index, rowIndex);
+                    }
+                });
+            }
+        });
+    }
+    
+    function toggleRightSideType(chunkIndex, rowIndex) {
+        const typeSelect = document.getElementById(`right-type-${chunkIndex}-${rowIndex}`);
+        const rightContentDiv = document.getElementById(`right-content-${chunkIndex}-${rowIndex}`);
+        const selectedType = typeSelect.value;
+        
+        // Get current values before switching
+        const chunk = chunks[chunkIndex];
+        const row = chunk.rows && chunk.rows[rowIndex] ? chunk.rows[rowIndex] : {};
+        const currentText = row.right_text || '';
+        const currentDiagram = row.diagram_asset_id || '';
+        
+        if (selectedType === 'diagram') {
+            rightContentDiv.innerHTML = `
+                <div class="field-group">
+                    <label>Diagram (Right Side)</label>
+                    <select id="diagram-${chunkIndex}-${rowIndex}" onchange="updateChunk(${chunkIndex}); updateDiagramPreview(${chunkIndex}, ${rowIndex})">
+                        <option value="">-- Select Diagram --</option>
+                        ${availableAssets.map(asset => `
+                            <option value="${asset.asset_id}" ${currentDiagram === asset.asset_id ? 'selected' : ''}>
+                                ${escapeHtml(asset.asset_id)}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <div id="preview-${chunkIndex}-${rowIndex}"></div>
+                </div>
+            `;
+            // Update preview if diagram is selected
+            if (currentDiagram) {
+                setTimeout(() => updateDiagramPreview(chunkIndex, rowIndex), 100);
+            }
+        } else {
+            rightContentDiv.innerHTML = `
+                <div class="field-group">
+                    <label>Text (Right Side)</label>
+                    <textarea id="right-text-${chunkIndex}-${rowIndex}" onchange="updateChunk(${chunkIndex})" placeholder="Enter text here. Use *bold* for bold and _italic_ for italic.">${escapeHtml(currentText)}</textarea>
+                    <p class="help-text">Formatting: Use *text* for <strong>bold</strong> and _text_ for <em>italic</em></p>
+                </div>
+            `;
+        }
+        
+        // Update the chunk to clear the other field
+        updateChunk(chunkIndex);
+    }
+    
+    function updateChunk(index) {
+        const chunk = chunks[index];
+        
+        if (chunk.type === 'side_by_side') {
+            // Get all rows for this chunk
+            const rowsContainer = document.getElementById(`rows-container-${index}`);
+            if (!rowsContainer) return;
+            
+            const rows = [];
+            const rowDivs = rowsContainer.querySelectorAll('.side-by-side-row');
+            
+            rowDivs.forEach((rowDiv, rowIndex) => {
+                const explanationEl = document.getElementById(`explanation-${index}-${rowIndex}`);
+                const typeSelect = document.getElementById(`right-type-${index}-${rowIndex}`);
+                const diagramEl = document.getElementById(`diagram-${index}-${rowIndex}`);
+                const textEl = document.getElementById(`right-text-${index}-${rowIndex}`);
+                
+                if (explanationEl && typeSelect) {
+                    const rowData = {
+                        explanation: explanationEl.value
+                    };
+                    
+                    if (typeSelect.value === 'diagram' && diagramEl) {
+                        rowData.diagram_asset_id = diagramEl.value;
+                        // Clear text if switching to diagram
+                        delete rowData.right_text;
+                    } else if (typeSelect.value === 'text' && textEl) {
+                        rowData.right_text = textEl.value;
+                        rowData.right_text_formatting = true;
+                        // Clear diagram if switching to text
+                        delete rowData.diagram_asset_id;
+                    }
+                    
+                    rows.push(rowData);
+                }
+            });
+            
+            // Update chunk with rows array (remove legacy fields)
+            chunk.rows = rows;
+            delete chunk.explanation;
+            delete chunk.diagram_asset_id;
+        } else if (chunk.type === 'paragraph') {
+            chunk.text = document.getElementById(`text-${index}`).value;
+        } else if (chunk.type === 'header') {
+            chunk.level = parseInt(document.getElementById(`level-${index}`).value);
+            chunk.text = document.getElementById(`text-${index}`).value;
+        } else {
+            // Try to update text or prompt
+            const textEl = document.getElementById(`text-${index}`);
+            const promptEl = document.getElementById(`prompt-${index}`);
+            if (textEl) chunk.text = textEl.value;
+            if (promptEl) chunk.prompt = promptEl.value;
+        }
+    }
+    
+    function convertToSideBySide(index) {
+        const chunk = chunks[index];
+        if (chunk.type !== 'paragraph') return;
+        
+        chunk.type = 'side_by_side';
+        chunk.rows = [{
+            explanation: chunk.text || '',
+            diagram_asset_id: ''
+        }];
+        delete chunk.text;
+        delete chunk.explanation;
+        delete chunk.diagram_asset_id;
+        
+        renderChunks();
+    }
+    
+    function addRow(chunkIndex) {
+        const chunk = chunks[chunkIndex];
+        if (chunk.type !== 'side_by_side') return;
+        
+        // Ensure rows array exists
+        if (!chunk.rows) {
+            // Convert legacy format if needed
+            if (chunk.explanation !== undefined || chunk.diagram_asset_id !== undefined) {
+                chunk.rows = [{
+                    explanation: chunk.explanation || '',
+                    diagram_asset_id: chunk.diagram_asset_id || ''
+                }];
+                delete chunk.explanation;
+                delete chunk.diagram_asset_id;
+            } else {
+                chunk.rows = [];
+            }
+        }
+        
+        // Add new row (default to diagram)
+        chunk.rows.push({
+            explanation: '',
+            diagram_asset_id: ''
+        });
+        
+        renderChunks();
+    }
+    
+    function removeRow(chunkIndex, rowIndex) {
+        const chunk = chunks[chunkIndex];
+        if (chunk.type !== 'side_by_side' || !chunk.rows) return;
+        
+        if (confirm('Are you sure you want to remove this row?')) {
+            chunk.rows.splice(rowIndex, 1);
+            
+            // If no rows left, remove the chunk or convert to paragraph
+            if (chunk.rows.length === 0) {
+                if (confirm('No rows left. Convert this chunk to a paragraph?')) {
+                    chunk.type = 'paragraph';
+                    chunk.text = '';
+                    delete chunk.rows;
+                } else {
+                    chunk.rows = [{ explanation: '', diagram_asset_id: '' }];
+                }
+            }
+            
+            renderChunks();
+        }
+    }
+    
+    function moveChunk(index, direction) {
+        const newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= chunks.length) return;
+        
+        [chunks[index], chunks[newIndex]] = [chunks[newIndex], chunks[index]];
+        renderChunks();
+    }
+    
+    function deleteChunk(index) {
+        if (confirm('Are you sure you want to delete this chunk?')) {
+            chunks.splice(index, 1);
+            renderChunks();
+        }
+    }
+    
+    function addNewChunk() {
+        chunks.push({
+            type: 'paragraph',
+            text: ''
+        });
+        renderChunks();
+    }
+    
+    function updateDiagramPreview(chunkIndex, rowIndex) {
+        const select = document.getElementById(`diagram-${chunkIndex}-${rowIndex}`);
+        const previewDiv = document.getElementById(`preview-${chunkIndex}-${rowIndex}`);
+        if (!select || !previewDiv) return;
+        
+        const selectedAssetId = select.value;
+        
+        if (selectedAssetId) {
+            const asset = availableAssets.find(a => a.asset_id === selectedAssetId);
+            if (asset && asset.s3_url) {
+                previewDiv.innerHTML = `<img src="${escapeHtml(asset.s3_url)}" class="diagram-preview" alt="Preview">`;
+            } else {
+                previewDiv.innerHTML = `<p class="help-text">Preview not available</p>`;
+            }
+        } else {
+            previewDiv.innerHTML = '';
+        }
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    document.getElementById('chunks-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        document.getElementById('chunks-json-input').value = JSON.stringify(chunks);
+        this.submit();
+    });
+    
+    // Initial render
+    renderChunks();
+</script>
+{% endblock %}
+

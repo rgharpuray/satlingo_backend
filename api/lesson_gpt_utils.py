@@ -305,22 +305,59 @@ Creates a page break for pagination. When the document contains "NEW PAGE" marke
 - Page breaks should be inserted as separate chunks, not as part of other chunk types.
 - The first page starts automatically, so you don't need a page_break at the very beginning.
 
-### 15. Side-by-Side (Explanation and Diagram)
-Creates a two-column layout with explanation text on the left and a diagram on the right. Use this when the document shows explanatory text alongside a diagram in a side-by-side format.
+### 15. Side-by-Side (Explanation and Diagram/Text)
+Creates a two-column layout with explanation text on the left and either a diagram OR formatted text on the right. Use this when the document shows explanatory text alongside a diagram or formatted text in a side-by-side format. Can contain multiple rows for multiple explanation/diagram pairs.
+```json
+{
+  "type": "side_by_side",
+  "rows": [  // Array of explanation/diagram or explanation/text pairs
+    {
+      "explanation": "This is the explanatory text that appears on the left side.",
+      "diagram_asset_id": "diagram-1"  // OPTIONAL - asset_id from shared_assets (if using diagram)
+    },
+    {
+      "explanation": "Another explanation with formatted text on the right.",
+      "right_text": "This text can have *bold* and _italic_ formatting.",  // OPTIONAL - text for right side (if not using diagram)
+      "right_text_formatting": true  // OPTIONAL - if true, processes *bold* and _italic_ markers
+    }
+  ]
+}
+```
+**Important:**
+- Each row must have EITHER `diagram_asset_id` OR `right_text` (not both)
+- `right_text` can include formatting markers: `*text*` for bold, `_text_` for italic
+- `right_text_formatting` defaults to true if `right_text` is provided
+- Use diagrams for visual content, use `right_text` for formatted text content
+**Legacy format (still supported):**
+For backwards compatibility, a single explanation/diagram pair can be specified directly:
 ```json
 {
   "type": "side_by_side",
   "explanation": "This is the explanatory text that appears on the left side.",
-  "diagram_asset_id": "diagram-1"  // REQUIRED - asset_id from shared_assets
+  "diagram_asset_id": "diagram-1"
 }
 ```
-**Important:**
-- Use this chunk type when you see content arranged with explanation text on the left and a diagram/image on the right
-- `explanation` is REQUIRED - contains the text that will appear in the left column
+**CRITICAL - When to Use Side-by-Side:**
+- **ALWAYS use this chunk type** when explanatory text and a diagram/image are related and appear together in the document
+- **Even if layout information is lost during text extraction**, if text explains a concept and a diagram illustrates that same concept, use `side_by_side`
+- This is VERY common in math lessons where:
+  - Text explains a method (e.g., "We can solve the proportion by cross-multiplying...")
+  - A diagram shows the visual representation of that method
+  - They appear near each other in the document
+- **Detection strategy**:
+  1. Identify explanatory paragraphs that describe a process, method, or concept
+  2. Check if any extracted diagrams illustrate that same process/method/concept
+  3. If they match semantically (even if not adjacent in text), combine them into `side_by_side`
+  4. Look for patterns like: "We can solve by..." + diagram showing the solution steps
+- **Key indicators**:
+  - Text explains "how to" or "step-by-step" and a diagram shows those steps
+  - Text describes a mathematical operation and a diagram visualizes it
+  - Text explains a concept and a diagram provides a visual example
+- `explanation` is REQUIRED - contains ALL the explanatory text that relates to the diagram
 - `diagram_asset_id` is REQUIRED - must reference an asset_id from the `shared_assets` array
-- The diagram will be rendered using the sentinel format `[[Diagram diagram_asset_id]]` automatically
-- This is specifically for math lessons where diagrams are displayed alongside explanations
-- Only use this when the layout is explicitly side-by-side; if the diagram appears separately, use a regular paragraph with the sentinel instead
+- The diagram will be rendered automatically in a side-by-side layout
+- **DO NOT** use separate paragraph chunks when text and diagram are semantically related - use `side_by_side` instead
+- **When in doubt, prefer side_by_side** for math lessons with explanatory text and diagrams
 
 ## Important Notes
 1. **Order Matters**: Chunks are rendered in the order they appear in the array. Questions are embedded inline where they appear in the chunks.
@@ -334,7 +371,7 @@ Creates a two-column layout with explanation text on the left and a diagram on t
    - Question chunks: `prompt` (string, non-empty), `choices` (array, non-empty)
    - List/Bullet List chunks: `items` (array)
    - Definition chunks: `term` (string), `text` (string)
-   - Side-by-Side chunks: `explanation` (string, non-empty), `diagram_asset_id` (string, must reference shared_assets)
+   - Side-by-Side chunks: `rows` (array of objects with `explanation` and `diagram_asset_id`) OR legacy format: `explanation` (string) and `diagram_asset_id` (string)
 4. **Optional Fields**:
    - Root level: `difficulty`, `tier`
    - Question chunks: `question_type`, `correct_answer_index`
@@ -355,10 +392,10 @@ When converting lesson content to this format:
 1. **Break content into logical chunks** (paragraphs, examples, questions, etc.)
 2. **Use appropriate chunk types** for different content:
    - Headers for section titles (use appropriate level: 1 for main title, 2 for major sections, 3 for subsections)
-   - Paragraphs for explanatory text
+   - Paragraphs for explanatory text (when NOT side-by-side with diagrams)
    - Examples for sample sentences
    - Questions for practice problems
-   - Side-by-Side for explanation text with diagram displayed side-by-side (for math lessons)
+   - **Side-by-Side for explanation text with diagram displayed side-by-side (for math lessons)** - CRITICAL: If you see text and a diagram next to each other horizontally, use `side_by_side` instead of separate paragraph chunks
 3. **Maintain the natural flow** of the lesson - chunks are rendered in order
 4. **Embed questions inline** where they appear in the content
 5. **Detect and convert underlines**: If text is underlined in the document, wrap it with asterisks: `*underlined text*`
@@ -495,23 +532,28 @@ EXTRACTED DIAGRAMS:
 MANDATORY REQUIREMENTS:
 1. You MUST include ALL {len(diagrams)} diagram(s) in the shared_assets array using the EXACT asset_ids listed above
 2. Use the EXACT s3_url values provided above for each asset_id
-3. **CRITICAL: Match diagrams to questions intelligently** - For each question chunk, analyze which diagram(s) belong to it:
-   - Read the question text carefully - does it reference a diagram, figure, graph, or visual element?
-   - Check the document context - which diagram appears near or with this question?
-   - Consider the question content - does it ask about something shown in a diagram?
-   - Look at the order - diagrams are extracted in document order, questions appear in document order
-   - **Match by proximity**: If a diagram appears right before or after a question in the document, they likely belong together
-   - **Match by content**: If a question asks "What is shown in the diagram?" or references visual elements, include the nearest diagram
-   - **Match by context**: If multiple questions share a diagram, include that asset_id in all relevant question chunks
-4. For each question chunk that needs a diagram, include the asset_id(s) in the question chunk's "assets" array
-5. **Be precise**: Only include asset_ids for diagrams that actually relate to that specific question
+3. **CRITICAL: Match diagrams to content intelligently** - Analyze which diagrams belong to which content:
+   - **For Side-by-Side Layouts**: If explanatory text appears near a diagram (especially in math lessons), they likely form a side-by-side section
+   - Look for patterns where text explains a concept and a diagram illustrates it
+   - If text explains "how to solve" or "step-by-step" and a diagram shows the process, use `side_by_side` chunk type
+   - **For Questions**: If a question references a diagram, figure, graph, or visual element, include the diagram in the question's "assets" array
+   - **Match by proximity**: Diagrams extracted in document order typically appear near related content
+   - **Match by content**: If text explains something that would be visualized (equations, graphs, geometric shapes, etc.), check if a nearby diagram illustrates it
+4. **CRITICAL: Use side_by_side chunks when appropriate**:
+   - If you see explanatory text that explains a concept AND a diagram that illustrates that same concept nearby, combine them into a `side_by_side` chunk
+   - The `explanation` field should contain the explanatory text
+   - The `diagram_asset_id` should reference the diagram that illustrates the explanation
+   - This is especially common in math lessons where text explains a method and a diagram shows it visually
+5. For question chunks that need diagrams, include the asset_id(s) in the question chunk's "assets" array
+6. **Be precise**: Match diagrams to content based on semantic relationship, not just proximity
 
 IMPORTANT: 
 - DO NOT create new asset_ids - only use the ones listed above: {', '.join(asset_ids)}
 - DO NOT use placeholder URLs - use the actual s3_url values provided
-- DO NOT guess randomly - analyze the document content to match diagrams to questions correctly
+- DO NOT guess randomly - analyze the document content to match diagrams to content correctly
+- **PREFER side_by_side chunks** over separate paragraph + diagram when text and diagram are related
 - Every question that clearly references or needs a diagram MUST have an "assets" array with the appropriate asset_id(s)
-- If a diagram doesn't clearly belong to any question, you can still include it in shared_assets but don't link it to questions
+- If a diagram doesn't clearly belong to any content, you can still include it in shared_assets but don't link it
 
 Example structure:
 ```json

@@ -22,9 +22,40 @@ def process_lesson_ingestion(ingestion):
         # Load JSON data
         if not ingestion.parsed_data:
             # Try to load from file if parsed_data is empty
-            with open(ingestion.file_path, 'r', encoding='utf-8') as f:
-                ingestion.parsed_data = json.load(f)
-                ingestion.save()
+            import os
+            file_ext = os.path.splitext(ingestion.file_path)[1].lower()
+            
+            # If it's not a JSON file, we need to convert it using GPT first
+            if file_ext not in ['.json']:
+                # Check if this is a document file that needs GPT conversion
+                if file_ext in ['.pdf', '.docx', '.doc', '.txt']:
+                    # Trigger GPT conversion
+                    ingestion.error_message = 'Converting document to JSON using GPT...'
+                    ingestion.save()
+                    
+                    from .lesson_gpt_utils import convert_document_to_lesson_json
+                    lesson_data = convert_document_to_lesson_json(ingestion.file_path, ingestion.file_name)
+                    
+                    ingestion.parsed_data = lesson_data
+                    ingestion.error_message = '✓ Successfully converted document to JSON using GPT.'
+                    ingestion.save()
+                else:
+                    raise ValueError(
+                        f"Cannot process file type ({file_ext}). "
+                        f"Supported types: .json, .pdf, .docx, .txt. "
+                        f"For document files, GPT conversion will be triggered automatically."
+                    )
+            else:
+                # It's a JSON file, load it directly
+                try:
+                    with open(ingestion.file_path, 'r', encoding='utf-8') as f:
+                        ingestion.parsed_data = json.load(f)
+                        ingestion.save()
+                except UnicodeDecodeError:
+                    # Try with error handling for non-UTF-8 files
+                    with open(ingestion.file_path, 'r', encoding='utf-8', errors='replace') as f:
+                        ingestion.parsed_data = json.load(f)
+                        ingestion.save()
         
         lesson_data = ingestion.parsed_data
         
@@ -266,12 +297,31 @@ def _render_lesson_content(chunks):
             content_parts.append(f"Summary: {text}\n\n")
         
         elif chunk_type == 'side_by_side':
-            explanation = chunk.get('explanation', '')
-            diagram_asset_id = chunk.get('diagram_asset_id', '')
-            if diagram_asset_id:
-                content_parts.append(f"{explanation} [[Diagram {diagram_asset_id}]]\n\n")
+            # Support both new format (rows array) and legacy format (single explanation/diagram)
+            rows = chunk.get('rows', [])
+            if not rows:
+                # Legacy format: single explanation/diagram
+                explanation = chunk.get('explanation', '')
+                diagram_asset_id = chunk.get('diagram_asset_id', '')
+                right_text = chunk.get('right_text', '')
+                if diagram_asset_id:
+                    content_parts.append(f"{explanation} [[Diagram {diagram_asset_id}]]\n\n")
+                elif right_text:
+                    content_parts.append(f"{explanation} | {right_text}\n\n")
+                else:
+                    content_parts.append(f"{explanation}\n\n")
             else:
-                content_parts.append(f"{explanation}\n\n")
+                # New format: multiple rows
+                for row in rows:
+                    explanation = row.get('explanation', '')
+                    diagram_asset_id = row.get('diagram_asset_id', '')
+                    right_text = row.get('right_text', '')
+                    if diagram_asset_id:
+                        content_parts.append(f"{explanation} [[Diagram {diagram_asset_id}]]\n\n")
+                    elif right_text:
+                        content_parts.append(f"{explanation} | {right_text}\n\n")
+                    else:
+                        content_parts.append(f"{explanation}\n\n")
     
     return ''.join(content_parts).strip()
 

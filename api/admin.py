@@ -1313,7 +1313,7 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
     list_display = ['title', 'lesson_id', 'lesson_type', 'header', 'order_within_header', 'difficulty', 'tier', 'question_count', 'created_at']
     list_filter = ['lesson_type', 'header', 'difficulty', 'tier', 'created_at']
     search_fields = ['title', 'lesson_id', 'content']
-    readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'edit_chunks_link']
     inlines = [LessonAssetInline]
     actions = ['move_up', 'move_down', 'set_as_reading', 'set_as_writing', 'set_as_math', 'move_up_in_header', 'move_down_in_header']
     
@@ -1345,7 +1345,8 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
             'description': 'Assign lesson to a header/section and set its order within that header. Only headers matching the lesson type will be shown.'
         }),
         ('Content', {
-            'fields': ('chunks', 'content'),
+            'fields': ('edit_chunks_link', 'chunks', 'content'),
+            'description': 'Use "Edit Chunks" button above for an easier way to edit chunks and set side-by-side layouts.'
         }),
         ('Metadata', {
             'fields': ('question_count_display', 'created_at', 'updated_at'),
@@ -1419,6 +1420,68 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
             return f"{count} question{'s' if count != 1 else ''}"
         return "Save lesson to see question count"
     question_count_display.short_description = 'Question Count'
+    
+    def edit_chunks_link(self, obj):
+        """Link to user-friendly chunk editor"""
+        if obj.pk:
+            url = reverse('admin:api_lesson_edit_chunks', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 10px 20px; background: #417690; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">📝 Edit Chunks (Easy Mode)</a>',
+                url
+            )
+        return "Save lesson first to edit chunks"
+    edit_chunks_link.short_description = 'Edit Chunks'
+    edit_chunks_link.allow_tags = True
+    
+    def get_urls(self):
+        """Add custom URL for chunk editor"""
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<uuid:lesson_id>/edit-chunks/',
+                self.admin_site.admin_view(self.edit_chunks_view),
+                name='api_lesson_edit_chunks',
+            ),
+        ]
+        return custom_urls + urls
+    
+    def edit_chunks_view(self, request, lesson_id):
+        """Custom view for editing chunks with user-friendly interface"""
+        from django.shortcuts import get_object_or_404, render, redirect
+        from django.contrib import messages
+        import json
+        
+        lesson = get_object_or_404(Lesson, pk=lesson_id)
+        
+        if request.method == 'POST':
+            try:
+                chunks_json = request.POST.get('chunks_json')
+                if chunks_json:
+                    chunks = json.loads(chunks_json)
+                    lesson.chunks = chunks
+                    # Regenerate content
+                    from .lesson_ingestion_utils import _render_lesson_content
+                    lesson.content = _render_lesson_content(chunks)
+                    lesson.save()
+                    messages.success(request, 'Chunks updated successfully!')
+                    return redirect('admin:api_lesson_change', lesson_id)
+            except Exception as e:
+                messages.error(request, f'Error updating chunks: {str(e)}')
+        
+        # Get available assets for diagram selection
+        available_assets = list(lesson.assets.values('asset_id', 's3_url'))
+        
+        context = {
+            'lesson': lesson,
+            'chunks_json': mark_safe(json.dumps(lesson.chunks or [])),
+            'available_assets': mark_safe(json.dumps(available_assets)),
+            'opts': self.model._meta,
+            'has_view_permission': self.has_view_permission(request, lesson),
+            'has_change_permission': self.has_change_permission(request, lesson),
+        }
+        
+        return render(request, 'admin/api/lesson_chunks_editor.html', context)
 
 
 @admin.register(LessonQuestion)
