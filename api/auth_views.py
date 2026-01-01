@@ -13,6 +13,9 @@ import google.auth.transport.requests
 from google.oauth2 import id_token
 import requests
 from urllib.parse import quote
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
@@ -219,6 +222,8 @@ def google_oauth_callback(request):
             # Build from request - but this should match what was sent in authorization
             redirect_uri = request.build_absolute_uri('/api/v1/auth/google/callback').rstrip('/')
         
+        logger.info(f"Google OAuth callback - redirect_uri: {redirect_uri}, client_id: {settings.GOOGLE_OAUTH_CLIENT_ID[:20] if settings.GOOGLE_OAUTH_CLIENT_ID else 'NOT SET'}...")
+        
         token_url = 'https://oauth2.googleapis.com/token'
         token_data = {
             'code': code,
@@ -232,11 +237,16 @@ def google_oauth_callback(request):
         
         if not token_response.ok:
             error_detail = token_response.text
+            error_json = None
             try:
                 error_json = token_response.json()
                 error_detail = error_json.get('error_description', error_json.get('error', error_detail))
             except:
                 pass
+            
+            logger.error(f"Google OAuth token exchange failed: {token_response.status_code} - {error_detail}")
+            logger.error(f"Redirect URI used: {redirect_uri}")
+            logger.error(f"Full error response: {error_json if error_json else error_detail}")
             
             # Include redirect_uri in error for debugging (but don't expose secret)
             return Response(
@@ -326,6 +336,39 @@ def google_oauth_callback(request):
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         
+        # Check if this is a browser redirect (has Referer or User-Agent suggests browser)
+        # If so, redirect to frontend with tokens in URL fragment
+        # Otherwise return JSON (for API calls)
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        is_browser = 'Mozilla' in user_agent or 'Chrome' in user_agent or 'Safari' in user_agent or 'Firefox' in user_agent
+        
+        if is_browser and request.method == 'GET':
+            # Redirect to frontend with tokens in URL fragment (not query string for security)
+            from django.shortcuts import redirect
+            import base64
+            import json as json_lib
+            
+            # Encode tokens in base64 to pass in URL
+            token_data = {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': {
+                    'id': str(user.id),
+                    'email': user.email,
+                    'username': user.username,
+                    'is_premium': user.is_premium,
+                }
+            }
+            
+            # Use URL fragment to avoid tokens in server logs
+            token_json = json_lib.dumps(token_data)
+            token_encoded = base64.urlsafe_b64encode(token_json.encode()).decode().rstrip('=')
+            
+            # Redirect to frontend with tokens in URL fragment (hash)
+            frontend_url = f'/web/#google_oauth={token_encoded}'
+            return redirect(frontend_url)
+        
+        # Return JSON for API calls
         return Response({
             'user': {
                 'id': str(user.id),
@@ -340,11 +383,13 @@ def google_oauth_callback(request):
         })
         
     except requests.RequestException as e:
+        logger.error(f"Google OAuth RequestException: {str(e)}", exc_info=True)
         return Response(
             {'error': {'code': 'OAUTH_ERROR', 'message': f'Failed to exchange code for tokens: {str(e)}'}},
             status=status.HTTP_400_BAD_REQUEST
         )
     except Exception as e:
+        logger.error(f"Google OAuth unexpected error: {str(e)}", exc_info=True)
         return Response(
             {'error': {'code': 'INTERNAL_ERROR', 'message': f'Unexpected error: {str(e)}'}},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

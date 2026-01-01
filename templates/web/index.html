@@ -1430,13 +1430,46 @@
         
         // Handle Google OAuth callback
         async function handleGoogleCallback() {
+            // Check for tokens in URL fragment (from backend redirect)
+            const hash = window.location.hash;
+            if (hash.includes('google_oauth=')) {
+                const params = new URLSearchParams(hash.substring(1));
+                const tokenData = params.get('google_oauth');
+                if (tokenData) {
+                    try {
+                        // Decode base64 token data
+                        let padded = tokenData;
+                        while (padded.length % 4) {
+                            padded += '=';
+                        }
+                        const decoded = atob(padded);
+                        const result = JSON.parse(decoded);
+                        
+                        // Store tokens and user info
+                        authToken = result.tokens.access;
+                        localStorage.setItem('authToken', authToken);
+                        currentUser = result.user;
+                        
+                        // Clean up URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                        updateUI();
+                        return;
+                    } catch (error) {
+                        console.error('Failed to decode Google OAuth tokens:', error);
+                        alert('Failed to complete Google login. Please try again.');
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                        return;
+                    }
+                }
+            }
+            
+            // Fallback: Check for code in query string (direct API call)
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             const error = urlParams.get('error');
             
             if (error) {
                 alert(`Google login failed: ${error}`);
-                // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
                 return;
             }
@@ -1451,18 +1484,15 @@
                         authToken = result.tokens.access;
                         localStorage.setItem('authToken', authToken);
                         currentUser = result.user;
-                        // Clean up URL
                         window.history.replaceState({}, document.title, window.location.pathname);
                         updateUI();
                     } else {
                         alert(result.error?.message || 'Google login failed');
-                        // Clean up URL
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }
                 } catch (error) {
                     console.error('Google callback error:', error);
                     alert('Failed to complete Google login. Please try again.');
-                    // Clean up URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                 }
             }
