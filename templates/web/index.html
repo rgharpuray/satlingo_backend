@@ -1230,6 +1230,11 @@
         let authToken = localStorage.getItem('authToken');
         let currentUser = null;
         
+        // If we have a token on page load, check auth immediately
+        if (authToken) {
+            console.log('Found authToken in localStorage on page load');
+        }
+        
         // Check URL hash to determine initial view
         function handleHashRoute() {
             const hash = window.location.hash.substring(1); // Remove #
@@ -1287,14 +1292,24 @@
         // Initial route handling - wait for DOM to be ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
+                // Check for Google OAuth callback first (before hash route)
+                handleGoogleCallback();
+                // If we have a token but no user, check auth
+                if (authToken && !currentUser) {
+                    checkAuth();
+                }
                 handleHashRoute();
-                handleGoogleCallback(); // Check for Google OAuth callback
             });
         } else {
             // DOM is already ready, but add small delay to ensure all elements are accessible
             setTimeout(() => {
+                // Check for Google OAuth callback first (before hash route)
+                handleGoogleCallback();
+                // If we have a token but no user, check auth
+                if (authToken && !currentUser) {
+                    checkAuth();
+                }
                 handleHashRoute();
-                handleGoogleCallback(); // Check for Google OAuth callback
             }, 50);
         }
         
@@ -1353,6 +1368,11 @@
         }
         
         async function checkAuth() {
+            if (!authToken) {
+                console.log('checkAuth: No authToken, skipping');
+                return;
+            }
+            console.log('checkAuth: Checking auth with token');
             try {
                 const response = await fetch(`${API_BASE}/auth/me`, {
                     headers: {
@@ -1362,15 +1382,23 @@
                 
                 if (response.ok) {
                     currentUser = await response.json();
+                    console.log('checkAuth: User authenticated:', currentUser.email);
                     updateUI();
                     // Keep landing page visible - user can navigate to passages when ready
                 } else {
+                    console.log('checkAuth: Auth failed, removing token');
                     localStorage.removeItem('authToken');
                     authToken = null;
+                    currentUser = null;
+                    updateUI();
                     loadPassages();
                 }
             } catch (error) {
                 console.error('Auth check failed:', error);
+                localStorage.removeItem('authToken');
+                authToken = null;
+                currentUser = null;
+                updateUI();
                 loadPassages();
             }
         }
@@ -1430,9 +1458,11 @@
         
         // Handle Google OAuth callback
         async function handleGoogleCallback() {
+            console.log('handleGoogleCallback called, hash:', window.location.hash);
             // Check for tokens in URL fragment (from backend redirect)
             const hash = window.location.hash;
             if (hash.includes('google_oauth=')) {
+                console.log('Found google_oauth in hash');
                 // Parse hash - could be #passages?google_oauth=... or just #google_oauth=...
                 let hashPart = hash.substring(1); // Remove #
                 let tokenData = null;
@@ -1449,6 +1479,7 @@
                 }
                 
                 if (tokenData) {
+                    console.log('Found token data, decoding...');
                     try {
                         // Decode base64 token data
                         let padded = tokenData;
@@ -1457,24 +1488,29 @@
                         }
                         const decoded = atob(padded);
                         const result = JSON.parse(decoded);
+                        console.log('Decoded tokens, user:', result.user);
                         
                         // Store tokens and user info
                         authToken = result.tokens.access;
                         localStorage.setItem('authToken', authToken);
                         currentUser = result.user;
+                        console.log('Stored authToken and currentUser:', authToken ? 'YES' : 'NO', currentUser ? 'YES' : 'NO');
                         
                         // Clean up URL - remove google_oauth param but keep navigation
                         const cleanHash = hashPart.split('?')[0] || '#passages';
                         window.history.replaceState({}, document.title, window.location.pathname + cleanHash);
                         
                         // Update UI and navigate
+                        console.log('Calling updateUI()');
                         updateUI();
                         
                         // Navigate to passages view if not already there
                         if (!hashPart.includes('passages') && !hashPart.includes('writing') && !hashPart.includes('math')) {
+                            console.log('Navigating to passages');
                             showPassages();
                         } else {
                             // Already on a view, just trigger the hash change handler
+                            console.log('Already on view, calling handleHashRoute');
                             handleHashRoute();
                         }
                         return;
@@ -1486,6 +1522,7 @@
                     }
                 }
             }
+            console.log('No google_oauth found in hash');
             
             // Fallback: Check for code in query string (direct API call)
             const urlParams = new URLSearchParams(window.location.search);
@@ -4883,21 +4920,36 @@
         }
         
         function updateUI() {
+            console.log('updateUI called, currentUser:', currentUser, 'authToken:', authToken ? 'SET' : 'NOT SET');
             if (currentUser) {
-                document.getElementById('authSection').classList.add('hidden');
-                document.getElementById('userInfo').classList.remove('hidden');
-                document.getElementById('userEmail').textContent = currentUser.email;
-                
-                if (currentUser.is_premium) {
-                    document.getElementById('subscriptionStatus').textContent = 'Premium Active';
-                    document.querySelector('#subscriptionInfo button').textContent = 'Manage Subscription';
-                    document.querySelector('#subscriptionInfo button').onclick = manageSubscription;
-                } else {
-                    document.getElementById('subscriptionStatus').textContent = 'Free';
+                console.log('User is logged in, updating UI to show user info');
+                const authSection = document.getElementById('authSection');
+                const userInfo = document.getElementById('userInfo');
+                if (authSection) authSection.classList.add('hidden');
+                if (userInfo) {
+                    userInfo.classList.remove('hidden');
+                    const emailEl = document.getElementById('userEmail');
+                    if (emailEl) emailEl.textContent = currentUser.email;
+                    
+                    if (currentUser.is_premium) {
+                        const statusEl = document.getElementById('subscriptionStatus');
+                        if (statusEl) statusEl.textContent = 'Premium Active';
+                        const btn = document.querySelector('#subscriptionInfo button');
+                        if (btn) {
+                            btn.textContent = 'Manage Subscription';
+                            btn.onclick = manageSubscription;
+                        }
+                    } else {
+                        const statusEl = document.getElementById('subscriptionStatus');
+                        if (statusEl) statusEl.textContent = 'Free';
+                    }
                 }
             } else {
-                document.getElementById('authSection').classList.remove('hidden');
-                document.getElementById('userInfo').classList.add('hidden');
+                console.log('No user, showing login/register buttons');
+                const authSection = document.getElementById('authSection');
+                const userInfo = document.getElementById('userInfo');
+                if (authSection) authSection.classList.remove('hidden');
+                if (userInfo) userInfo.classList.add('hidden');
             }
         }
         
