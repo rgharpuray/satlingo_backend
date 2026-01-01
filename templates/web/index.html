@@ -3106,14 +3106,14 @@
                     }
                     
                     console.log(`Using image URL: ${imageUrl}`);
-                    // Return image tag
-                    return `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                    // Return image tag - centered horizontally for paragraph chunks
+                    return `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
                 } else if (assetId && lessonId) {
                     // If asset not found but we have asset_id and lesson_id, construct URL
                     // Both lessons and math sections now use lessons/ prefix
                     const constructedUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}.png`;
                     console.log(`Constructing fallback URL: ${constructedUrl}`);
-                    return `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                    return `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
                 } else {
                     // Asset not found, return placeholder
                     console.warn(`Diagram sentinel [[Diagram ${assetId}]] found but asset not found. Assets:`, assets);
