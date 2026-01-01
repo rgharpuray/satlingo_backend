@@ -1217,6 +1217,216 @@ class WritingSectionAttemptsView(APIView):
         return Response(serializer.data)
 
 
+class SubmitMathSectionView(APIView):
+    """
+    View for submitting answers to a math section.
+    POST /progress/math-sections/:math_section_id/submit - Submit answers
+    """
+    
+    def post(self, request, math_section_id):
+        """POST /progress/math-sections/:math_section_id/submit"""
+        user = get_user_from_request(request)
+        # Convert string to UUID
+        try:
+            section_uuid = uuid.UUID(str(math_section_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid math section ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        math_section = get_object_or_404(MathSection, id=section_uuid)
+        
+        # Use the same serializer as writing sections
+        serializer = SubmitWritingSectionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        answers_data = serializer.validated_data['answers']
+        time_spent = serializer.validated_data.get('time_spent_seconds', 0)
+        
+        # Get all questions for the math section
+        questions = math_section.questions.all().order_by('order')
+        question_dict = {str(q.id): q for q in questions}
+        
+        # Process answers
+        answer_results = []
+        correct_count = 0
+        total_questions = questions.count()
+        
+        for answer_data in answers_data:
+            question_id = str(answer_data['question_id'])
+            if question_id not in question_dict:
+                continue
+            
+            question = question_dict[question_id]
+            selected_index = answer_data['selected_option_index']
+            is_correct = selected_index == question.correct_answer_index
+            
+            if is_correct:
+                correct_count += 1
+            
+            answer_results.append({
+                'question_id': question_id,
+                'selected_option_index': selected_index,
+                'correct_answer_index': question.correct_answer_index,
+                'is_correct': is_correct,
+                'explanation': question.explanation or '',
+            })
+        
+        # Calculate score
+        score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
+        
+        # Create a new attempt record (for logged-in users only)
+        attempt = None
+        if user:
+            attempt = MathSectionAttempt.objects.create(
+                user=user,
+                math_section=math_section,
+                score=score,
+                correct_count=correct_count,
+                total_questions=total_questions,
+                time_spent_seconds=time_spent,
+                answers_data=answer_results,
+            )
+        
+        response_data = {
+            'math_section_id': str(math_section.id),
+            'score': score,
+            'total_questions': total_questions,
+            'correct_count': correct_count,
+            'is_completed': True,
+            'answers': answer_results,
+            'completed_at': timezone.now().isoformat(),
+            'attempt_id': str(attempt.id) if attempt else None,
+        }
+        
+        # Use the same response serializer as writing sections
+        serializer = SubmitWritingSectionResponseSerializer(response_data)
+        return Response(serializer.data)
+
+
+class ReviewMathSectionView(APIView):
+    """
+    View for getting review data for a completed math section.
+    GET /progress/math-sections/:math_section_id/review - Get review data
+    """
+    
+    def get(self, request, math_section_id):
+        """GET /progress/math-sections/:math_section_id/review"""
+        user = get_user_from_request(request)
+        # Convert string to UUID
+        try:
+            section_uuid = uuid.UUID(str(math_section_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid math section ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        math_section = get_object_or_404(MathSection, id=section_uuid)
+        
+        # Get the most recent attempt for this user and math section
+        attempt = None
+        if user:
+            attempt = MathSectionAttempt.objects.filter(
+                user=user,
+                math_section=math_section
+            ).order_by('-completed_at').first()
+        
+        # Build review data from the attempt
+        review_answers = []
+        questions = math_section.questions.all().order_by('order')
+        
+        correct_count = 0
+        total_questions = questions.count()
+        
+        # Get answers from attempt if available
+        attempt_answers = {}
+        if attempt and attempt.answers_data:
+            for ans in attempt.answers_data:
+                attempt_answers[str(ans.get('question_id'))] = ans
+        
+        for question in questions:
+            question_id_str = str(question.id)
+            attempt_answer = attempt_answers.get(question_id_str)
+            options = [opt.text for opt in question.options.all().order_by('order')]
+            
+            # Count correct answers
+            if attempt_answer and attempt_answer.get('is_correct'):
+                correct_count += 1
+            
+            review_answers.append({
+                'question_id': question_id_str,
+                'question_text': question.prompt or question.text or '',
+                'options': options,
+                'selected_option_index': attempt_answer.get('selected_option_index') if attempt_answer else None,
+                'correct_answer_index': question.correct_answer_index,
+                'is_correct': attempt_answer.get('is_correct', False) if attempt_answer else False,
+                'explanation': question.explanation or '',
+            })
+        
+        score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
+        
+        response_data = {
+            'math_section_id': str(math_section.id),
+            'score': score,
+            'total_questions': total_questions,
+            'correct_count': correct_count,
+            'answers': review_answers,
+        }
+        
+        serializer = ReviewResponseSerializer(response_data)
+        return Response(serializer.data)
+
+
+class MathSectionAttemptsView(APIView):
+    """
+    View for getting past attempts for a math section.
+    GET /progress/math-sections/:math_section_id/attempts - Get all attempts for a math section
+    """
+    
+    def get(self, request, math_section_id):
+        """GET /progress/math-sections/:math_section_id/attempts"""
+        user = get_user_from_request(request)
+        
+        if not user:
+            return Response(
+                {'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required. Please log in.'}},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Convert string to UUID
+        try:
+            section_uuid = uuid.UUID(str(math_section_id))
+        except (ValueError, AttributeError):
+            return Response(
+                {'error': {'code': 'BAD_REQUEST', 'message': 'Invalid math section ID format'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        math_section = get_object_or_404(MathSection, id=section_uuid)
+        
+        # Get all attempts for this user and math section
+        attempts = MathSectionAttempt.objects.filter(
+            user=user,
+            math_section=math_section
+        ).order_by('-completed_at')
+        
+        # Convert attempts to serializer format
+        attempts_data = []
+        for attempt in attempts:
+            attempts_data.append({
+                'id': attempt.id,
+                'math_section_id': str(attempt.math_section.id),
+                'score': attempt.score,
+                'correct_count': attempt.correct_count,
+                'total_questions': attempt.total_questions,
+                'completed_at': attempt.completed_at.isoformat(),
+            })
+        
+        # Use the same serializer as writing sections (they have the same structure)
+        serializer = WritingSectionAttemptSerializer(attempts_data, many=True)
+        return Response(serializer.data)
+
+
 class WordOfTheDayView(APIView):
     """
     GET /word-of-the-day - Get today's word of the day

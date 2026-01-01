@@ -7,7 +7,7 @@ from .views import (
     ReviewPassageView, AnswerView, AdminPassageView, WordOfTheDayView,
     PassageAttemptsView, LessonViewSet, WritingSectionViewSet,
     SubmitWritingSectionView, ReviewWritingSectionView, WritingSectionAttemptsView,
-    MathSectionViewSet
+    MathSectionViewSet, SubmitMathSectionView, ReviewMathSectionView, MathSectionAttemptsView
 )
 from .auth_views import register, login, me, google_oauth_url, google_oauth_callback
 from .stripe_views import (
@@ -38,6 +38,11 @@ urlpatterns = [
     path('progress/writing-sections/<str:writing_section_id>/submit', SubmitWritingSectionView.as_view(), name='progress-writing-submit'),
     path('progress/writing-sections/<str:writing_section_id>/review', ReviewWritingSectionView.as_view(), name='progress-writing-review'),
     path('progress/writing-sections/<str:writing_section_id>/attempts', WritingSectionAttemptsView.as_view(), name='progress-writing-attempts'),
+    
+    # Math section progress endpoints
+    path('progress/math-sections/<str:math_section_id>/submit', SubmitMathSectionView.as_view(), name='progress-math-submit'),
+    path('progress/math-sections/<str:math_section_id>/review', ReviewMathSectionView.as_view(), name='progress-math-review'),
+    path('progress/math-sections/<str:math_section_id>/attempts', MathSectionAttemptsView.as_view(), name='progress-math-attempts'),
     
     # Answers endpoints
     path('answers', AnswerView.as_view(), name='answers'),
