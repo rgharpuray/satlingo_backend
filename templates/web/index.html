@@ -4113,8 +4113,8 @@
         }
         
         async function submitAnswers() {
-            // Check if we're on a passage, writing section, or lesson
-            if (!currentPassageId && !currentWritingSectionId && !currentLessonId) return;
+            // Check if we're on a passage, writing section, math section, or lesson
+            if (!currentPassageId && !currentWritingSectionId && !currentMathSectionId && !currentLessonId) return;
             
             // Handle lessons separately (client-side only for now)
             if (currentLessonId && currentLessonData) {
@@ -4122,15 +4122,22 @@
                 return;
             }
             
-            // Determine if we're on a passage or writing section
+            // Determine what type of section we're on
             const isWritingSection = !!currentWritingSectionId;
-            const currentId = isWritingSection ? currentWritingSectionId : currentPassageId;
-            const currentData = isWritingSection ? currentWritingSectionData : currentPassageData;
+            const isMathSection = !!currentMathSectionId;
+            const currentId = isWritingSection ? currentWritingSectionId : 
+                            isMathSection ? currentMathSectionId : 
+                            currentPassageId;
+            const currentData = isWritingSection ? currentWritingSectionData : 
+                              isMathSection ? currentMathSectionData : 
+                              currentPassageData;
             
             if (!currentId || !currentData) return;
             
             // Check if all questions are answered
-            const totalQuestions = currentData.questions.length;
+            // For math sections, questions might be in a different structure
+            const questionsList = currentData.questions || (currentData.results || []);
+            const totalQuestions = Array.isArray(questionsList) ? questionsList.length : 0;
             if (Object.keys(userAnswers).length < totalQuestions) {
                 if (!confirm(`You have only answered ${Object.keys(userAnswers).length} out of ${totalQuestions} questions. Submit anyway?`)) {
                     return;
@@ -4154,6 +4161,8 @@
                 // Submit answers - use appropriate endpoint
                 const submitEndpoint = isWritingSection
                     ? `${API_BASE}/progress/writing-sections/${currentId}/submit`
+                    : isMathSection
+                    ? `${API_BASE}/progress/math-sections/${currentId}/submit`
                     : `${API_BASE}/progress/passages/${currentId}/submit`;
                 
                 const submitResponse = await fetch(submitEndpoint, {
@@ -4177,6 +4186,8 @@
                 // Get review data for detailed answer breakdown
                 const reviewEndpoint = isWritingSection
                     ? `${API_BASE}/progress/writing-sections/${currentId}/review`
+                    : isMathSection
+                    ? `${API_BASE}/progress/math-sections/${currentId}/review`
                     : `${API_BASE}/progress/passages/${currentId}/review`;
                 
                 const reviewResponse = await fetch(reviewEndpoint, {
@@ -4187,7 +4198,8 @@
                     const reviewData = await reviewResponse.json();
                     // Use correct_count and total_questions from submit response (more reliable)
                     reviewData.correct_count = submitData.correct_count || reviewData.correct_count || 0;
-                    reviewData.total_questions = submitData.total_questions || reviewData.total_questions || currentData.questions.length;
+                    const questionsListForTotal = currentData.questions || (currentData.results || []);
+                    reviewData.total_questions = submitData.total_questions || reviewData.total_questions || (Array.isArray(questionsListForTotal) ? questionsListForTotal.length : 0);
                     displayResults(reviewData, isWritingSection);
                 } else {
                     // Fallback: use submit response data directly
