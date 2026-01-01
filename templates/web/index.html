@@ -3255,13 +3255,17 @@
             // Math questions have explanation as an array of objects
             // Always check if it's an array first (math sections use arrays)
             if (Array.isArray(explanation)) {
-                const parts = explanation.map(block => {
+                const result = [];
+                
+                for (let i = 0; i < explanation.length; i++) {
+                    const block = explanation[i];
+                    let part = '';
+                    
                     if (typeof block === 'string') {
-                        return block;
-                    }
-                    if (block && typeof block === 'object') {
+                        part = block;
+                    } else if (block && typeof block === 'object') {
                         if (block.type === 'paragraph' || block.type === 'note' || block.type === 'example') {
-                            return block.text || '';
+                            part = block.text || '';
                         } else if (block.type === 'equation') {
                             // Convert LaTeX to plain text for display
                             if (block.latex) {
@@ -3281,6 +3285,7 @@
                                 equationText = equationText.replace(/\\approx/g, '≈');
                                 equationText = equationText.replace(/\\pi/g, 'π');
                                 equationText = equationText.replace(/\\theta/g, 'θ');
+                                equationText = equationText.replace(/\\text\{([^}]+)\}/g, '$1');
                                 equationText = equationText.replace(/\\alpha/g, 'α');
                                 equationText = equationText.replace(/\\beta/g, 'β');
                                 equationText = equationText.replace(/\\gamma/g, 'γ');
@@ -3293,31 +3298,30 @@
                                 equationText = equationText.replace(/\\([a-zA-Z])/g, '$1');
                                 // Clean up extra spaces
                                 equationText = equationText.replace(/\s+/g, ' ').trim();
-                                return equationText;
+                                part = equationText;
                             }
-                            return '';
-                        }
-                        // Fallback: try to get text property if it exists
-                        if (block.text) {
-                            return block.text;
+                        } else if (block.text) {
+                            // Fallback: try to get text property if it exists
+                            part = block.text;
                         }
                     }
-                    return '';
-                }).filter(text => text && text.trim().length > 0);
-                
-                // Join with proper spacing - put equations on new lines if needed
-                const result = [];
-                for (let i = 0; i < parts.length; i++) {
-                    const block = explanation[i];
-                    const part = parts[i];
-                    // If this block is an equation and not the first item, add line break
-                    if (block && block.type === 'equation' && i > 0) {
-                        result.push('<br>' + part);
-                    } else {
-                        result.push(part);
+                    
+                    // Only add non-empty parts
+                    if (part && part.trim().length > 0) {
+                        // If this block is an equation and not the first item, add line break before it
+                        if (block && block.type === 'equation' && result.length > 0) {
+                            result.push('<br><br>' + part); // Add double line break for equations
+                        } else if (result.length > 0) {
+                            // Add space between paragraphs
+                            result.push(' ' + part);
+                        } else {
+                            result.push(part);
+                        }
                     }
                 }
-                return result.join(' ');
+                
+                // Join without additional spaces (we already added them above)
+                return result.length > 0 ? result.join('') : '';
             }
             
             // If it's an object but not an array, try to extract text
@@ -4543,15 +4547,35 @@
                 // Format explanation - math sections use arrays, others use strings
                 let explanationText = '';
                 if ((reviewAnswer && reviewAnswer.explanation) || question.explanation) {
-                    explanationText = formatMathExplanation((reviewAnswer && reviewAnswer.explanation) || question.explanation, isMathSection);
+                    const rawExplanation = (reviewAnswer && reviewAnswer.explanation) || question.explanation;
+                    console.log('Raw explanation before formatting:', rawExplanation, 'type:', typeof rawExplanation, 'isArray:', Array.isArray(rawExplanation));
+                    
+                    explanationText = formatMathExplanation(rawExplanation, isMathSection);
+                    console.log('After formatMathExplanation:', explanationText, 'type:', typeof explanationText);
+                    
+                    // CRITICAL: Ensure it's a string - if formatMathExplanation failed, convert it
+                    if (typeof explanationText !== 'string') {
+                        console.error('formatMathExplanation did not return a string!', explanationText);
+                        // If it's still an array/object, try to format it manually
+                        if (Array.isArray(explanationText) || (explanationText && typeof explanationText === 'object')) {
+                            explanationText = formatMathExplanation(explanationText, isMathSection);
+                        }
+                        // Final fallback - convert to string
+                        if (typeof explanationText !== 'string') {
+                            explanationText = JSON.stringify(explanationText);
+                        }
+                    }
+                    
                     // Apply sentinel replacement for math sections
-                    if (isMathSection && currentMathSectionData) {
+                    if (isMathSection && currentMathSectionData && typeof explanationText === 'string') {
                         explanationText = replaceDiagramSentinels(explanationText, currentMathSectionData.assets || [], currentMathSectionData.section_id || currentMathSectionData.id);
                     }
                     // Replace underline sentinels
                     if (typeof explanationText === 'string') {
                         explanationText = replaceUnderlineSentinels(explanationText);
                     }
+                    
+                    console.log('Final explanationText:', explanationText, 'type:', typeof explanationText);
                 }
                 
                 resultsHTML += `
