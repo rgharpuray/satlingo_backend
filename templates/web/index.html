@@ -1489,12 +1489,11 @@
                         const decoded = atob(padded);
                         const result = JSON.parse(decoded);
                         console.log('Decoded tokens, full result:', result);
-                        console.log('Decoded tokens, user:', result.user);
-                        console.log('Decoded tokens, tokens:', result.tokens);
                         
+                        // Backend sends: { access, refresh, user }
                         // Validate result structure
-                        if (!result.tokens || !result.tokens.access) {
-                            throw new Error('Invalid token structure: missing tokens.access');
+                        if (!result.access) {
+                            throw new Error('Invalid token structure: missing access token');
                         }
                         if (!result.user) {
                             throw new Error('Invalid token structure: missing user');
@@ -1502,7 +1501,11 @@
                         
                         // Store tokens and user info
                         try {
-                            authToken = result.tokens.access;
+                            authToken = result.access;
+                            // Also store refresh token for future use
+                            if (result.refresh) {
+                                localStorage.setItem('refreshToken', result.refresh);
+                            }
                             localStorage.setItem('authToken', authToken);
                             currentUser = result.user;
                             console.log('Stored authToken and currentUser:', authToken ? 'YES' : 'NO', currentUser ? 'YES' : 'NO');
