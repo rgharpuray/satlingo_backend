@@ -1488,36 +1488,94 @@
                         }
                         const decoded = atob(padded);
                         const result = JSON.parse(decoded);
+                        console.log('Decoded tokens, full result:', result);
                         console.log('Decoded tokens, user:', result.user);
+                        console.log('Decoded tokens, tokens:', result.tokens);
+                        
+                        // Validate result structure
+                        if (!result.tokens || !result.tokens.access) {
+                            throw new Error('Invalid token structure: missing tokens.access');
+                        }
+                        if (!result.user) {
+                            throw new Error('Invalid token structure: missing user');
+                        }
                         
                         // Store tokens and user info
-                        authToken = result.tokens.access;
-                        localStorage.setItem('authToken', authToken);
-                        currentUser = result.user;
-                        console.log('Stored authToken and currentUser:', authToken ? 'YES' : 'NO', currentUser ? 'YES' : 'NO');
-                        
-                        // Clean up URL - remove google_oauth param but keep navigation
-                        const cleanHash = hashPart.split('?')[0] || '#passages';
-                        window.history.replaceState({}, document.title, window.location.pathname + cleanHash);
-                        
-                        // Update UI and navigate
-                        console.log('Calling updateUI()');
-                        updateUI();
-                        
-                        // Navigate to passages view if not already there
-                        if (!hashPart.includes('passages') && !hashPart.includes('writing') && !hashPart.includes('math')) {
-                            console.log('Navigating to passages');
-                            showPassages();
-                        } else {
-                            // Already on a view, just trigger the hash change handler
-                            console.log('Already on view, calling handleHashRoute');
-                            handleHashRoute();
+                        try {
+                            authToken = result.tokens.access;
+                            localStorage.setItem('authToken', authToken);
+                            currentUser = result.user;
+                            console.log('Stored authToken and currentUser:', authToken ? 'YES' : 'NO', currentUser ? 'YES' : 'NO');
+                            
+                            // Clean up URL - remove google_oauth param but keep navigation
+                            const cleanHash = hashPart.split('?')[0] || '#passages';
+                            window.history.replaceState({}, document.title, window.location.pathname + cleanHash);
+                            
+                            // Update UI and navigate - wait a bit for DOM to be ready
+                            console.log('Calling updateUI()');
+                            try {
+                                // Ensure DOM is ready
+                                if (document.readyState === 'loading') {
+                                    await new Promise(resolve => {
+                                        if (document.readyState === 'complete') {
+                                            resolve();
+                                        } else {
+                                            document.addEventListener('DOMContentLoaded', resolve);
+                                        }
+                                    });
+                                }
+                                // Small delay to ensure all elements are rendered
+                                await new Promise(resolve => setTimeout(resolve, 100));
+                                updateUI();
+                                console.log('updateUI() completed');
+                            } catch (uiError) {
+                                console.error('Error in updateUI():', uiError);
+                                // Don't throw - try to continue anyway
+                            }
+                            
+                            // Navigate to passages view if not already there
+                            if (!hashPart.includes('passages') && !hashPart.includes('writing') && !hashPart.includes('math')) {
+                                console.log('Navigating to passages');
+                                try {
+                                    showPassages();
+                                    console.log('showPassages() completed');
+                                } catch (navError) {
+                                    console.error('Error in showPassages():', navError);
+                                    throw navError;
+                                }
+                            } else {
+                                // Already on a view, just trigger the hash change handler
+                                console.log('Already on view, calling handleHashRoute');
+                                try {
+                                    handleHashRoute();
+                                    console.log('handleHashRoute() completed');
+                                } catch (routeError) {
+                                    console.error('Error in handleHashRoute():', routeError);
+                                    throw routeError;
+                                }
+                            }
+                            return;
+                        } catch (storageError) {
+                            console.error('Error storing tokens or updating UI:', storageError);
+                            throw storageError;
                         }
-                        return;
                     } catch (error) {
-                        console.error('Failed to decode Google OAuth tokens:', error);
-                        alert('Failed to complete Google login. Please try again.');
-                        window.history.replaceState({}, document.title, window.location.pathname);
+                        console.error('Error in Google OAuth callback:', error);
+                        console.error('Error stack:', error.stack);
+                        // Try to continue anyway if we have the data
+                        if (currentUser && authToken) {
+                            console.log('Have user and token, continuing despite error');
+                            try {
+                                updateUI();
+                                showPassages();
+                            } catch (recoveryError) {
+                                console.error('Recovery also failed:', recoveryError);
+                                alert('Login successful but UI update failed. Please refresh the page.');
+                            }
+                        } else {
+                            alert('Failed to complete Google login: ' + (error.message || 'Unknown error'));
+                            window.history.replaceState({}, document.title, window.location.pathname);
+                        }
                         return;
                     }
                 }
