@@ -3235,10 +3235,27 @@
         }
         
         function formatMathExplanation(explanation, isMathSection = false) {
+            // Handle null/undefined
+            if (!explanation) {
+                return '';
+            }
+            
+            // If it's a JSON string, parse it first
+            if (typeof explanation === 'string') {
+                try {
+                    // Try to parse as JSON
+                    const parsed = JSON.parse(explanation);
+                    explanation = parsed;
+                } catch (e) {
+                    // Not JSON, return as-is
+                    return explanation;
+                }
+            }
+            
             // Math questions have explanation as an array of objects
             // Always check if it's an array first (math sections use arrays)
             if (Array.isArray(explanation)) {
-                return explanation.map(block => {
+                const parts = explanation.map(block => {
                     if (typeof block === 'string') {
                         return block;
                     }
@@ -3248,15 +3265,36 @@
                         } else if (block.type === 'equation') {
                             return block.latex ? `$${block.latex}$` : '';
                         }
+                        // Fallback: try to get text property if it exists
+                        if (block.text) {
+                            return block.text;
+                        }
                     }
                     return '';
-                }).filter(text => text).join(' ');
+                }).filter(text => text && text.trim().length > 0);
+                
+                return parts.length > 0 ? parts.join(' ') : '';
             }
-            // Regular string explanation
-            if (typeof explanation === 'string') {
-                return explanation;
+            
+            // If it's an object but not an array, try to extract text
+            if (explanation && typeof explanation === 'object') {
+                // Try common properties
+                if (explanation.text) {
+                    return String(explanation.text);
+                }
+                if (explanation.content) {
+                    return String(explanation.content);
+                }
+                // If it has a type and text, treat it as a single block
+                if (explanation.type === 'paragraph' || explanation.type === 'note' || explanation.type === 'example') {
+                    return String(explanation.text || '');
+                }
+                if (explanation.type === 'equation') {
+                    return explanation.latex ? `$${explanation.latex}$` : '';
+                }
             }
-            // Fallback
+            
+            // Final fallback - convert to string
             return String(explanation || '');
         }
         
@@ -4086,7 +4124,9 @@
                         
                         // Process explanation (handle diagrams and underlines)
                         // Note: Math questions have explanation as an array of objects, not a string
+                        console.log('Processing explanation for question:', questionId, 'explanation type:', typeof question.explanation, 'isArray:', Array.isArray(question.explanation), 'value:', question.explanation);
                         let processedExplanation = formatMathExplanation(question.explanation, !!currentMathSectionId);
+                        console.log('Processed explanation result:', processedExplanation);
                         
                         // Apply sentinel replacement for math sections
                         if (currentMathSectionId && currentMathSectionData) {
@@ -4111,6 +4151,12 @@
                         // 2. Sentinels have already been replaced with HTML tags
                         // 3. Escaping would break the HTML tags we just added
                         // This matches how lessons handle explanations
+                        
+                        // Ensure processedExplanation is a string
+                        if (typeof processedExplanation !== 'string') {
+                            console.warn('Processed explanation is not a string:', processedExplanation, 'type:', typeof processedExplanation);
+                            processedExplanation = String(processedExplanation || '');
+                        }
                         
                         questionExplanationContent.innerHTML = `
                             <div style="color: #666; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
@@ -4224,7 +4270,7 @@
                     reviewData.correct_count = submitData.correct_count || reviewData.correct_count || 0;
                     const questionsListForTotal = currentData.questions || (currentData.results || []);
                     reviewData.total_questions = submitData.total_questions || reviewData.total_questions || (Array.isArray(questionsListForTotal) ? questionsListForTotal.length : 0);
-                    displayResults(reviewData, isWritingSection);
+                    displayResults(reviewData, isWritingSection, isMathSection);
                 } else {
                     // Fallback: use submit response data directly
                     if (submitData.correct_count !== undefined && submitData.total_questions !== undefined) {
@@ -4232,7 +4278,7 @@
                             correct_count: submitData.correct_count,
                             total_questions: submitData.total_questions,
                             answers: submitData.answers || []
-                        }, isWritingSection);
+                        }, isWritingSection, isMathSection);
                     } else {
                         // Final fallback: show results from data
                         if (isWritingSection) {
@@ -4251,28 +4297,35 @@
         
         let lastAttemptData = null; // Store attempt data for anonymous users to save on registration
         
-        function displayResults(reviewData, isWritingSection = false) {
+        function displayResults(reviewData, isWritingSection = false, isMathSection = false) {
             const resultsSection = document.getElementById('resultsSection');
             resultsSection.style.display = 'block';
             document.getElementById('submitSection').style.display = 'none';
             
-            const currentId = isWritingSection ? currentWritingSectionId : currentPassageId;
-            const currentData = isWritingSection ? currentWritingSectionData : currentPassageData;
+            const currentId = isMathSection ? currentMathSectionId : 
+                            isWritingSection ? currentWritingSectionId : 
+                            currentPassageId;
+            const currentData = isMathSection ? currentMathSectionData : 
+                              isWritingSection ? currentWritingSectionData : 
+                              currentPassageData;
             
             const correctCount = reviewData.correct_count || 0;
-            const totalQuestions = reviewData.total_questions || (currentData ? currentData.questions.length : 0);
+            // For math sections, questions might be in results array
+            const questionsList = currentData ? (currentData.questions || currentData.results || []) : [];
+            const totalQuestions = reviewData.total_questions || (Array.isArray(questionsList) ? questionsList.length : 0);
             const percentage = Math.round((correctCount / totalQuestions) * 100);
             
             // Store attempt data for anonymous users (to save on registration)
             if (!authToken && reviewData.attempt_id) {
                 lastAttemptData = {
-                    [isWritingSection ? 'writing_section_id' : 'passage_id']: currentId,
+                    [isMathSection ? 'math_section_id' : (isWritingSection ? 'writing_section_id' : 'passage_id')]: currentId,
                     attempt_id: reviewData.attempt_id,
                     answers: reviewData.answers || [],
                     score: reviewData.score,
                     correct_count: correctCount,
                     total_questions: totalQuestions,
-                    is_writing_section: isWritingSection
+                    is_writing_section: isWritingSection,
+                    is_math_section: isMathSection
                 };
             }
             
@@ -4285,7 +4338,15 @@
             
             // Show attempt history button for logged-in users
             if (authToken && currentId) {
-                if (isWritingSection) {
+                if (isMathSection) {
+                    resultsHTML += `
+                        <div style="margin: 20px 0; text-align: center;">
+                            <button class="btn btn-secondary" onclick="setTimeout(() => showMathSectionAttemptHistory('${currentId}'), 500)" style="font-size: 14px; padding: 10px 20px;">
+                                📊 View All Attempts for This Math Section
+                            </button>
+                        </div>
+                    `;
+                } else if (isWritingSection) {
                     resultsHTML += `
                         <div style="margin: 20px 0; text-align: center;">
                             <button class="btn btn-secondary" onclick="setTimeout(() => showWritingSectionAttemptHistory('${currentId}'), 500)" style="font-size: 14px; padding: 10px 20px;">
@@ -4319,24 +4380,44 @@
             }
             
             // Show each question with correct/incorrect status
-            const questions = currentData ? currentData.questions : [];
+            // For math sections, questions might be in results array
+            const questions = currentData ? (currentData.questions || currentData.results || []) : [];
             questions.forEach((question, index) => {
-                const userAnswer = userAnswers[question.id];
-                const reviewAnswer = reviewData.answers && reviewData.answers.find(a => a.question_id === question.id);
+                // Ensure question ID is a string for comparison
+                const questionIdStr = String(question.id);
+                const userAnswer = userAnswers[questionIdStr] !== undefined ? userAnswers[questionIdStr] : userAnswers[question.id];
+                const reviewAnswer = reviewData.answers && reviewData.answers.find(a => String(a.question_id) === questionIdStr);
                 const isCorrect = reviewAnswer ? reviewAnswer.is_correct : (userAnswer === question.correct_answer_index);
                 
                 // Get options - handle both array of strings and array of objects
-                const options = question.options || [];
+                const options = question.options || question.choices || [];
                 const userOption = options[userAnswer];
                 const correctOption = options[question.correct_answer_index];
+                
+                // Get question text - math sections use 'prompt', others use 'text'
+                const questionText = question.prompt || question.text || '';
                 
                 // Use question.order if available, otherwise use index + 1
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
                 
+                // Format explanation - math sections use arrays, others use strings
+                let explanationText = '';
+                if ((reviewAnswer && reviewAnswer.explanation) || question.explanation) {
+                    explanationText = formatMathExplanation((reviewAnswer && reviewAnswer.explanation) || question.explanation, isMathSection);
+                    // Apply sentinel replacement for math sections
+                    if (isMathSection && currentMathSectionData) {
+                        explanationText = replaceDiagramSentinels(explanationText, currentMathSectionData.assets || [], currentMathSectionData.section_id || currentMathSectionData.id);
+                    }
+                    // Replace underline sentinels
+                    if (typeof explanationText === 'string') {
+                        explanationText = replaceUnderlineSentinels(explanationText);
+                    }
+                }
+                
                 resultsHTML += `
                     <div class="question-card">
                         <h4>Question ${questionNumber} ${isCorrect ? '✓' : '✗'}</h4>
-                        <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${question.text}</p>
+                        <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${questionText}</p>
                         <div class="options-container">
                             ${options.map((option, optIndex) => {
                                 let optionClass = 'option';
@@ -4361,9 +4442,9 @@
                                 `;
                             }).join('')}
                         </div>
-                        ${(reviewAnswer && reviewAnswer.explanation) || question.explanation ? `
+                        ${explanationText ? `
                             <div class="explanation">
-                                <strong>Explanation:</strong> ${replaceUnderlineSentinels(replaceDiagramSentinels((reviewAnswer && reviewAnswer.explanation) || question.explanation || '', lessonData.assets || [], lessonData.lesson_id))}
+                                <strong>Explanation:</strong> ${explanationText}
                             </div>
                         ` : ''}
                     </div>

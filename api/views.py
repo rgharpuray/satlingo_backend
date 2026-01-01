@@ -1419,7 +1419,9 @@ class MathSectionAttemptsView(APIView):
                 'score': attempt.score,
                 'correct_count': attempt.correct_count,
                 'total_questions': attempt.total_questions,
-                'completed_at': attempt.completed_at.isoformat(),
+                'time_spent_seconds': attempt.time_spent_seconds,
+                'completed_at': attempt.completed_at,
+                'answers': attempt.answers_data or [],
             })
         
         # Use the same serializer as writing sections (they have the same structure)
