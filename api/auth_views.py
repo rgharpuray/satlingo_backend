@@ -365,7 +365,8 @@ def google_oauth_callback(request):
             token_encoded = base64.urlsafe_b64encode(token_json.encode()).decode().rstrip('=')
             
             # Redirect to frontend with tokens in URL fragment (hash)
-            frontend_url = f'/web/#google_oauth={token_encoded}'
+            # Redirect to passages view after login
+            frontend_url = f'/web/#passages?google_oauth={token_encoded}'
             return redirect(frontend_url)
         
         # Return JSON for API calls
