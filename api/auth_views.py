@@ -12,6 +12,7 @@ from .models import User
 import google.auth.transport.requests
 from google.oauth2 import id_token
 import requests
+from urllib.parse import quote
 
 
 @api_view(['POST'])
@@ -159,10 +160,14 @@ def google_oauth_url(request):
     # Build the OAuth URL
     redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI or request.build_absolute_uri('/api/v1/auth/google/callback')
     scope = 'openid email profile'
+    
+    # URL encode the redirect_uri
+    redirect_uri_encoded = quote(redirect_uri, safe='')
+    
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={settings.GOOGLE_OAUTH_CLIENT_ID}&"
-        f"redirect_uri={redirect_uri}&"
+        f"redirect_uri={redirect_uri_encoded}&"
         f"response_type=code&"
         f"scope={scope}&"
         f"access_type=offline&"

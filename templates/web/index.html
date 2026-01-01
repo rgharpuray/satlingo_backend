@@ -1180,6 +1180,16 @@
                 </div>
                 <div id="loginError" class="error"></div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+                <div style="text-align: center; margin: 15px 0; color: #666;">or</div>
+                <button type="button" class="btn" onclick="handleGoogleLogin()" style="width: 100%; background: white; color: #333; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                        <path fill="#FBBC05" d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.712s.102-1.172.282-1.712V4.956H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.044l3.007-2.332z"/>
+                        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.956L3.964 7.288C4.672 5.163 6.656 3.58 9 3.58z"/>
+                    </svg>
+                    Sign in with Google
+                </button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal('loginModal')" style="width: 100%; margin-top: 10px;">Cancel</button>
             </form>
         </div>
@@ -1200,6 +1210,16 @@
                 </div>
                 <div id="registerError" class="error"></div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Register</button>
+                <div style="text-align: center; margin: 15px 0; color: #666;">or</div>
+                <button type="button" class="btn" onclick="handleGoogleLogin()" style="width: 100%; background: white; color: #333; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                        <path fill="#FBBC05" d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.712s.102-1.172.282-1.712V4.956H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.044l3.007-2.332z"/>
+                        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.956L3.964 7.288C4.672 5.163 6.656 3.58 9 3.58z"/>
+                    </svg>
+                    Sign in with Google
+                </button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal('registerModal')" style="width: 100%; margin-top: 10px;">Cancel</button>
             </form>
         </div>
@@ -1266,10 +1286,16 @@
         
         // Initial route handling - wait for DOM to be ready
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', handleHashRoute);
+            document.addEventListener('DOMContentLoaded', () => {
+                handleHashRoute();
+                handleGoogleCallback(); // Check for Google OAuth callback
+            });
         } else {
             // DOM is already ready, but add small delay to ensure all elements are accessible
-            setTimeout(handleHashRoute, 50);
+            setTimeout(() => {
+                handleHashRoute();
+                handleGoogleCallback(); // Check for Google OAuth callback
+            }, 50);
         }
         
         // Check if user is logged in on load
@@ -1378,6 +1404,67 @@
                 }
             } catch (error) {
                 document.getElementById('loginError').textContent = 'Network error. Please try again.';
+            }
+        }
+        
+        async function handleGoogleLogin() {
+            try {
+                // Get the Google OAuth URL from backend
+                const response = await fetch(`${API_BASE}/auth/google/url`);
+                const result = await response.json();
+                
+                if (response.ok && result.auth_url) {
+                    // Close modals
+                    closeModal('loginModal');
+                    closeModal('registerModal');
+                    // Redirect to Google OAuth
+                    window.location.href = result.auth_url;
+                } else {
+                    alert('Failed to initiate Google login. Please try again.');
+                }
+            } catch (error) {
+                console.error('Google login error:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+        
+        // Handle Google OAuth callback
+        async function handleGoogleCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+            
+            if (error) {
+                alert(`Google login failed: ${error}`);
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+            }
+            
+            if (code) {
+                try {
+                    // Exchange code for tokens
+                    const response = await fetch(`${API_BASE}/auth/google/callback?code=${encodeURIComponent(code)}`);
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        authToken = result.tokens.access;
+                        localStorage.setItem('authToken', authToken);
+                        currentUser = result.user;
+                        // Clean up URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                        updateUI();
+                    } else {
+                        alert(result.error?.message || 'Google login failed');
+                        // Clean up URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                } catch (error) {
+                    console.error('Google callback error:', error);
+                    alert('Failed to complete Google login. Please try again.');
+                    // Clean up URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
             }
         }
         
