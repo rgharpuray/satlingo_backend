@@ -1555,7 +1555,6 @@
                             const isPremium = lesson.tier === 'premium';
                             card.innerHTML = `
                                 <h4>${escapeHtml(lesson.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h4>
-                                <p>Questions: ${lesson.question_count || 0}</p>
                             `;
                             card.onclick = () => openLesson(lesson.id);
                             lessonsContainer.appendChild(card);
@@ -1579,7 +1578,6 @@
                             const isPremium = lesson.tier === 'premium';
                             card.innerHTML = `
                                 <h4>${escapeHtml(lesson.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h4>
-                                <p>Questions: ${lesson.question_count || 0}</p>
                             `;
                             card.onclick = () => openLesson(lesson.id);
                             lessonsContainer.appendChild(card);
@@ -1675,7 +1673,7 @@
                         const hasAccess = !isPremium || (currentUser && (currentUser.is_premium || currentUser.has_active_subscription));
                         card.innerHTML = `
                             <h3>${writingSection.title} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
-                            <p>Questions: ${writingSection.question_count || 0} | Selections: ${writingSection.selection_count || 0}${attemptText}</p>
+                            <p>Selections: ${writingSection.selection_count || 0}${attemptText}</p>
                             ${attemptSummaryHTML}
                             ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showWritingSectionAttemptHistory('${writingSection.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                         `;
@@ -1828,7 +1826,7 @@
                         const hasAccess = !isPremium || (currentUser && (currentUser.is_premium || currentUser.has_active_subscription));
                         card.innerHTML = `
                             <h3>${mathSection.title} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
-                            <p>Questions: ${mathSection.question_count || 0}${attemptText}</p>
+                            ${attemptText ? `<p>${attemptText}</p>` : ''}
                             ${attemptSummaryHTML}
                             ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showMathSectionAttemptHistory('${mathSection.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                         `;
@@ -1891,7 +1889,7 @@
                             const isPremium = mathSection.tier === 'premium';
                             card.innerHTML = `
                                 <h3>${mathSection.title} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
-                                <p>Questions: ${mathSection.question_count || 0}${attemptText}</p>
+                                ${attemptText ? `<p>${attemptText}</p>` : ''}
                                 ${attemptSummaryHTML}
                                 ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); showMathSectionAttemptHistory('${mathSection.id}')" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                             `;
@@ -2046,7 +2044,7 @@
                             card.setAttribute('data-passage-id', passage.id);
                             card.innerHTML = `
                                 <h3>${escapeHtml(passage.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
-                                <p>Questions: ${passage.question_count}${attemptText}</p>
+                                ${attemptText ? `<p>${attemptText}</p>` : ''}
                                 ${attemptSummaryHTML}
                                 ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); event.preventDefault(); showAttemptHistory('${passage.id}'); return false;" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                             `;
@@ -2111,7 +2109,7 @@
                             card.setAttribute('data-passage-id', passage.id);
                             card.innerHTML = `
                                 <h3>${escapeHtml(passage.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h3>
-                                <p>Questions: ${passage.question_count}${attemptText}</p>
+                                ${attemptText ? `<p>${attemptText}</p>` : ''}
                                 ${attemptSummaryHTML}
                                 ${attemptCount > 0 && authToken ? `<button class="btn btn-secondary" onclick="event.stopPropagation(); event.preventDefault(); showAttemptHistory('${passage.id}'); return false;" style="margin-top: 10px; font-size: 12px; padding: 6px 12px; width: 100%;">View Full Attempt History</button>` : ''}
                             `;
