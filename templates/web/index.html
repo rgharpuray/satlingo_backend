@@ -4129,13 +4129,24 @@
                         
                         // Process explanation (handle diagrams and underlines)
                         // Note: Math questions have explanation as an array of objects, not a string
-                        console.log('Processing explanation for question:', questionId, 'explanation type:', typeof question.explanation, 'isArray:', Array.isArray(question.explanation), 'value:', question.explanation);
+                        console.log('=== EXPLANATION DEBUG START ===');
+                        console.log('Question ID:', questionId);
+                        console.log('Question object:', question);
+                        console.log('Explanation value:', question.explanation);
+                        console.log('Explanation type:', typeof question.explanation);
+                        console.log('Is array:', Array.isArray(question.explanation));
+                        console.log('Is math section:', !!currentMathSectionId);
+                        console.log('Current math section ID:', currentMathSectionId);
+                        
                         let processedExplanation = formatMathExplanation(question.explanation, !!currentMathSectionId);
-                        console.log('Processed explanation result:', processedExplanation);
+                        console.log('After formatMathExplanation:', processedExplanation);
+                        console.log('After formatMathExplanation type:', typeof processedExplanation);
                         
                         // Apply sentinel replacement for math sections
                         if (currentMathSectionId && currentMathSectionData) {
+                            const beforeSentinel = processedExplanation;
                             processedExplanation = replaceDiagramSentinels(processedExplanation, currentMathSectionData.assets || [], currentMathSectionData.section_id || currentMathSectionData.id);
+                            console.log('After replaceDiagramSentinels:', processedExplanation);
                         }
                         // Apply sentinel replacement for passages (if they get assets in the future)
                         else if (currentPassageId && currentPassageData) {
@@ -4149,19 +4160,31 @@
                         // Replace underline sentinels (only if it's a string)
                         if (typeof processedExplanation === 'string') {
                             processedExplanation = replaceUnderlineSentinels(processedExplanation);
+                            console.log('After replaceUnderlineSentinels:', processedExplanation);
                         }
                         
-                        // Note: We don't escape here because:
-                        // 1. The data comes from our database (trusted source)
-                        // 2. Sentinels have already been replaced with HTML tags
-                        // 3. Escaping would break the HTML tags we just added
-                        // This matches how lessons handle explanations
-                        
-                        // Ensure processedExplanation is a string
+                        // CRITICAL: Ensure processedExplanation is ALWAYS a string before inserting into HTML
                         if (typeof processedExplanation !== 'string') {
-                            console.warn('Processed explanation is not a string:', processedExplanation, 'type:', typeof processedExplanation);
-                            processedExplanation = String(processedExplanation || '');
+                            console.error('ERROR: Processed explanation is NOT a string!', {
+                                value: processedExplanation,
+                                type: typeof processedExplanation,
+                                isArray: Array.isArray(processedExplanation),
+                                stringified: String(processedExplanation)
+                            });
+                            // Try to convert it properly
+                            if (Array.isArray(processedExplanation)) {
+                                processedExplanation = processedExplanation.join(' ');
+                            } else if (processedExplanation && typeof processedExplanation === 'object') {
+                                processedExplanation = JSON.stringify(processedExplanation);
+                            } else {
+                                processedExplanation = String(processedExplanation || '');
+                            }
+                            console.log('After conversion:', processedExplanation, 'type:', typeof processedExplanation);
                         }
+                        
+                        console.log('Final processed explanation:', processedExplanation);
+                        console.log('Final type:', typeof processedExplanation);
+                        console.log('=== EXPLANATION DEBUG END ===');
                         
                         questionExplanationContent.innerHTML = `
                             <div style="color: #666; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
