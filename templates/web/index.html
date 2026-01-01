@@ -3263,7 +3263,39 @@
                         if (block.type === 'paragraph' || block.type === 'note' || block.type === 'example') {
                             return block.text || '';
                         } else if (block.type === 'equation') {
-                            return block.latex ? `$${block.latex}$` : '';
+                            // Convert LaTeX to plain text for display
+                            if (block.latex) {
+                                let equationText = block.latex;
+                                // Remove LaTeX commands and convert to readable text
+                                // Common LaTeX to text conversions
+                                equationText = equationText.replace(/\\angle\s*/g, '∠');
+                                equationText = equationText.replace(/\\degree/g, '°');
+                                equationText = equationText.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+                                equationText = equationText.replace(/\\sqrt\{([^}]+)\}/g, '√($1)');
+                                equationText = equationText.replace(/\\times/g, '×');
+                                equationText = equationText.replace(/\\div/g, '÷');
+                                equationText = equationText.replace(/\\pm/g, '±');
+                                equationText = equationText.replace(/\\leq/g, '≤');
+                                equationText = equationText.replace(/\\geq/g, '≥');
+                                equationText = equationText.replace(/\\neq/g, '≠');
+                                equationText = equationText.replace(/\\approx/g, '≈');
+                                equationText = equationText.replace(/\\pi/g, 'π');
+                                equationText = equationText.replace(/\\theta/g, 'θ');
+                                equationText = equationText.replace(/\\alpha/g, 'α');
+                                equationText = equationText.replace(/\\beta/g, 'β');
+                                equationText = equationText.replace(/\\gamma/g, 'γ');
+                                equationText = equationText.replace(/\\Delta/g, 'Δ');
+                                equationText = equationText.replace(/\\sum/g, 'Σ');
+                                equationText = equationText.replace(/\\int/g, '∫');
+                                // Remove remaining LaTeX braces
+                                equationText = equationText.replace(/\{([^}]+)\}/g, '$1');
+                                // Remove backslashes before single characters (common LaTeX commands)
+                                equationText = equationText.replace(/\\([a-zA-Z])/g, '$1');
+                                // Clean up extra spaces
+                                equationText = equationText.replace(/\s+/g, ' ').trim();
+                                return equationText;
+                            }
+                            return '';
                         }
                         // Fallback: try to get text property if it exists
                         if (block.text) {
@@ -3273,7 +3305,19 @@
                     return '';
                 }).filter(text => text && text.trim().length > 0);
                 
-                return parts.length > 0 ? parts.join(' ') : '';
+                // Join with proper spacing - put equations on new lines if needed
+                const result = [];
+                for (let i = 0; i < parts.length; i++) {
+                    const block = explanation[i];
+                    const part = parts[i];
+                    // If this block is an equation and not the first item, add line break
+                    if (block && block.type === 'equation' && i > 0) {
+                        result.push('<br>' + part);
+                    } else {
+                        result.push(part);
+                    }
+                }
+                return result.join(' ');
             }
             
             // If it's an object but not an array, try to extract text
@@ -3290,7 +3334,38 @@
                     return String(explanation.text || '');
                 }
                 if (explanation.type === 'equation') {
-                    return explanation.latex ? `$${explanation.latex}$` : '';
+                    // Convert LaTeX to plain text for display
+                    if (explanation.latex) {
+                        let equationText = explanation.latex;
+                        // Remove LaTeX commands and convert to readable text
+                        equationText = equationText.replace(/\\angle\s*/g, '∠');
+                        equationText = equationText.replace(/\\degree/g, '°');
+                        equationText = equationText.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+                        equationText = equationText.replace(/\\sqrt\{([^}]+)\}/g, '√($1)');
+                        equationText = equationText.replace(/\\times/g, '×');
+                        equationText = equationText.replace(/\\div/g, '÷');
+                        equationText = equationText.replace(/\\pm/g, '±');
+                        equationText = equationText.replace(/\\leq/g, '≤');
+                        equationText = equationText.replace(/\\geq/g, '≥');
+                        equationText = equationText.replace(/\\neq/g, '≠');
+                        equationText = equationText.replace(/\\approx/g, '≈');
+                        equationText = equationText.replace(/\\pi/g, 'π');
+                        equationText = equationText.replace(/\\theta/g, 'θ');
+                        equationText = equationText.replace(/\\alpha/g, 'α');
+                        equationText = equationText.replace(/\\beta/g, 'β');
+                        equationText = equationText.replace(/\\gamma/g, 'γ');
+                        equationText = equationText.replace(/\\Delta/g, 'Δ');
+                        equationText = equationText.replace(/\\sum/g, 'Σ');
+                        equationText = equationText.replace(/\\int/g, '∫');
+                        // Remove remaining LaTeX braces
+                        equationText = equationText.replace(/\{([^}]+)\}/g, '$1');
+                        // Remove backslashes before single characters
+                        equationText = equationText.replace(/\\([a-zA-Z])/g, '$1');
+                        // Clean up extra spaces
+                        equationText = equationText.replace(/\s+/g, ' ').trim();
+                        return equationText;
+                    }
+                    return '';
                 }
             }
             
