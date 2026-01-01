@@ -3645,7 +3645,12 @@
                 const questionsData = await questionsResponse.json();
                 
                 // Store math section data for sentinel replacement
-                currentMathSectionData = sectionData;
+                // Merge questions into sectionData so displayResults can find them
+                currentMathSectionData = {
+                    ...sectionData,
+                    questions: questionsData.results || questionsData.questions || [],
+                    results: questionsData.results || questionsData.questions || []
+                };
                 
                 // Display math section
                 displayMathSection(sectionData, questionsData);
@@ -4380,8 +4385,41 @@
             }
             
             // Show each question with correct/incorrect status
-            // For math sections, questions might be in results array
-            const questions = currentData ? (currentData.questions || currentData.results || []) : [];
+            // For math sections, get questions from currentQuestionsMap (they're stored there)
+            let questions = [];
+            if (isMathSection) {
+                // Try multiple sources for questions
+                // 1. currentQuestionsMap (populated when section was displayed)
+                questions = Object.values(currentQuestionsMap);
+                
+                // 2. If empty, try currentData
+                if (questions.length === 0 && currentData) {
+                    questions = currentData.questions || currentData.results || [];
+                }
+                
+                // Sort by order if available
+                questions.sort((a, b) => {
+                    const orderA = a.order !== undefined ? a.order : 999;
+                    const orderB = b.order !== undefined ? b.order : 999;
+                    return orderA - orderB;
+                });
+            } else {
+                // For passages and writing sections, get from currentData
+                questions = currentData ? (currentData.questions || currentData.results || []) : [];
+            }
+            
+            console.log('Displaying results - questions found:', questions.length, 'isMathSection:', isMathSection, 'currentQuestionsMap size:', Object.keys(currentQuestionsMap).length, 'currentData has questions:', currentData ? !!(currentData.questions || currentData.results) : false);
+            
+            if (questions.length === 0) {
+                console.error('No questions found for results display!', {
+                    isMathSection,
+                    currentData: currentData ? Object.keys(currentData) : null,
+                    currentQuestionsMapSize: Object.keys(currentQuestionsMap).length
+                });
+                resultsSection.innerHTML = resultsHTML + '<p style="color: red; padding: 20px;">Error: Could not load questions for results display.</p>';
+                return;
+            }
+            
             questions.forEach((question, index) => {
                 // Ensure question ID is a string for comparison
                 const questionIdStr = String(question.id);
