@@ -4607,8 +4607,9 @@
                             }).join('')}
                         </div>
                         ${explanationText ? `
-                            <div class="explanation">
-                                <strong>Explanation:</strong> ${explanationText}
+                            <div class="explanation" style="white-space: pre-wrap;">
+                                <strong>Explanation:</strong>
+                                <div style="margin-top: 8px; line-height: 1.6;">${explanationText}</div>
                             </div>
                         ` : ''}
                     </div>
