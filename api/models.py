@@ -145,6 +145,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     is_premium = models.BooleanField(default=False)
     stripe_customer_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
+    google_id = models.CharField(max_length=255, null=True, blank=True, unique=True, help_text="Google OAuth ID")
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']

@@ -9,7 +9,7 @@ from .views import (
     SubmitWritingSectionView, ReviewWritingSectionView, WritingSectionAttemptsView,
     MathSectionViewSet
 )
-from .auth_views import register, login, me
+from .auth_views import register, login, me, google_oauth_url, google_oauth_callback
 from .stripe_views import (
     create_checkout_session, create_portal_session,
     subscription_status, stripe_webhook
@@ -52,6 +52,8 @@ urlpatterns = [
     path('auth/login', login, name='login'),
     path('auth/me', me, name='me'),
     path('auth/refresh', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/google/url', google_oauth_url, name='google-oauth-url'),
+    path('auth/google/callback', google_oauth_callback, name='google-oauth-callback'),
     
     # Stripe/Payment endpoints
     path('payments/checkout', create_checkout_session, name='create-checkout'),

@@ -6,7 +6,12 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.conf import settings
+from django.shortcuts import redirect
 from .models import User
+import google.auth.transport.requests
+from google.oauth2 import id_token
+import requests
 
 
 @api_view(['POST'])
@@ -137,4 +142,175 @@ def me(request):
         'is_premium': user.is_premium,
         'has_active_subscription': user.has_active_subscription,
     })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def google_oauth_url(request):
+    """Get Google OAuth authorization URL"""
+    from django.conf import settings
+    
+    if not settings.GOOGLE_OAUTH_CLIENT_ID:
+        return Response(
+            {'error': {'code': 'CONFIGURATION_ERROR', 'message': 'Google OAuth not configured'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    # Build the OAuth URL
+    redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI or request.build_absolute_uri('/api/v1/auth/google/callback')
+    scope = 'openid email profile'
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={settings.GOOGLE_OAUTH_CLIENT_ID}&"
+        f"redirect_uri={redirect_uri}&"
+        f"response_type=code&"
+        f"scope={scope}&"
+        f"access_type=offline&"
+        f"prompt=consent"
+    )
+    
+    return Response({
+        'auth_url': auth_url,
+        'client_id': settings.GOOGLE_OAUTH_CLIENT_ID
+    })
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def google_oauth_callback(request):
+    """Handle Google OAuth callback"""
+    from django.conf import settings
+    
+    code = request.GET.get('code') or request.data.get('code')
+    error = request.GET.get('error') or request.data.get('error')
+    
+    if error:
+        return Response(
+            {'error': {'code': 'OAUTH_ERROR', 'message': f'OAuth error: {error}'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if not code:
+        return Response(
+            {'error': {'code': 'BAD_REQUEST', 'message': 'Authorization code is required'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if not settings.GOOGLE_OAUTH_CLIENT_ID or not settings.GOOGLE_OAUTH_CLIENT_SECRET:
+        return Response(
+            {'error': {'code': 'CONFIGURATION_ERROR', 'message': 'Google OAuth not configured'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    try:
+        # Exchange code for tokens
+        redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI or request.build_absolute_uri('/api/v1/auth/google/callback')
+        
+        token_url = 'https://oauth2.googleapis.com/token'
+        token_data = {
+            'code': code,
+            'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
+            'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
+            'redirect_uri': redirect_uri,
+            'grant_type': 'authorization_code',
+        }
+        
+        token_response = requests.post(token_url, data=token_data)
+        token_response.raise_for_status()
+        tokens = token_response.json()
+        
+        id_token_str = tokens.get('id_token')
+        if not id_token_str:
+            return Response(
+                {'error': {'code': 'OAUTH_ERROR', 'message': 'No ID token received from Google'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify and decode the ID token
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                id_token_str,
+                google.auth.transport.requests.Request(),
+                settings.GOOGLE_OAUTH_CLIENT_ID
+            )
+        except ValueError as e:
+            return Response(
+                {'error': {'code': 'OAUTH_ERROR', 'message': f'Invalid token: {str(e)}'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Extract user info
+        google_id = idinfo.get('sub')
+        email = idinfo.get('email')
+        name = idinfo.get('name', '')
+        given_name = idinfo.get('given_name', '')
+        family_name = idinfo.get('family_name', '')
+        
+        if not email:
+            return Response(
+                {'error': {'code': 'OAUTH_ERROR', 'message': 'Email not provided by Google'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Find or create user
+        user = None
+        if google_id:
+            try:
+                user = User.objects.get(google_id=google_id)
+            except User.DoesNotExist:
+                pass
+        
+        # If no user found by google_id, try by email
+        if not user:
+            try:
+                user = User.objects.get(email=email)
+                # Link Google account to existing user
+                if not user.google_id:
+                    user.google_id = google_id
+                    user.save()
+            except User.DoesNotExist:
+                # Create new user
+                username = email.split('@')[0]
+                # Ensure username is unique
+                base_username = username
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                
+                user = User.objects.create_user(
+                    email=email,
+                    username=username,
+                    google_id=google_id,
+                    first_name=given_name,
+                    last_name=family_name,
+                    password=None  # No password for OAuth users
+                )
+        
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'user': {
+                'id': str(user.id),
+                'email': user.email,
+                'username': user.username,
+                'is_premium': user.is_premium,
+            },
+            'tokens': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+            }
+        })
+        
+    except requests.RequestException as e:
+        return Response(
+            {'error': {'code': 'OAUTH_ERROR', 'message': f'Failed to exchange code for tokens: {str(e)}'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        return Response(
+            {'error': {'code': 'INTERNAL_ERROR', 'message': f'Unexpected error: {str(e)}'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
