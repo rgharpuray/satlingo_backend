@@ -4117,9 +4117,13 @@
                 }
             } else {
                 // For passages/sections: show explanation in sidebar
+                console.log('selectOption - showing explanation in sidebar for questionId:', questionId);
+                console.log('currentQuestionsMap keys:', Object.keys(currentQuestionsMap));
                 const question = currentQuestionsMap[questionId];
+                console.log('Question found:', question ? 'YES' : 'NO', question);
                 const questionExplanation = document.getElementById('questionExplanation');
                 const questionExplanationContent = document.getElementById('questionExplanationContent');
+                console.log('Explanation elements found:', questionExplanation ? 'YES' : 'NO', questionExplanationContent ? 'YES' : 'NO');
                 
                 if (questionExplanation && questionExplanationContent) {
                     if (question && question.explanation) {
