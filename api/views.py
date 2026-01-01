@@ -1289,7 +1289,7 @@ class SubmitMathSectionView(APIView):
             )
         
         response_data = {
-            'math_section_id': str(math_section.id),
+            'writing_section_id': str(math_section.id),  # Use writing_section_id to match serializer
             'score': score,
             'total_questions': total_questions,
             'correct_count': correct_count,
@@ -1299,7 +1299,7 @@ class SubmitMathSectionView(APIView):
             'attempt_id': str(attempt.id) if attempt else None,
         }
         
-        # Use the same response serializer as writing sections
+        # Use the same response serializer as writing sections (it expects writing_section_id)
         serializer = SubmitWritingSectionResponseSerializer(response_data)
         return Response(serializer.data)
 
@@ -1366,7 +1366,7 @@ class ReviewMathSectionView(APIView):
         score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
         
         response_data = {
-            'math_section_id': str(math_section.id),
+            'writing_section_id': str(math_section.id),  # Use writing_section_id to match serializer
             'score': score,
             'total_questions': total_questions,
             'correct_count': correct_count,
@@ -1415,7 +1415,7 @@ class MathSectionAttemptsView(APIView):
         for attempt in attempts:
             attempts_data.append({
                 'id': attempt.id,
-                'math_section_id': str(attempt.math_section.id),
+                'writing_section_id': str(attempt.math_section.id),  # Use writing_section_id to match serializer
                 'score': attempt.score,
                 'correct_count': attempt.correct_count,
                 'total_questions': attempt.total_questions,
