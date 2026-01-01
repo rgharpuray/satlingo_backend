@@ -159,9 +159,11 @@ def google_oauth_url(request):
     
     # Build the OAuth URL
     redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI or request.build_absolute_uri('/api/v1/auth/google/callback')
+    # Remove trailing slash to ensure exact match
+    redirect_uri = redirect_uri.rstrip('/')
     scope = 'openid email profile'
     
-    # URL encode the redirect_uri
+    # URL encode the redirect_uri for the URL
     redirect_uri_encoded = quote(redirect_uri, safe='')
     
     auth_url = (
@@ -209,7 +211,12 @@ def google_oauth_callback(request):
     
     try:
         # Exchange code for tokens
+        # IMPORTANT: redirect_uri must match EXACTLY what was used in the authorization request
+        # Use the same logic as in google_oauth_url
         redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI or request.build_absolute_uri('/api/v1/auth/google/callback')
+        
+        # Remove trailing slash if present to ensure exact match
+        redirect_uri = redirect_uri.rstrip('/')
         
         token_url = 'https://oauth2.googleapis.com/token'
         token_data = {
@@ -221,7 +228,20 @@ def google_oauth_callback(request):
         }
         
         token_response = requests.post(token_url, data=token_data)
-        token_response.raise_for_status()
+        
+        if not token_response.ok:
+            error_detail = token_response.text
+            try:
+                error_json = token_response.json()
+                error_detail = error_json.get('error_description', error_json.get('error', error_detail))
+            except:
+                pass
+            
+            return Response(
+                {'error': {'code': 'OAUTH_ERROR', 'message': f'Failed to exchange code for tokens: {token_response.status_code} {error_detail}'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         tokens = token_response.json()
         
         id_token_str = tokens.get('id_token')
