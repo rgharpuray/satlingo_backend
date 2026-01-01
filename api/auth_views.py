@@ -212,11 +212,12 @@ def google_oauth_callback(request):
     try:
         # Exchange code for tokens
         # IMPORTANT: redirect_uri must match EXACTLY what was used in the authorization request
-        # Use the same logic as in google_oauth_url
-        redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI or request.build_absolute_uri('/api/v1/auth/google/callback')
-        
-        # Remove trailing slash if present to ensure exact match
-        redirect_uri = redirect_uri.rstrip('/')
+        # Always use the same logic as in google_oauth_url
+        if settings.GOOGLE_OAUTH_REDIRECT_URI:
+            redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI.rstrip('/')
+        else:
+            # Build from request - but this should match what was sent in authorization
+            redirect_uri = request.build_absolute_uri('/api/v1/auth/google/callback').rstrip('/')
         
         token_url = 'https://oauth2.googleapis.com/token'
         token_data = {
@@ -237,8 +238,18 @@ def google_oauth_callback(request):
             except:
                 pass
             
+            # Include redirect_uri in error for debugging (but don't expose secret)
             return Response(
-                {'error': {'code': 'OAUTH_ERROR', 'message': f'Failed to exchange code for tokens: {token_response.status_code} {error_detail}'}},
+                {
+                    'error': {
+                        'code': 'OAUTH_ERROR', 
+                        'message': f'Failed to exchange code for tokens: {token_response.status_code} {error_detail}',
+                        'debug_info': {
+                            'redirect_uri_used': redirect_uri,
+                            'client_id': settings.GOOGLE_OAUTH_CLIENT_ID[:20] + '...' if settings.GOOGLE_OAUTH_CLIENT_ID else None
+                        }
+                    }
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
         
