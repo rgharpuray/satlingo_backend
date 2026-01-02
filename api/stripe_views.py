@@ -175,10 +175,9 @@ def handle_subscription_created(subscription):
     customer_id = subscription['customer']
     try:
         user = User.objects.get(stripe_customer_id=customer_id)
-        user.is_premium = True
-        user.save()
         
-        Subscription.objects.update_or_create(
+        # Create or update subscription record
+        sub, created = Subscription.objects.update_or_create(
             stripe_subscription_id=subscription['id'],
             defaults={
                 'user': user,
@@ -192,6 +191,10 @@ def handle_subscription_created(subscription):
                 'cancel_at_period_end': subscription.get('cancel_at_period_end', False),
             }
         )
+        
+        # Set premium status based on subscription status (active, trialing = premium)
+        user.is_premium = (subscription['status'] in ['active', 'trialing'])
+        user.save()
     except User.DoesNotExist:
         pass
 
