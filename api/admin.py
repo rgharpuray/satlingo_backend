@@ -2476,13 +2476,24 @@ class MathQuestionAdmin(nested_admin.NestedModelAdmin):
     list_display = ['prompt_short', 'math_section', 'question_id', 'order', 'correct_answer_index', 'edit_explanation_link']
     list_filter = ['math_section', 'created_at']
     search_fields = ['prompt', 'question_id', 'math_section__title']
+    readonly_fields = ['edit_explanation_button']
+    
+    fieldsets = (
+        ('Question Information', {
+            'fields': ('math_section', 'question_id', 'prompt', 'correct_answer_index', 'order')
+        }),
+        ('Explanation', {
+            'fields': ('edit_explanation_button', 'explanation'),
+            'description': 'Click the button below to edit the explanation using the visual editor, or edit the JSON directly in the field below.'
+        }),
+    )
     
     def prompt_short(self, obj):
         return obj.prompt[:100] + '...' if len(obj.prompt) > 100 else obj.prompt
     prompt_short.short_description = 'Question'
     
     def edit_explanation_link(self, obj):
-        """Link to user-friendly explanation editor"""
+        """Link to user-friendly explanation editor (for list view)"""
         if obj.pk:
             url = reverse('admin:api_mathquestion_edit_explanation', args=[obj.pk])
             return format_html(
@@ -2492,6 +2503,18 @@ class MathQuestionAdmin(nested_admin.NestedModelAdmin):
         return "Save question first to edit explanation"
     edit_explanation_link.short_description = 'Edit Explanation'
     edit_explanation_link.allow_tags = True
+    
+    def edit_explanation_button(self, obj):
+        """Button to edit explanation (for detail/edit view)"""
+        if obj.pk:
+            url = reverse('admin:api_mathquestion_edit_explanation', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 12px 24px; background: #417690; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 14px; margin-bottom: 10px;">📝 Edit Explanation (Easy Mode)</a>',
+                url
+            )
+        return "Save question first to edit explanation"
+    edit_explanation_button.short_description = ''
+    edit_explanation_button.allow_tags = True
     
     def get_urls(self):
         """Add custom URL for explanation editor"""
