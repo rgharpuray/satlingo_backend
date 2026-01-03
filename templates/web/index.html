@@ -1094,11 +1094,13 @@
                             <div id="writingLessonsList"></div>
                         </div>
                         
-                        <!-- Writing Sections List View -->
+                        <!-- Writing Sections List View - COMMENTED OUT: Writing sections removed, only showing lessons -->
+                        <!--
                         <div class="passages-section" id="writingSectionsListSection">
                             <h2>Writing Sections</h2>
                             <div id="writingSectionsList"></div>
                         </div>
+                        -->
                     </div>
                     
                     <!-- Math Category Content -->
@@ -1260,13 +1262,14 @@
                     console.log('Opening lesson from hash:', lessonId);
                     openLesson(lessonId);
                 }, 100);
-            } else if (hash.startsWith('writing-section/')) {
-                const sectionId = hash.split('/')[1];
-                showPassages(true);
-                setTimeout(() => {
-                    console.log('Opening writing section from hash:', sectionId);
-                    openWritingSection(sectionId);
-                }, 100);
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // } else if (hash.startsWith('writing-section/')) {
+            //     const sectionId = hash.split('/')[1];
+            //     showPassages(true);
+            //     setTimeout(() => {
+            //         console.log('Opening writing section from hash:', sectionId);
+            //         openWritingSection(sectionId);
+            //     }, 100);
             } else if (hash.startsWith('math-section/')) {
                 const sectionId = hash.split('/')[1];
                 // Don't reload if we're already opening this section
@@ -1281,7 +1284,8 @@
                         openMathSection(sectionId);
                     }, 100);
                 }
-            } else if (hash === 'passages' || hash === 'lessons' || hash === 'writing-sections' || hash === 'math-sections' || hash === '') {
+            } else if (hash === 'passages' || hash === 'lessons' || hash === 'math-sections' || hash === '') {
+                // COMMENTED OUT: 'writing-sections' removed from hash check
                 console.log('Showing passages view from hash');
                 showPassages(true);
             } else {
@@ -1398,14 +1402,16 @@
             document.getElementById('passageDetailSection').style.display = 'none';
             // Make sure list sections are visible
             const passagesListSection = document.getElementById('passagesListSection');
-            const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // const writingSectionsListSection = document.getElementById('writingSectionsListSection');
             const mathSectionsListSection = document.getElementById('mathSectionsListSection');
             if (passagesListSection) passagesListSection.style.display = 'block';
-            if (writingSectionsListSection) writingSectionsListSection.style.display = 'block';
+            // if (writingSectionsListSection) writingSectionsListSection.style.display = 'block';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'block';
             // Update URL only if hash doesn't match expected patterns
             const currentHash = window.location.hash.substring(1);
-            if (currentHash !== 'passages' && !currentHash.startsWith('passage/') && !currentHash.startsWith('lesson/') && !currentHash.startsWith('writing-section/') && !currentHash.startsWith('math-section/')) {
+            // COMMENTED OUT: 'writing-section/' removed from hash check
+            if (currentHash !== 'passages' && !currentHash.startsWith('passage/') && !currentHash.startsWith('lesson/') && !currentHash.startsWith('math-section/')) {
                 window.history.replaceState(null, '', window.location.pathname + '#passages');
             }
             // Load content for the current category
@@ -1751,13 +1757,15 @@
                     }
                 } else if (category === 'writing') {
                     const writingLessonsEl = document.getElementById('writingLessonsList');
-                    const writingSectionsEl = document.getElementById('writingSectionsList');
+                    // COMMENTED OUT: Writing sections removed, only showing lessons
+                    // const writingSectionsEl = document.getElementById('writingSectionsList');
                     if (forceReload || !writingLessonsEl || writingLessonsEl.innerHTML === '') {
                         loadLessonsByType('writing', 'writingLessonsList');
                     }
-                    if (forceReload || !writingSectionsEl || writingSectionsEl.innerHTML === '') {
-                        loadWritingSections();
-                    }
+                    // COMMENTED OUT: Writing sections removed, only showing lessons
+                    // if (forceReload || !writingSectionsEl || writingSectionsEl.innerHTML === '') {
+                    //     loadWritingSections();
+                    // }
                 } else if (category === 'math') {
                     const mathLessonsEl = document.getElementById('mathLessonsList');
                     const mathSectionsEl = document.getElementById('mathSectionsList');
@@ -1884,6 +1892,8 @@
             }
         }
         
+        // COMMENTED OUT: Writing sections removed, only showing lessons
+        /*
         async function loadWritingSections() {
             try {
                 console.log('Loading writing sections...');
@@ -1989,6 +1999,7 @@
                 }
             }
         }
+        */
         
         async function loadMathSections() {
             try {
@@ -2506,7 +2517,8 @@
             
             if (passagesListSection) passagesListSection.style.display = 'none';
             if (readingLessonsListSection) readingLessonsListSection.style.display = 'none';
-            if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
             if (writingLessonsListSection) writingLessonsListSection.style.display = 'none';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
             if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
@@ -2923,7 +2935,8 @@
             // Hide all list sections, show detail view
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
-            document.getElementById('writingSectionsListSection').style.display = 'none';
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // document.getElementById('writingSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Get first few chunks for preview
@@ -2963,7 +2976,8 @@
             // Hide passages list, show passage detail
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
-            document.getElementById('writingSectionsListSection').style.display = 'none';
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // document.getElementById('writingSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
             // Show first ~500 characters with gradient fade
@@ -2999,7 +3013,8 @@
             // Hide all list sections, show detail view
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
-            document.getElementById('writingSectionsListSection').style.display = 'none';
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // document.getElementById('writingSectionsListSection').style.display = 'none';
             document.getElementById('mathSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
@@ -4050,7 +4065,8 @@
             
             if (passagesListSection) passagesListSection.style.display = 'none';
             if (readingLessonsListSection) readingLessonsListSection.style.display = 'none';
-            if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
             if (writingLessonsListSection) writingLessonsListSection.style.display = 'none';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
             if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
@@ -4187,7 +4203,8 @@
             
             if (passagesListSection) passagesListSection.style.display = 'none';
             if (readingLessonsListSection) readingLessonsListSection.style.display = 'none';
-            if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
             if (writingLessonsListSection) writingLessonsListSection.style.display = 'none';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
             if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
@@ -4321,7 +4338,8 @@
             
             if (passagesListSection) passagesListSection.style.display = 'none';
             if (readingLessonsListSection) readingLessonsListSection.style.display = 'none';
-            if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // if (writingSectionsListSection) writingSectionsListSection.style.display = 'none';
             if (writingLessonsListSection) writingLessonsListSection.style.display = 'none';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'none';
             if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
@@ -4453,7 +4471,8 @@
             // Hide all list sections, show detail view
             document.getElementById('passagesListSection').style.display = 'none';
             document.getElementById('lessonsListSection').style.display = 'none';
-            document.getElementById('writingSectionsListSection').style.display = 'none';
+            // COMMENTED OUT: Writing sections removed, only showing lessons
+            // document.getElementById('writingSectionsListSection').style.display = 'none';
             document.getElementById('mathSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
             
@@ -5135,9 +5154,10 @@
                 if (passagesListSection) passagesListSection.style.display = 'block';
             } else if (currentCategory === 'writing') {
                 const writingLessonsListSection = document.getElementById('writingLessonsListSection');
-                const writingSectionsListSection = document.getElementById('writingSectionsListSection');
+                // COMMENTED OUT: Writing sections removed, only showing lessons
+                // const writingSectionsListSection = document.getElementById('writingSectionsListSection');
                 if (writingLessonsListSection) writingLessonsListSection.style.display = 'block';
-                if (writingSectionsListSection) writingSectionsListSection.style.display = 'block';
+                // if (writingSectionsListSection) writingSectionsListSection.style.display = 'block';
             } else if (currentCategory === 'math') {
                 const mathLessonsListSection = document.getElementById('mathLessonsListSection');
                 const mathSectionsListSection = document.getElementById('mathSectionsListSection');

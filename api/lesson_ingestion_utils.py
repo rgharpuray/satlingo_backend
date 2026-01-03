@@ -48,9 +48,9 @@ def process_lesson_ingestion(ingestion):
             else:
                 # It's a JSON file, load it directly
                 try:
-                    with open(ingestion.file_path, 'r', encoding='utf-8') as f:
-                        ingestion.parsed_data = json.load(f)
-                        ingestion.save()
+            with open(ingestion.file_path, 'r', encoding='utf-8') as f:
+                ingestion.parsed_data = json.load(f)
+                ingestion.save()
                 except UnicodeDecodeError:
                     # Try with error handling for non-UTF-8 files
                     with open(ingestion.file_path, 'r', encoding='utf-8', errors='replace') as f:

@@ -141,14 +141,28 @@ def sync_subscription_from_stripe(request):
         # Get all subscriptions for this customer
         subscriptions = stripe.Subscription.list(customer=customer.id, limit=10)
         
-        # Find active subscriptions
-        active_stripe_subs = [sub for sub in subscriptions.data if sub.status in ['active', 'trialing']]
+        # Find active subscriptions OR canceled subscriptions that are still within their period
+        now = timezone.now()
+        active_stripe_subs = []
+        for sub in subscriptions.data:
+            if sub.status in ['active', 'trialing']:
+                active_stripe_subs.append(sub)
+            elif sub.status == 'canceled':
+                # Check if canceled subscription is still within its period
+                period_end = timezone.datetime.fromtimestamp(sub.current_period_end, tz=timezone.utc)
+                if period_end > now:
+                    # Canceled but still within period - treat as active
+                    active_stripe_subs.append(sub)
         
         if active_stripe_subs:
             # Update with the most recent active subscription
             stripe_sub = active_stripe_subs[0]
             
             # Create or update subscription in database
+            period_end = timezone.datetime.fromtimestamp(
+                stripe_sub.current_period_end, tz=timezone.utc
+            )
+            
             sub, created = Subscription.objects.update_or_create(
                 stripe_subscription_id=stripe_sub.id,
                 defaults={
@@ -157,15 +171,29 @@ def sync_subscription_from_stripe(request):
                     'current_period_start': timezone.datetime.fromtimestamp(
                         stripe_sub.current_period_start, tz=timezone.utc
                     ),
-                    'current_period_end': timezone.datetime.fromtimestamp(
-                        stripe_sub.current_period_end, tz=timezone.utc
-                    ),
+                    'current_period_end': period_end,
                     'cancel_at_period_end': stripe_sub.get('cancel_at_period_end', False),
                 }
             )
             
-            # Set premium status
-            user.is_premium = (stripe_sub.status in ['active', 'trialing'])
+            # Set premium status - check if period has ended
+            # Even if canceled (cancel_at_period_end=True), keep premium until period ends
+            subscription_status = stripe_sub.status
+            now = timezone.now()
+            
+            if subscription_status in ['active', 'trialing']:
+                # Subscription is active - check if period has ended
+                # Even if cancel_at_period_end=True, keep premium until period ends
+                is_premium = (period_end > now) if period_end else True
+            elif subscription_status == 'canceled':
+                # Subscription is canceled - check if period has ended
+                # Keep premium if period hasn't ended yet
+                is_premium = (period_end > now) if period_end else False
+            else:
+                # Status is incomplete, past_due, etc. - remove premium
+                is_premium = False
+            
+            user.is_premium = is_premium
             user.save()
             
             return Response({
@@ -200,20 +228,23 @@ def stripe_webhook(request):
     payload = request.body
     sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
     
+    # Log that we received a webhook request (before validation)
+    logger.info(f"Webhook request received: method={request.method}, content_type={request.content_type}, has_signature={bool(sig_header)}")
+    
     if not settings.STRIPE_WEBHOOK_SECRET:
-        logger.error("Stripe webhook secret not configured")
+        logger.error("Stripe webhook secret not configured - webhooks will fail!")
         return Response({'error': 'Webhook secret not configured'}, status=400)
     
     try:
         event = stripe.Webhook.construct_event(
             payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
         )
-        logger.info(f"Received Stripe webhook: {event['type']} (id: {event.get('id')})")
+        logger.info(f"✅ Received Stripe webhook: {event['type']} (id: {event.get('id')})")
     except ValueError as e:
-        logger.error(f"Invalid webhook payload: {str(e)}")
+        logger.error(f"❌ Invalid webhook payload: {str(e)}")
         return Response({'error': 'Invalid payload'}, status=400)
     except stripe.error.SignatureVerificationError as e:
-        logger.error(f"Invalid webhook signature: {str(e)}")
+        logger.error(f"❌ Invalid webhook signature: {str(e)} - Check that STRIPE_WEBHOOK_SECRET matches Stripe dashboard")
         return Response({'error': 'Invalid signature'}, status=400)
     
     # Handle the event
@@ -234,9 +265,9 @@ def stripe_webhook(request):
             subscription = event['data']['object']
             handle_subscription_deleted(subscription)
         
-        logger.info(f"Successfully processed webhook: {event['type']}")
+        logger.info(f"✅ Successfully processed webhook: {event['type']}")
     except Exception as e:
-        logger.error(f"Error handling webhook {event['type']}: {str(e)}", exc_info=True)
+        logger.error(f"❌ Error handling webhook {event['type']}: {str(e)}", exc_info=True)
         return Response({'error': 'Webhook processing failed'}, status=500)
     
     return Response({'status': 'success'})
@@ -245,12 +276,85 @@ def stripe_webhook(request):
 def handle_checkout_session(session):
     """Handle successful checkout"""
     user_id = session.get('metadata', {}).get('user_id')
+    customer_id = session.get('customer')
+    subscription_id = session.get('subscription')
+    
+    logger.info(f"Processing checkout.session.completed: session_id={session.get('id')}, customer={customer_id}, subscription={subscription_id}")
+    
     if user_id:
         try:
             user = User.objects.get(id=user_id)
-            # Subscription will be created via subscription.created webhook
+            
+            # If we have a subscription ID from the session, try to process it immediately
+            # This handles cases where the subscription.created webhook hasn't fired yet
+            if subscription_id:
+                try:
+                    # Retrieve the subscription from Stripe to get its status
+                    stripe_sub = stripe.Subscription.retrieve(subscription_id)
+                    subscription_status = stripe_sub.status
+                    
+                    logger.info(f"Found subscription {subscription_id} in checkout session, status: {subscription_status}")
+                    
+                    # Create or update subscription record
+                    sub, created = Subscription.objects.update_or_create(
+                        stripe_subscription_id=subscription_id,
+                        defaults={
+                            'user': user,
+                            'status': subscription_status,
+                            'current_period_start': timezone.datetime.fromtimestamp(
+                                stripe_sub.current_period_start, tz=timezone.utc
+                            ),
+                            'current_period_end': timezone.datetime.fromtimestamp(
+                                stripe_sub.current_period_end, tz=timezone.utc
+                            ),
+                            'cancel_at_period_end': stripe_sub.get('cancel_at_period_end', False),
+                        }
+                    )
+                    
+                    # Set premium status immediately (active or trialing = premium)
+                    is_premium = (subscription_status in ['active', 'trialing'])
+                    user.is_premium = is_premium
+                    user.save()
+                    
+                    logger.info(f"Checkout session processed: user {user.email}, subscription {subscription_id}, is_premium={is_premium}, created={created}")
+                except stripe.error.StripeError as e:
+                    logger.error(f"Error retrieving subscription {subscription_id} from Stripe: {str(e)}")
+                    # Fallback: subscription will be created via subscription.created webhook
+            elif customer_id:
+                # If we have customer_id but no subscription_id, try to find active subscriptions
+                try:
+                    subscriptions = stripe.Subscription.list(customer=customer_id, limit=1, status='active')
+                    if subscriptions.data:
+                        stripe_sub = subscriptions.data[0]
+                        subscription_status = stripe_sub.status
+                        
+                        sub, created = Subscription.objects.update_or_create(
+                            stripe_subscription_id=stripe_sub.id,
+                            defaults={
+                                'user': user,
+                                'status': subscription_status,
+                                'current_period_start': timezone.datetime.fromtimestamp(
+                                    stripe_sub.current_period_start, tz=timezone.utc
+                                ),
+                                'current_period_end': timezone.datetime.fromtimestamp(
+                                    stripe_sub.current_period_end, tz=timezone.utc
+                                ),
+                                'cancel_at_period_end': stripe_sub.get('cancel_at_period_end', False),
+                            }
+                        )
+                        
+                        is_premium = (subscription_status in ['active', 'trialing'])
+                        user.is_premium = is_premium
+                        user.save()
+                        
+                        logger.info(f"Checkout session processed via customer lookup: user {user.email}, subscription {stripe_sub.id}, is_premium={is_premium}")
+                except stripe.error.StripeError as e:
+                    logger.error(f"Error looking up subscriptions for customer {customer_id}: {str(e)}")
+                    # Fallback: subscription will be created via subscription.created webhook
+            else:
+                logger.warning(f"Checkout session {session.get('id')} has no subscription_id or customer_id, waiting for subscription.created webhook")
         except User.DoesNotExist:
-            pass
+            logger.error(f"User not found for user_id: {user_id} in checkout.session.completed webhook")
 
 
 def handle_subscription_created(subscription):
@@ -306,9 +410,29 @@ def handle_subscription_updated(subscription):
         sub.cancel_at_period_end = subscription.get('cancel_at_period_end', False)
         sub.save()
         
-        # Update user premium status (active or trialing = premium)
-        sub.user.is_premium = (sub.status in ['active', 'trialing'])
+        # Update user premium status
+        # Premium if: status is active/trialing AND period hasn't ended yet
+        # Even if canceled (cancel_at_period_end=True), keep premium until period ends
+        subscription_status = subscription['status']
+        period_end = sub.current_period_end
+        now = timezone.now()
+        
+        if subscription_status in ['active', 'trialing']:
+            # Subscription is active - check if period has ended
+            if period_end and period_end > now:
+                # Still within current period - keep premium
+                is_premium = True
+            else:
+                # Period has ended - remove premium
+                is_premium = False
+        else:
+            # Status is canceled, incomplete, past_due, etc. - remove premium
+            is_premium = False
+        
+        sub.user.is_premium = is_premium
         sub.user.save()
+        
+        logger.info(f"Subscription {subscription['id']} updated: status={subscription_status}, cancel_at_period_end={sub.cancel_at_period_end}, period_end={period_end}, is_premium={is_premium}")
     except Subscription.DoesNotExist:
         # Subscription doesn't exist yet, try to create it
         customer_id = subscription.get('customer')
@@ -329,23 +453,56 @@ def handle_subscription_updated(subscription):
                         'cancel_at_period_end': subscription.get('cancel_at_period_end', False),
                     }
                 )
-                # Set premium status
-                user.is_premium = (subscription['status'] in ['active', 'trialing'])
+                # Set premium status - check if period has ended
+                subscription_status = subscription['status']
+                period_end = timezone.datetime.fromtimestamp(
+                    subscription['current_period_end'], tz=timezone.utc
+                )
+                now = timezone.now()
+                
+                if subscription_status in ['active', 'trialing']:
+                    # Subscription is active - check if period has ended
+                    is_premium = (period_end > now) if period_end else True
+                else:
+                    # Status is canceled, incomplete, etc. - remove premium
+                    is_premium = False
+                
+                user.is_premium = is_premium
                 user.save()
+                
+                logger.info(f"Subscription {subscription['id']} created via update: status={subscription_status}, period_end={period_end}, is_premium={is_premium}")
             except User.DoesNotExist:
                 pass
 
 
 def handle_subscription_deleted(subscription):
-    """Handle subscription cancellation"""
+    """Handle subscription deletion (when period actually ends after cancellation)"""
     try:
         sub = Subscription.objects.get(stripe_subscription_id=subscription['id'])
         sub.status = 'canceled'
+        
+        # Get period_end from the subscription object if available
+        if 'current_period_end' in subscription:
+            sub.current_period_end = timezone.datetime.fromtimestamp(
+                subscription['current_period_end'], tz=timezone.utc
+            )
+        
         sub.save()
         
-        # Remove premium status
-        sub.user.is_premium = False
+        # Check if period has actually ended
+        # If period_end exists and hasn't passed, keep premium until it ends
+        now = timezone.now()
+        if sub.current_period_end and sub.current_period_end > now:
+            # Period hasn't ended yet - keep premium until period_end
+            is_premium = True
+            logger.info(f"Subscription {subscription['id']} deleted but period hasn't ended yet (ends {sub.current_period_end}), keeping premium")
+        else:
+            # Period has ended - remove premium
+            is_premium = False
+            logger.info(f"Subscription {subscription['id']} deleted and period has ended, removing premium")
+        
+        sub.user.is_premium = is_premium
         sub.user.save()
     except Subscription.DoesNotExist:
-        pass
+        logger.warning(f"Subscription {subscription.get('id')} not found in database when handling deletion")
 
