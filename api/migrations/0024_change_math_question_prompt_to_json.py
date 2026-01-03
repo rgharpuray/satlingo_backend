@@ -8,8 +8,8 @@ def convert_prompts_to_json(apps, schema_editor):
     """Convert existing text prompts to JSON format in temporary field"""
     from django.db import connection
     with connection.cursor() as cursor:
-        # Get all questions with text prompts
-        cursor.execute("SELECT id, prompt FROM api_math_questions WHERE prompt IS NOT NULL")
+        # Get all questions with text prompts (table name is math_questions, not api_math_questions)
+        cursor.execute("SELECT id, prompt FROM math_questions WHERE prompt IS NOT NULL")
         rows = cursor.fetchall()
         
         for question_id, prompt_text in rows:
@@ -22,7 +22,7 @@ def convert_prompts_to_json(apps, schema_editor):
                 
                 # Update the temporary JSON field
                 cursor.execute(
-                    "UPDATE api_math_questions SET prompt_json = %s::jsonb WHERE id = %s",
+                    "UPDATE math_questions SET prompt_json = %s::jsonb WHERE id = %s",
                     [prompt_json, question_id]
                 )
 
@@ -31,8 +31,8 @@ def reverse_convert_prompts_to_text(apps, schema_editor):
     """Convert JSON prompts back to text (for rollback)"""
     from django.db import connection
     with connection.cursor() as cursor:
-        # Get all questions with JSON prompts
-        cursor.execute("SELECT id, prompt_json FROM api_math_questions WHERE prompt_json IS NOT NULL")
+        # Get all questions with JSON prompts (table name is math_questions, not api_math_questions)
+        cursor.execute("SELECT id, prompt_json FROM math_questions WHERE prompt_json IS NOT NULL")
         rows = cursor.fetchall()
         
         for question_id, prompt_json in rows:
@@ -64,7 +64,7 @@ def reverse_convert_prompts_to_text(apps, schema_editor):
                     
                     # Update the text field
                     cursor.execute(
-                        "UPDATE api_math_questions SET prompt = %s WHERE id = %s",
+                        "UPDATE math_questions SET prompt = %s WHERE id = %s",
                         [prompt_text, question_id]
                     )
                 except (json.JSONDecodeError, TypeError):
