@@ -91,3 +91,4 @@ You should see:
 - **Test mode**: Use `sk_test_` and `pk_test_` keys, test card `4242 4242 4242 4242`
 - **Live mode**: Use `sk_live_` and `pk_live_` keys, real credit cards
 
+

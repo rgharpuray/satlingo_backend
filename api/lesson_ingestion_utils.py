@@ -189,11 +189,39 @@ def process_lesson_ingestion(ingestion):
         
         # Create questions
         for q_data in questions_data:
+            # Convert text to JSON format (array of blocks)
+            prompt_text = q_data['text']
+            if isinstance(prompt_text, str):
+                # Old format: plain text, convert to JSON array
+                if prompt_text.strip():
+                    prompt_blocks = [{"type": "paragraph", "text": prompt_text}]
+                else:
+                    prompt_blocks = []
+            elif isinstance(prompt_text, list):
+                # New format: already JSON blocks
+                prompt_blocks = prompt_text
+            else:
+                prompt_blocks = []
+            
+            # Convert explanation to JSON format (array of blocks)
+            explanation_text = q_data.get('explanation', '').strip() if q_data.get('explanation') else ''
+            if explanation_text:
+                if isinstance(explanation_text, str):
+                    # Old format: plain text, convert to JSON array
+                    explanation_blocks = [{"type": "paragraph", "text": explanation_text}]
+                elif isinstance(explanation_text, list):
+                    # New format: already JSON blocks
+                    explanation_blocks = explanation_text
+                else:
+                    explanation_blocks = []
+            else:
+                explanation_blocks = []
+            
             question = LessonQuestion.objects.create(
                 lesson=lesson,
-                text=q_data['text'],
+                text=prompt_blocks,
                 correct_answer_index=q_data['correct_answer_index'],
-                explanation=q_data.get('explanation', '').strip() or None,  # Store explanation, or None if empty
+                explanation=explanation_blocks if explanation_blocks else None,  # Store as JSON array or None
                 order=q_data['order'],
                 chunk_index=q_data['chunk_index'],
             )
