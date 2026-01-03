@@ -44,7 +44,7 @@ def create_checkout_session(request):
                 'quantity': 1,
             }],
             mode='subscription',
-            success_url=request.build_absolute_uri('/web/subscription/success?session_id={CHECKOUT_SESSION_ID}'),
+            success_url=request.build_absolute_uri('/web/?from=subscription&session_id={CHECKOUT_SESSION_ID}'),
             cancel_url=request.build_absolute_uri('/web/subscription/cancel'),
             metadata={
                 'user_id': str(user.id),
@@ -117,6 +117,76 @@ def subscription_status(request):
         'has_subscription': False,
         'status': None,
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def sync_subscription_from_stripe(request):
+    """Manually sync subscription status from Stripe (useful if webhook didn't fire)"""
+    user = request.user
+    
+    if not user.stripe_customer_id:
+        return Response(
+            {'error': {'code': 'BAD_REQUEST', 'message': 'No Stripe customer ID found'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Get customer from Stripe
+        customer = stripe.Customer.retrieve(user.stripe_customer_id)
+        
+        # Get all subscriptions for this customer
+        subscriptions = stripe.Subscription.list(customer=customer.id, limit=10)
+        
+        # Find active subscriptions
+        active_stripe_subs = [sub for sub in subscriptions.data if sub.status in ['active', 'trialing']]
+        
+        if active_stripe_subs:
+            # Update with the most recent active subscription
+            stripe_sub = active_stripe_subs[0]
+            
+            # Create or update subscription in database
+            sub, created = Subscription.objects.update_or_create(
+                stripe_subscription_id=stripe_sub.id,
+                defaults={
+                    'user': user,
+                    'status': stripe_sub.status,
+                    'current_period_start': timezone.datetime.fromtimestamp(
+                        stripe_sub.current_period_start, tz=timezone.utc
+                    ),
+                    'current_period_end': timezone.datetime.fromtimestamp(
+                        stripe_sub.current_period_end, tz=timezone.utc
+                    ),
+                    'cancel_at_period_end': stripe_sub.get('cancel_at_period_end', False),
+                }
+            )
+            
+            # Set premium status
+            user.is_premium = (stripe_sub.status in ['active', 'trialing'])
+            user.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Subscription synced successfully',
+                'subscription_status': stripe_sub.status,
+                'is_premium': user.is_premium,
+            })
+        else:
+            # No active subscriptions found
+            user.is_premium = False
+            user.save()
+            
+            return Response({
+                'success': True,
+                'message': 'No active subscriptions found',
+                'is_premium': False,
+            })
+    
+    except stripe.error.StripeError as e:
+        return Response(
+            {'error': {'code': 'STRIPE_ERROR', 'message': str(e)}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @csrf_exempt

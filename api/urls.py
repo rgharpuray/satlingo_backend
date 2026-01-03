@@ -12,7 +12,7 @@ from .views import (
 from .auth_views import register, login, me, google_oauth_url, google_oauth_callback
 from .stripe_views import (
     create_checkout_session, create_portal_session,
-    subscription_status, stripe_webhook
+    subscription_status, stripe_webhook, sync_subscription_from_stripe
 )
 
 router = DefaultRouter()
@@ -64,6 +64,7 @@ urlpatterns = [
     path('payments/checkout', create_checkout_session, name='create-checkout'),
     path('payments/portal', create_portal_session, name='create-portal'),
     path('payments/subscription', subscription_status, name='subscription-status'),
+    path('payments/sync', sync_subscription_from_stripe, name='sync-subscription'),
     path('payments/webhook', stripe_webhook, name='stripe-webhook'),
     
     # Word of the Day
