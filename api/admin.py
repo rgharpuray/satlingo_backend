@@ -1521,14 +1521,172 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
 @admin.register(LessonQuestion)
 class LessonQuestionAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for lesson questions"""
-    list_display = ['text_short', 'lesson', 'order', 'correct_answer_index']
+    list_display = ['text_short', 'lesson', 'order', 'correct_answer_index', 'edit_prompt_link', 'edit_explanation_link']
     list_filter = ['lesson', 'created_at']
-    search_fields = ['text', 'lesson__title']
+    search_fields = ['lesson__title', 'lesson__lesson_id']
     inlines = []
+    readonly_fields = ['edit_prompt_button', 'edit_explanation_button']
+    
+    fieldsets = (
+        ('Question Information', {
+            'fields': ('lesson', 'order', 'correct_answer_index', 'chunk_index')
+        }),
+        ('Prompt', {
+            'fields': ('edit_prompt_button', 'text'),
+            'description': 'Click the button below to edit the prompt using the visual editor, or edit the JSON directly in the field below.'
+        }),
+        ('Explanation', {
+            'fields': ('edit_explanation_button', 'explanation'),
+            'description': 'Click the button below to edit the explanation using the visual editor, or edit the JSON directly in the field below.'
+        }),
+    )
     
     def text_short(self, obj):
-        return obj.text[:100] + '...' if len(obj.text) > 100 else obj.text
+        # Handle both JSON array and plain text (for backwards compatibility)
+        if isinstance(obj.text, list) and len(obj.text) > 0:
+            first_block = obj.text[0]
+            if isinstance(first_block, dict) and first_block.get('type') == 'paragraph':
+                text = first_block.get('text', '')
+            else:
+                text = str(first_block)
+        else:
+            text = str(obj.text) if obj.text else ''
+        return text[:100] + '...' if len(text) > 100 else text
     text_short.short_description = 'Question'
+    
+    def edit_prompt_link(self, obj):
+        """Link to user-friendly prompt editor (for list view)"""
+        if obj.pk:
+            url = reverse('admin:api_lessonquestion_edit_prompt', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 8px 16px; background: #417690; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 12px;">📝 Edit Prompt</a>',
+                url
+            )
+        return "Save question first to edit prompt"
+    edit_prompt_link.short_description = 'Edit Prompt'
+    edit_prompt_link.allow_tags = True
+    
+    def edit_explanation_link(self, obj):
+        """Link to user-friendly explanation editor (for list view)"""
+        if obj.pk:
+            url = reverse('admin:api_lessonquestion_edit_explanation', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 8px 16px; background: #417690; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 12px;">📝 Edit Explanation</a>',
+                url
+            )
+        return "Save question first to edit explanation"
+    edit_explanation_link.short_description = 'Edit Explanation'
+    edit_explanation_link.allow_tags = True
+    
+    def edit_prompt_button(self, obj):
+        """Button to edit prompt (for detail/edit view)"""
+        if obj.pk:
+            url = reverse('admin:api_lessonquestion_edit_prompt', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 12px 24px; background: #417690; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 14px; margin-bottom: 10px;">📝 Edit Prompt (Easy Mode)</a>',
+                url
+            )
+        return "Save question first to edit prompt"
+    edit_prompt_button.short_description = ''
+    edit_prompt_button.allow_tags = True
+    
+    def edit_explanation_button(self, obj):
+        """Button to edit explanation (for detail/edit view)"""
+        if obj.pk:
+            url = reverse('admin:api_lessonquestion_edit_explanation', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 12px 24px; background: #417690; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 14px; margin-bottom: 10px;">📝 Edit Explanation (Easy Mode)</a>',
+                url
+            )
+        return "Save question first to edit explanation"
+    edit_explanation_button.short_description = ''
+    edit_explanation_button.allow_tags = True
+    
+    def get_urls(self):
+        """Add custom URLs for prompt and explanation editors"""
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<uuid:question_id>/edit-prompt/',
+                self.admin_site.admin_view(self.edit_prompt_view),
+                name='api_lessonquestion_edit_prompt',
+            ),
+            path(
+                '<uuid:question_id>/edit-explanation/',
+                self.admin_site.admin_view(self.edit_explanation_view),
+                name='api_lessonquestion_edit_explanation',
+            ),
+        ]
+        return custom_urls + urls
+    
+    def edit_prompt_view(self, request, question_id):
+        """Handle the prompt editor page"""
+        from django.shortcuts import get_object_or_404, render, redirect
+        from django.contrib import messages
+        import json
+        
+        question = get_object_or_404(LessonQuestion, pk=question_id)
+        
+        if request.method == 'POST':
+            try:
+                prompt_json = request.POST.get('prompt_json')
+                if prompt_json:
+                    prompt = json.loads(prompt_json)
+                    question.text = prompt
+                    question.save()
+                    messages.success(request, 'Prompt updated successfully!')
+                    return redirect('admin:api_lessonquestion_change', question_id)
+            except Exception as e:
+                messages.error(request, f'Error updating prompt: {str(e)}')
+        
+        # Get available assets for diagram selection
+        available_assets = list(question.lesson.assets.values('asset_id', 's3_url'))
+        
+        context = {
+            'question': question,
+            'prompt_json': mark_safe(json.dumps(question.text or [])),
+            'available_assets': mark_safe(json.dumps(available_assets)),
+            'opts': self.model._meta,
+            'has_view_permission': self.has_view_permission(request, question),
+            'has_change_permission': self.has_change_permission(request, question),
+        }
+        
+        return render(request, 'admin/api/lesson_question_prompt_editor.html', context)
+    
+    def edit_explanation_view(self, request, question_id):
+        """Handle the explanation editor page"""
+        from django.shortcuts import get_object_or_404, render, redirect
+        from django.contrib import messages
+        import json
+        
+        question = get_object_or_404(LessonQuestion, pk=question_id)
+        
+        if request.method == 'POST':
+            try:
+                explanation_json = request.POST.get('explanation_json')
+                if explanation_json:
+                    explanation = json.loads(explanation_json)
+                    question.explanation = explanation
+                    question.save()
+                    messages.success(request, 'Explanation updated successfully!')
+                    return redirect('admin:api_lessonquestion_change', question_id)
+            except Exception as e:
+                messages.error(request, f'Error updating explanation: {str(e)}')
+        
+        # Get available assets for diagram selection
+        available_assets = list(question.lesson.assets.values('asset_id', 's3_url'))
+        
+        context = {
+            'question': question,
+            'explanation_json': mark_safe(json.dumps(question.explanation or [])),
+            'available_assets': mark_safe(json.dumps(available_assets)),
+            'opts': self.model._meta,
+            'has_view_permission': self.has_view_permission(request, question),
+            'has_change_permission': self.has_change_permission(request, question),
+        }
+        
+        return render(request, 'admin/api/lesson_question_explanation_editor.html', context)
 
 
 @admin.register(LessonQuestionOption)

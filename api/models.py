@@ -454,9 +454,9 @@ class LessonQuestion(models.Model):
     """Questions for lessons - extracted from question chunks"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='questions')
-    text = models.TextField(help_text="Question prompt")
+    text = models.JSONField(default=list, help_text="Array of prompt blocks (paragraph, side_by_side, etc.)")
     correct_answer_index = models.IntegerField(validators=[MinValueValidator(0)])
-    explanation = models.TextField(null=True, blank=True)
+    explanation = models.JSONField(default=list, null=True, blank=True, help_text="Array of explanation blocks")
     order = models.IntegerField(help_text="Order in the lesson (based on chunk position)")
     chunk_index = models.IntegerField(help_text="Index of the question chunk in the chunks array")
     created_at = models.DateTimeField(auto_now_add=True)
