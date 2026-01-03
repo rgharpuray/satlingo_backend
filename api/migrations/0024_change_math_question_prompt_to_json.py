@@ -5,43 +5,71 @@ import json
 
 
 def convert_prompts_to_json(apps, schema_editor):
-    """Convert existing text prompts to JSON format"""
-    MathQuestion = apps.get_model('api', 'MathQuestion')
-    
-    for question in MathQuestion.objects.all():
-        # If prompt is a string (old format), convert to JSON array
-        if isinstance(question.prompt, str):
-            if question.prompt.strip():
-                # Convert text to a paragraph block
-                question.prompt = [{"type": "paragraph", "text": question.prompt}]
-            else:
-                question.prompt = []
-            question.save()
+    """Convert existing text prompts to JSON format in temporary field"""
+    from django.db import connection
+    with connection.cursor() as cursor:
+        # Get all questions with text prompts
+        cursor.execute("SELECT id, prompt FROM api_math_questions WHERE prompt IS NOT NULL")
+        rows = cursor.fetchall()
+        
+        for question_id, prompt_text in rows:
+            if prompt_text and isinstance(prompt_text, str):
+                # Convert text to JSON array
+                if prompt_text.strip():
+                    prompt_json = json.dumps([{"type": "paragraph", "text": prompt_text}])
+                else:
+                    prompt_json = json.dumps([])
+                
+                # Update the temporary JSON field
+                cursor.execute(
+                    "UPDATE api_math_questions SET prompt_json = %s::jsonb WHERE id = %s",
+                    [prompt_json, question_id]
+                )
 
 
 def reverse_convert_prompts_to_text(apps, schema_editor):
     """Convert JSON prompts back to text (for rollback)"""
-    MathQuestion = apps.get_model('api', 'MathQuestion')
-    
-    for question in MathQuestion.objects.all():
-        # If prompt is a list (JSON format), convert to text
-        if isinstance(question.prompt, list):
-            # Extract text from all paragraph blocks
-            text_parts = []
-            for block in question.prompt:
-                if isinstance(block, dict):
-                    if block.get('type') == 'paragraph' and block.get('text'):
-                        text_parts.append(block['text'])
-                    elif block.get('type') == 'side_by_side':
-                        # Extract explanation text from side-by-side blocks
-                        rows = block.get('rows', [])
-                        if not rows and block.get('explanation'):
-                            rows = [{'explanation': block.get('explanation', '')}]
-                        for row in rows:
-                            if row.get('explanation'):
-                                text_parts.append(row['explanation'])
-            question.prompt = ' '.join(text_parts)
-            question.save()
+    from django.db import connection
+    with connection.cursor() as cursor:
+        # Get all questions with JSON prompts
+        cursor.execute("SELECT id, prompt_json FROM api_math_questions WHERE prompt_json IS NOT NULL")
+        rows = cursor.fetchall()
+        
+        for question_id, prompt_json in rows:
+            if prompt_json:
+                try:
+                    # Parse JSON if it's a string
+                    if isinstance(prompt_json, str):
+                        prompt_data = json.loads(prompt_json)
+                    else:
+                        prompt_data = prompt_json
+                    
+                    # Extract text from blocks
+                    if isinstance(prompt_data, list):
+                        text_parts = []
+                        for block in prompt_data:
+                            if isinstance(block, dict):
+                                if block.get('type') == 'paragraph' and block.get('text'):
+                                    text_parts.append(block['text'])
+                                elif block.get('type') == 'side_by_side':
+                                    rows = block.get('rows', [])
+                                    if not rows and block.get('explanation'):
+                                        rows = [{'explanation': block.get('explanation', '')}]
+                                    for row in rows:
+                                        if row.get('explanation'):
+                                            text_parts.append(row['explanation'])
+                        prompt_text = ' '.join(text_parts)
+                    else:
+                        prompt_text = str(prompt_data)
+                    
+                    # Update the text field
+                    cursor.execute(
+                        "UPDATE api_math_questions SET prompt = %s WHERE id = %s",
+                        [prompt_text, question_id]
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    # If it's already text, leave it
+                    pass
 
 
 class Migration(migrations.Migration):
@@ -51,10 +79,29 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Step 1: Add temporary JSONField
+        migrations.AddField(
+            model_name='mathquestion',
+            name='prompt_json',
+            field=models.JSONField(default=list, null=True, blank=True),
+        ),
+        # Step 2: Convert data from text to JSON in temporary field
+        migrations.RunPython(convert_prompts_to_json, reverse_convert_prompts_to_text),
+        # Step 3: Remove old text field
+        migrations.RemoveField(
+            model_name='mathquestion',
+            name='prompt',
+        ),
+        # Step 4: Rename temporary field to original name
+        migrations.RenameField(
+            model_name='mathquestion',
+            old_name='prompt_json',
+            new_name='prompt',
+        ),
+        # Step 5: Update field to remove null/blank (now that it's the main field)
         migrations.AlterField(
             model_name='mathquestion',
             name='prompt',
             field=models.JSONField(default=list, help_text='Array of prompt blocks (paragraph, side_by_side, etc.)'),
         ),
-        migrations.RunPython(convert_prompts_to_json, reverse_convert_prompts_to_text),
     ]
