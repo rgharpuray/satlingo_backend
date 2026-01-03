@@ -3305,6 +3305,103 @@
             return text;
         }
         
+        function formatMathPrompt(promptBlocks, mathAssets, mathSectionId) {
+            // Format math question prompt blocks (similar to formatMathExplanation)
+            if (!promptBlocks || !Array.isArray(promptBlocks)) {
+                return '';
+            }
+            
+            const result = [];
+            
+            for (let i = 0; i < promptBlocks.length; i++) {
+                const block = promptBlocks[i];
+                let part = '';
+                
+                if (typeof block === 'string') {
+                    part = block;
+                } else if (block && typeof block === 'object') {
+                    if (block.type === 'paragraph') {
+                        let processedText = block.text || '';
+                        processedText = replaceDiagramSentinels(processedText, mathAssets, mathSectionId);
+                        processedText = replaceUnderlineSentinels(processedText);
+                        processedText = replaceBoldItalicSentinels(processedText);
+                        part = `<p style="margin-bottom: 15px; line-height: 1.6; color: #000;">${processedText}</p>`;
+                    } else if (block.type === 'side_by_side') {
+                        // Handle side-by-side blocks
+                        let rows = [];
+                        if (block.rows && Array.isArray(block.rows)) {
+                            rows = block.rows;
+                        } else if (block.explanation !== undefined || block.diagram_asset_id !== undefined) {
+                            rows = [{
+                                explanation: block.explanation || '',
+                                diagram_asset_id: block.diagram_asset_id || ''
+                            }];
+                        }
+                        
+                        const rowsHtml = rows.map((row, rowIndex) => {
+                            let processedExplanation = row.explanation || '';
+                            processedExplanation = replaceUnderlineSentinels(processedExplanation);
+                            processedExplanation = replaceBoldItalicSentinels(processedExplanation);
+                            
+                            let rightSideHtml = '';
+                            if (row.diagram_asset_id) {
+                                const asset = mathAssets.find(a => a.asset_id === row.diagram_asset_id);
+                                let imageUrl = '';
+                                
+                                if (asset && asset.s3_url) {
+                                    imageUrl = asset.s3_url;
+                                } else if (row.diagram_asset_id && mathSectionId) {
+                                    imageUrl = `https://keuvi.s3.amazonaws.com/math-sections/${mathSectionId}/${row.diagram_asset_id}.png`;
+                                }
+                                
+                                if (imageUrl) {
+                                    rightSideHtml = `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(row.diagram_asset_id)}" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;" onerror="this.style.display='none'; console.error('Failed to load diagram:', '${row.diagram_asset_id}');">`;
+                                } else {
+                                    rightSideHtml = `<span style="color: #999; font-style: italic;">[Diagram ${escapeHtml(row.diagram_asset_id)} not found]</span>`;
+                                }
+                            } else if (row.right_text) {
+                                let processedText = row.right_text || '';
+                                processedText = replaceUnderlineSentinels(processedText);
+                                processedText = replaceBoldItalicSentinels(processedText);
+                                rightSideHtml = `<div style="line-height: 1.6; color: #000;">${processedText}</div>`;
+                            } else {
+                                rightSideHtml = '<span style="color: #999; font-style: italic;">[No content]</span>';
+                            }
+                            
+                            const marginTop = rowIndex > 0 ? '30px' : '20px';
+                            return `<div style="display: flex; flex-direction: row; gap: 20px; margin-top: ${marginTop}; margin-bottom: 20px; align-items: flex-start; flex-wrap: wrap;">
+                                <div style="flex: 1 1 45%; min-width: 250px;">
+                                    <div style="line-height: 1.6; color: #000;">${processedExplanation}</div>
+                                </div>
+                                <div style="flex: 1 1 45%; min-width: 250px;">
+                                    ${rightSideHtml}
+                                </div>
+                            </div>`;
+                        }).join('');
+                        
+                        part = rowsHtml;
+                    } else if (block.text) {
+                        // Fallback
+                        part = block.text;
+                    }
+                }
+                
+                if (part && part.trim().length > 0) {
+                    if (block && block.type === 'side_by_side') {
+                        if (result.length > 0) {
+                            result.push('<div style="margin-top: 20px;"></div>' + part);
+                        } else {
+                            result.push(part);
+                        }
+                    } else {
+                        result.push(part);
+                    }
+                }
+            }
+            
+            return result.join('');
+        }
+        
         function formatMathExplanation(explanation, isMathSection = false) {
             // Handle null/undefined
             if (!explanation) {
@@ -4240,23 +4337,27 @@
                 const questionCard = document.createElement('div');
                 questionCard.className = 'question-card';
                 
-                // Process question prompt with sentinel replacement
-                let questionPrompt = question.prompt || question.text || '';
-                // Get assets from mathSection or currentMathSectionData (fallback)
+                // Process question prompt - handle both JSON blocks and plain text (for backwards compatibility)
+                let questionPrompt = '';
                 const mathAssets = (mathSection && mathSection.assets) || (currentMathSectionData && currentMathSectionData.assets) || [];
                 const mathSectionId = (mathSection && (mathSection.section_id || mathSection.id)) || (currentMathSectionData && (currentMathSectionData.section_id || currentMathSectionData.id)) || 'unknown';
-                console.log('Math section assets for sentinel replacement:', mathAssets, 'sectionId:', mathSectionId, 'questionPrompt:', questionPrompt);
-                // Replace diagram sentinels in question prompt (BEFORE escaping HTML)
-                questionPrompt = replaceDiagramSentinels(questionPrompt, mathAssets, mathSectionId);
-                // Replace underline sentinels
-                questionPrompt = replaceUnderlineSentinels(questionPrompt);
-                // Note: We don't escape HTML here because replaceDiagramSentinels and replaceUnderlineSentinels
-                // add HTML tags (<img> and <u>) that we want to render. The text content should already be safe
-                // from the database.
+                
+                if (Array.isArray(question.prompt)) {
+                    // New format: array of blocks
+                    questionPrompt = formatMathPrompt(question.prompt, mathAssets, mathSectionId);
+                } else if (typeof question.prompt === 'string' && question.prompt) {
+                    // Old format: plain text (backwards compatibility)
+                    questionPrompt = replaceDiagramSentinels(question.prompt, mathAssets, mathSectionId);
+                    questionPrompt = replaceUnderlineSentinels(questionPrompt);
+                    questionPrompt = `<p style="margin-bottom: 15px; font-size: 16px; color: #000;">${questionPrompt}</p>`;
+                } else {
+                    // Fallback
+                    questionPrompt = `<p style="margin-bottom: 15px; font-size: 16px; color: #000;">${escapeHtml(question.text || '')}</p>`;
+                }
                 
                 questionCard.innerHTML = `
                     <h4>Question ${questionNumber}</h4>
-                    <p style="margin-bottom: 15px; font-size: 16px; color: #000;">${questionPrompt}</p>
+                    <div style="margin-bottom: 15px; font-size: 16px; color: #000;">${questionPrompt}</div>
                     <div class="options-container">
                         ${question.choices && question.choices.length > 0 ? question.choices.map((choice, optIndex) => `
                             <div class="option" onclick="selectOption('${question.id}', ${optIndex})">
@@ -5270,13 +5371,27 @@
                     // Get options - handle both array of strings and array of objects
                     const options = question.options || question.choices || [];
                     
-                    // Get question text - math sections use 'prompt', others use 'text'
-                    const questionText = question.prompt || question.text || '';
+                    // Get question text - math sections use 'prompt' (can be array or string), others use 'text'
+                    let questionText = '';
+                    const mathAssets = currentMathSectionData?.assets || [];
+                    const mathSectionId = currentMathSectionData?.section_id || currentMathSectionData?.id || '';
+                    
+                    if (Array.isArray(question.prompt)) {
+                        // New format: array of blocks
+                        questionText = formatMathPrompt(question.prompt, mathAssets, mathSectionId);
+                    } else if (typeof question.prompt === 'string' && question.prompt) {
+                        // Old format: plain text (backwards compatibility)
+                        questionText = replaceDiagramSentinels(question.prompt, mathAssets, mathSectionId);
+                        questionText = replaceUnderlineSentinels(questionText);
+                        questionText = `<p style="margin-bottom: 10px; font-size: 14px; color: #000;">${questionText}</p>`;
+                    } else {
+                        questionText = `<p style="margin-bottom: 10px; font-size: 14px; color: #000;">${escapeHtml(question.text || '')}</p>`;
+                    }
                     
                     detailsHTML += `
                         <div class="question-card" style="margin-bottom: 15px;">
                             <h4>Question ${questionNumber} ${isCorrect ? '✓' : '✗'}</h4>
-                            <p style="margin-bottom: 10px; font-size: 14px; color: #000;">${questionText}</p>
+                            <div style="margin-bottom: 10px; font-size: 14px; color: #000;">${questionText}</div>
                             <div class="options-container">
                                 ${options.map((option, optIndex) => {
                                     let optionClass = 'option';

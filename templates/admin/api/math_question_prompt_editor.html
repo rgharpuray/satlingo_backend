@@ -1,0 +1,495 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .explanation-editor {
+        margin: 20px 0;
+    }
+    .block-item {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background: #f9f9f9;
+    }
+    .block-item.side-by-side {
+        border-color: #3498db;
+        background: #e8f4f8;
+    }
+    .block-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .block-type {
+        font-weight: bold;
+        color: #666;
+        text-transform: uppercase;
+        font-size: 12px;
+    }
+    .block-actions {
+        display: flex;
+        gap: 10px;
+    }
+    .btn-small {
+        padding: 4px 8px;
+        font-size: 11px;
+        border-radius: 3px;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        background: white;
+    }
+    .btn-small:hover {
+        background: #f0f0f0;
+    }
+    .btn-primary {
+        background: #417690;
+        color: white;
+        border-color: #417690;
+    }
+    .btn-primary:hover {
+        background: #205067;
+    }
+    .block-content {
+        margin-top: 10px;
+    }
+    .block-content textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 12px;
+    }
+    .block-content input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+    }
+    .block-content select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+    }
+    .side-by-side-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-top: 10px;
+    }
+    .field-group {
+        display: flex;
+        flex-direction: column;
+    }
+    .field-group label {
+        font-weight: bold;
+        margin-bottom: 5px;
+        font-size: 12px;
+        color: #666;
+    }
+    .add-block-btn {
+        padding: 10px 20px;
+        background: #417690;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-top: 20px;
+    }
+    .add-block-btn:hover {
+        background: #205067;
+    }
+    .side-by-side-row {
+        border: 1px solid #bbb;
+        border-radius: 4px;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: white;
+    }
+    .row-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .row-number {
+        font-weight: bold;
+        color: #666;
+        font-size: 12px;
+    }
+    .help-text {
+        font-size: 11px;
+        color: #666;
+        margin-top: 5px;
+        font-style: italic;
+    }
+    .diagram-preview {
+        margin-top: 10px;
+        max-width: 200px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 5px;
+    }
+    .diagram-preview img {
+        max-width: 100%;
+        height: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="explanation-editor">
+    <h1>Edit Prompt: {{ question.question_id }}</h1>
+    <p><strong>Math Section:</strong> {{ question.math_section.title }}</p>
+    <p><strong>Question ID:</strong> {{ question.question_id }}</p>
+    
+    <form method="post">
+        {% csrf_token %}
+        <div id="blocks-container"></div>
+        
+        <div style="margin-top: 20px;">
+            <button type="button" class="add-block-btn" onclick="addBlock('paragraph')">+ Add Paragraph</button>
+            <button type="button" class="add-block-btn" onclick="addBlock('side_by_side')">+ Add Side-by-Side</button>
+        </div>
+        
+        <input type="hidden" name="prompt_json" id="prompt_json">
+        
+        <div style="margin-top: 30px;">
+            <button type="submit" class="btn-primary" style="padding: 10px 20px; font-size: 14px;">Save Prompt</button>
+            <a href="{% url 'admin:api_mathquestion_change' question.id %}" style="margin-left: 10px; padding: 10px 20px; background: #ccc; color: #333; text-decoration: none; border-radius: 4px; display: inline-block;">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    const blocks = {{ prompt_json|safe }};
+    const availableAssets = {{ available_assets|safe }};
+    const questionId = '{{ question.id }}';
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function renderBlocks() {
+        const container = document.getElementById('blocks-container');
+        container.innerHTML = '';
+        
+        blocks.forEach((block, index) => {
+            const blockDiv = document.createElement('div');
+            blockDiv.className = 'block-item' + (block.type === 'side_by_side' ? ' side-by-side' : '');
+            blockDiv.id = `block-${index}`;
+            
+            let contentHtml = '';
+            
+            if (block.type === 'side_by_side') {
+                // Support both new format (rows array) and legacy format (single explanation/diagram)
+                let rows = [];
+                if (block.rows && Array.isArray(block.rows)) {
+                    rows = block.rows;
+                } else if (block.explanation !== undefined || block.diagram_asset_id !== undefined) {
+                    // Legacy format: convert to rows array
+                    rows = [{
+                        explanation: block.explanation || '',
+                        diagram_asset_id: block.diagram_asset_id || ''
+                    }];
+                } else {
+                    // Empty: start with one row
+                    rows = [{ explanation: '', diagram_asset_id: '' }];
+                }
+                
+                // Render all rows
+                const rowsHtml = rows.map((row, rowIndex) => {
+                    const hasDiagram = row.diagram_asset_id && row.diagram_asset_id !== '';
+                    const hasText = row.right_text && row.right_text !== '';
+                    const rightType = hasDiagram ? 'diagram' : (hasText ? 'text' : 'diagram'); // Default to diagram
+                    
+                    return `
+                    <div class="side-by-side-row" id="row-${index}-${rowIndex}">
+                        <div class="row-header">
+                            <span class="row-number">Row ${rowIndex + 1}</span>
+                            <button type="button" class="btn-small" onclick="removeRow(${index}, ${rowIndex})" style="background: #dc3545; color: white; border-color: #dc3545;">Remove Row</button>
+                        </div>
+                        <div class="side-by-side-fields">
+                            <div class="field-group">
+                                <label>Explanation Text (Left Side)</label>
+                                <textarea id="explanation-${index}-${rowIndex}" onchange="updateBlock(${index})">${escapeHtml(row.explanation || '')}</textarea>
+                            </div>
+                            <div class="field-group">
+                                <label>Right Side Type</label>
+                                <select id="right-type-${index}-${rowIndex}" onchange="toggleRightSideType(${index}, ${rowIndex})">
+                                    <option value="diagram" ${rightType === 'diagram' ? 'selected' : ''}>Diagram</option>
+                                    <option value="text" ${rightType === 'text' ? 'selected' : ''}>Text (with formatting)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="right-content-${index}-${rowIndex}">
+                            ${rightType === 'diagram' ? `
+                                <div class="field-group">
+                                    <label>Diagram (Right Side)</label>
+                                    <select id="diagram-${index}-${rowIndex}" onchange="updateBlock(${index}); updateDiagramPreview(${index}, ${rowIndex})">
+                                        <option value="">-- Select Diagram --</option>
+                                        ${availableAssets.map(asset => `
+                                            <option value="${asset.asset_id}" ${row.diagram_asset_id === asset.asset_id ? 'selected' : ''}>
+                                                ${escapeHtml(asset.asset_id)}
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                    <div id="preview-${index}-${rowIndex}"></div>
+                                </div>
+                            ` : `
+                                <div class="field-group">
+                                    <label>Text (Right Side)</label>
+                                    <textarea id="right-text-${index}-${rowIndex}" onchange="updateBlock(${index})" placeholder="Enter text here. Use *bold* for bold and _italic_ for italic.">${escapeHtml(row.right_text || '')}</textarea>
+                                    <p class="help-text">Formatting: Use *text* for <strong>bold</strong> and _text_ for <em>italic</em></p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+                }).join('');
+                
+                contentHtml = `
+                    <div id="rows-container-${index}">
+                        ${rowsHtml}
+                    </div>
+                    <button type="button" class="btn-small add-row-btn" onclick="addRow(${index})">+ Add Another Row</button>
+                `;
+            } else if (block.type === 'paragraph') {
+                contentHtml = `
+                    <div class="field-group">
+                        <label>Paragraph Text</label>
+                        <textarea id="text-${index}" onchange="updateBlock(${index})">${escapeHtml(block.text || '')}</textarea>
+                    </div>
+                `;
+            }
+            
+            blockDiv.innerHTML = `
+                <div class="block-header">
+                    <span class="block-type">${block.type || 'unknown'}</span>
+                    <div class="block-actions">
+                        <button type="button" class="btn-small" onclick="moveBlock(${index}, -1)">↑ Move Up</button>
+                        <button type="button" class="btn-small" onclick="moveBlock(${index}, 1)">↓ Move Down</button>
+                        <button type="button" class="btn-small" onclick="deleteBlock(${index})" style="background: #dc3545; color: white; border-color: #dc3545;">Delete</button>
+                    </div>
+                </div>
+                <div class="block-content">
+                    ${contentHtml}
+                </div>
+            `;
+            
+            container.appendChild(blockDiv);
+            
+            // Update previews if side_by_side
+            if (block.type === 'side_by_side') {
+                let rows = [];
+                if (block.rows && Array.isArray(block.rows)) {
+                    rows = block.rows;
+                } else if (block.explanation !== undefined || block.diagram_asset_id !== undefined) {
+                    rows = [{ explanation: block.explanation || '', diagram_asset_id: block.diagram_asset_id || '' }];
+                }
+                
+                rows.forEach((row, rowIndex) => {
+                    if (row.diagram_asset_id) {
+                        updateDiagramPreview(index, rowIndex);
+                    }
+                });
+            }
+        });
+        
+        updateHiddenField();
+    }
+    
+    function toggleRightSideType(blockIndex, rowIndex) {
+        const typeSelect = document.getElementById(`right-type-${blockIndex}-${rowIndex}`);
+        const rightContentDiv = document.getElementById(`right-content-${blockIndex}-${rowIndex}`);
+        const selectedType = typeSelect.value;
+        
+        const block = blocks[blockIndex];
+        let rows = [];
+        if (block.rows && Array.isArray(block.rows)) {
+            rows = block.rows;
+        } else if (block.explanation !== undefined || block.diagram_asset_id !== undefined) {
+            rows = [{ explanation: block.explanation || '', diagram_asset_id: block.diagram_asset_id || '' }];
+        }
+        const row = rows[rowIndex] || {};
+        const currentText = row.right_text || '';
+        const currentDiagram = row.diagram_asset_id || '';
+        
+        if (selectedType === 'diagram') {
+            rightContentDiv.innerHTML = `
+                <div class="field-group">
+                    <label>Diagram (Right Side)</label>
+                    <select id="diagram-${blockIndex}-${rowIndex}" onchange="updateBlock(${blockIndex}); updateDiagramPreview(${blockIndex}, ${rowIndex})">
+                        <option value="">-- Select Diagram --</option>
+                        ${availableAssets.map(asset => `
+                            <option value="${asset.asset_id}" ${currentDiagram === asset.asset_id ? 'selected' : ''}>
+                                ${escapeHtml(asset.asset_id)}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <div id="preview-${blockIndex}-${rowIndex}"></div>
+                </div>
+            `;
+            if (currentDiagram) {
+                setTimeout(() => updateDiagramPreview(blockIndex, rowIndex), 100);
+            }
+        } else {
+            rightContentDiv.innerHTML = `
+                <div class="field-group">
+                    <label>Text (Right Side)</label>
+                    <textarea id="right-text-${blockIndex}-${rowIndex}" onchange="updateBlock(${blockIndex})" placeholder="Enter text here. Use *bold* for bold and _italic_ for italic.">${escapeHtml(currentText)}</textarea>
+                    <p class="help-text">Formatting: Use *text* for <strong>bold</strong> and _text_ for <em>italic</em></p>
+                </div>
+            `;
+        }
+    }
+    
+    function updateDiagramPreview(blockIndex, rowIndex) {
+        const select = document.getElementById(`diagram-${blockIndex}-${rowIndex}`);
+        const previewDiv = document.getElementById(`preview-${blockIndex}-${rowIndex}`);
+        if (!select || !previewDiv) return;
+        
+        const selectedAssetId = select.value;
+        if (selectedAssetId) {
+            const asset = availableAssets.find(a => a.asset_id === selectedAssetId);
+            if (asset && asset.s3_url) {
+                previewDiv.innerHTML = `
+                    <div class="diagram-preview">
+                        <img src="${asset.s3_url}" alt="${escapeHtml(selectedAssetId)}" onerror="this.parentElement.innerHTML='<p style=\\'color:red;\\'>Failed to load image</p>'">
+                    </div>
+                `;
+            } else {
+                previewDiv.innerHTML = '<p style="color: #999; font-size: 11px;">No preview available</p>';
+            }
+        } else {
+            previewDiv.innerHTML = '';
+        }
+    }
+    
+    function addRow(blockIndex) {
+        const block = blocks[blockIndex];
+        if (!block.rows) {
+            block.rows = [];
+        }
+        block.rows.push({ explanation: '', diagram_asset_id: '' });
+        renderBlocks();
+    }
+    
+    function removeRow(blockIndex, rowIndex) {
+        const block = blocks[blockIndex];
+        if (block.rows && Array.isArray(block.rows)) {
+            block.rows.splice(rowIndex, 1);
+            if (block.rows.length === 0) {
+                // If no rows left, remove the block
+                deleteBlock(blockIndex);
+                return;
+            }
+        } else {
+            // Legacy format - convert to rows and remove
+            deleteBlock(blockIndex);
+            return;
+        }
+        renderBlocks();
+    }
+    
+    function addBlock(type) {
+        let newBlock = { type: type };
+        if (type === 'paragraph') {
+            newBlock.text = '';
+        } else if (type === 'equation') {
+            newBlock.latex = '';
+        } else if (type === 'side_by_side') {
+            newBlock.rows = [{ explanation: '', diagram_asset_id: '' }];
+        }
+        blocks.push(newBlock);
+        renderBlocks();
+    }
+    
+    function updateBlock(index) {
+        const block = blocks[index];
+        if (!block) return;
+        
+        if (block.type === 'paragraph') {
+            const textArea = document.getElementById(`text-${index}`);
+            if (textArea) {
+                block.text = textArea.value;
+            }
+        } else if (block.type === 'equation') {
+            const latexArea = document.getElementById(`latex-${index}`);
+            if (latexArea) {
+                block.latex = latexArea.value;
+            }
+        } else if (block.type === 'side_by_side') {
+            // Get rows container
+            const rowsContainer = document.getElementById(`rows-container-${index}`);
+            if (!rowsContainer) return;
+            
+            // Ensure rows array exists
+            if (!block.rows || !Array.isArray(block.rows)) {
+                block.rows = [];
+            }
+            
+            // Update each row
+            const rowDivs = rowsContainer.querySelectorAll('.side-by-side-row');
+            block.rows = [];
+            rowDivs.forEach((rowDiv, rowIndex) => {
+                const explanationArea = document.getElementById(`explanation-${index}-${rowIndex}`);
+                const typeSelect = document.getElementById(`right-type-${index}-${rowIndex}`);
+                const diagramSelect = document.getElementById(`diagram-${index}-${rowIndex}`);
+                const textArea = document.getElementById(`right-text-${index}-${rowIndex}`);
+                
+                const row = {
+                    explanation: explanationArea ? explanationArea.value : ''
+                };
+                
+                if (typeSelect && typeSelect.value === 'diagram') {
+                    row.diagram_asset_id = diagramSelect ? diagramSelect.value : '';
+                } else if (typeSelect && typeSelect.value === 'text') {
+                    row.right_text = textArea ? textArea.value : '';
+                }
+                
+                block.rows.push(row);
+            });
+        }
+        
+        updateHiddenField();
+    }
+    
+    function moveBlock(index, direction) {
+        const newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= blocks.length) return;
+        
+        const temp = blocks[index];
+        blocks[index] = blocks[newIndex];
+        blocks[newIndex] = temp;
+        
+        renderBlocks();
+    }
+    
+    function deleteBlock(index) {
+        blocks.splice(index, 1);
+        renderBlocks();
+    }
+    
+    function updateHiddenField() {
+        document.getElementById('prompt_json').value = JSON.stringify(blocks);
+    }
+    
+    // Initialize on page load
+    if (blocks.length === 0) {
+        // Start with empty array
+        blocks = [];
+    }
+    renderBlocks();
+</script>
+{% endblock %}
+

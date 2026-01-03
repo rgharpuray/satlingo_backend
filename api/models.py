@@ -918,7 +918,7 @@ class MathQuestion(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     math_section = models.ForeignKey(MathSection, on_delete=models.CASCADE, related_name='questions')
     question_id = models.CharField(max_length=255, help_text="Unique identifier from JSON (e.g., 'q1')")
-    prompt = models.TextField(help_text="Question prompt")
+    prompt = models.JSONField(default=list, help_text="Array of prompt blocks (paragraph, side_by_side, etc.)")
     correct_answer_index = models.IntegerField(validators=[MinValueValidator(0)], default=0)
     explanation = models.JSONField(default=list, help_text="Array of explanation blocks")
     order = models.IntegerField(help_text="Order of the question")
