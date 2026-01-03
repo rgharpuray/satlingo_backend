@@ -11,7 +11,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -400,10 +400,10 @@ class QuestionOptionAdmin(admin.ModelAdmin):
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
     """Admin interface for users"""
-    list_display = ['email', 'username', 'is_staff', 'is_active', 'date_joined']
-    list_filter = ['is_staff', 'is_active', 'date_joined']
+    list_display = ['email', 'username', 'is_staff', 'is_active', 'is_premium', 'subscription_status', 'date_joined']
+    list_filter = ['is_staff', 'is_active', 'is_premium', 'date_joined']
     search_fields = ['email', 'username']
-    readonly_fields = ['id', 'date_joined', 'last_login']
+    readonly_fields = ['id', 'date_joined', 'last_login', 'subscription_status_display']
     
     fieldsets = (
         ('Account Information', {
@@ -412,10 +412,44 @@ class UserAdmin(admin.ModelAdmin):
         ('Permissions', {
             'fields': ('is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')
         }),
+        ('Subscription', {
+            'fields': ('is_premium', 'stripe_customer_id', 'subscription_status_display')
+        }),
         ('Important Dates', {
             'fields': ('date_joined', 'last_login')
         }),
     )
+    
+    def subscription_status(self, obj):
+        """Display subscription status in list view"""
+        if obj.is_premium:
+            return format_html('<span style="color: green;">✓ Premium</span>')
+        elif obj.has_active_subscription:
+            return format_html('<span style="color: orange;">⚠ Active Sub</span>')
+        else:
+            return format_html('<span style="color: gray;">Free</span>')
+    subscription_status.short_description = 'Subscription'
+    subscription_status.boolean = False
+    
+    def subscription_status_display(self, obj):
+        """Display detailed subscription status in detail view"""
+        status_parts = []
+        
+        if obj.is_premium:
+            status_parts.append('<strong style="color: green;">Premium: ✓ Enabled</strong>')
+        else:
+            status_parts.append('<strong style="color: gray;">Premium: ✗ Disabled</strong>')
+        
+        active_subs = obj.subscriptions.filter(status='active')
+        if active_subs.exists():
+            status_parts.append(f'<br><strong>Active Subscriptions: {active_subs.count()}</strong>')
+            for sub in active_subs[:3]:  # Show up to 3
+                status_parts.append(f'<br>  • {sub.stripe_subscription_id} (ends: {sub.current_period_end.strftime("%Y-%m-%d")})')
+        else:
+            status_parts.append('<br><em>No active subscriptions</em>')
+        
+        return format_html(''.join(status_parts))
+    subscription_status_display.short_description = 'Subscription Details'
 
 
 @admin.register(UserSession)
