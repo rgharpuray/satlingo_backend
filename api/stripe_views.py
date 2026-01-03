@@ -411,22 +411,20 @@ def handle_subscription_updated(subscription):
         sub.save()
         
         # Update user premium status
-        # Premium if: status is active/trialing AND period hasn't ended yet
-        # Even if canceled (cancel_at_period_end=True), keep premium until period ends
+        # IMPORTANT: Premium should remain active until the END of the billing period they paid for
+        # (current_period_end from when they first subscribed), NOT from the cancellation date
+        # Even if canceled (cancel_at_period_end=True), keep premium until the original period ends
         subscription_status = subscription['status']
-        period_end = sub.current_period_end
+        period_end = sub.current_period_end  # This is the end of the period they originally paid for
         now = timezone.now()
         
-        if subscription_status in ['active', 'trialing']:
-            # Subscription is active - check if period has ended
-            if period_end and period_end > now:
-                # Still within current period - keep premium
-                is_premium = True
-            else:
-                # Period has ended - remove premium
-                is_premium = False
+        # Check if we're still within the billing period they paid for
+        if period_end and period_end > now:
+            # Still within the period they paid for - keep premium regardless of status
+            # (Stripe keeps status as 'active' until period ends when cancel_at_period_end=True)
+            is_premium = True
         else:
-            # Status is canceled, incomplete, past_due, etc. - remove premium
+            # Period has ended - remove premium
             is_premium = False
         
         sub.user.is_premium = is_premium
