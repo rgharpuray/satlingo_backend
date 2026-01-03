@@ -2906,7 +2906,23 @@
             
             // Show submit section for lessons (questions are inline but can be answered)
             document.getElementById('questionsContainer').innerHTML = '';
-            if (lesson.questions && lesson.questions.length > 0) {
+            
+            // Check if there are questions on the CURRENT page (not just anywhere in the lesson)
+            let hasQuestionsOnCurrentPage = false;
+            if (lesson.questions && lesson.questions.length > 0 && pages && pages.length > 0 && pageIndex >= 0 && pageIndex < pages.length) {
+                const currentPage = pages[pageIndex];
+                const currentPageChunkIndices = new Set();
+                currentPage.forEach(({chunkIdx}) => {
+                    currentPageChunkIndices.add(chunkIdx);
+                });
+                
+                // Check if any question's chunk_index is on the current page
+                hasQuestionsOnCurrentPage = lesson.questions.some(q => 
+                    q.chunk_index !== undefined && currentPageChunkIndices.has(q.chunk_index)
+                );
+            }
+            
+            if (hasQuestionsOnCurrentPage) {
                 document.getElementById('submitSection').style.display = 'block';
             } else {
                 document.getElementById('submitSection').style.display = 'none';
@@ -4698,7 +4714,7 @@
             });
             
             if (currentPageQuestions.length === 0) {
-                resultsSection.innerHTML = '<p>No questions on this page.</p>';
+                resultsSection.innerHTML = '<p style="padding: 20px; color: #666;">No questions on this page. Navigate to a page with questions to submit answers.</p>';
                 return;
             }
             

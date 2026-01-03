@@ -1,4 +1,5 @@
 import stripe
+import logging
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
@@ -7,6 +8,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.utils import timezone
 from .models import User, Subscription
+
+logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -198,33 +201,43 @@ def stripe_webhook(request):
     sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
     
     if not settings.STRIPE_WEBHOOK_SECRET:
+        logger.error("Stripe webhook secret not configured")
         return Response({'error': 'Webhook secret not configured'}, status=400)
     
     try:
         event = stripe.Webhook.construct_event(
             payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
         )
-    except ValueError:
+        logger.info(f"Received Stripe webhook: {event['type']} (id: {event.get('id')})")
+    except ValueError as e:
+        logger.error(f"Invalid webhook payload: {str(e)}")
         return Response({'error': 'Invalid payload'}, status=400)
-    except stripe.error.SignatureVerificationError:
+    except stripe.error.SignatureVerificationError as e:
+        logger.error(f"Invalid webhook signature: {str(e)}")
         return Response({'error': 'Invalid signature'}, status=400)
     
     # Handle the event
-    if event['type'] == 'checkout.session.completed':
-        session = event['data']['object']
-        handle_checkout_session(session)
-    
-    elif event['type'] == 'customer.subscription.created':
-        subscription = event['data']['object']
-        handle_subscription_created(subscription)
-    
-    elif event['type'] == 'customer.subscription.updated':
-        subscription = event['data']['object']
-        handle_subscription_updated(subscription)
-    
-    elif event['type'] == 'customer.subscription.deleted':
-        subscription = event['data']['object']
-        handle_subscription_deleted(subscription)
+    try:
+        if event['type'] == 'checkout.session.completed':
+            session = event['data']['object']
+            handle_checkout_session(session)
+        
+        elif event['type'] == 'customer.subscription.created':
+            subscription = event['data']['object']
+            handle_subscription_created(subscription)
+        
+        elif event['type'] == 'customer.subscription.updated':
+            subscription = event['data']['object']
+            handle_subscription_updated(subscription)
+        
+        elif event['type'] == 'customer.subscription.deleted':
+            subscription = event['data']['object']
+            handle_subscription_deleted(subscription)
+        
+        logger.info(f"Successfully processed webhook: {event['type']}")
+    except Exception as e:
+        logger.error(f"Error handling webhook {event['type']}: {str(e)}", exc_info=True)
+        return Response({'error': 'Webhook processing failed'}, status=500)
     
     return Response({'status': 'success'})
 
@@ -243,15 +256,20 @@ def handle_checkout_session(session):
 def handle_subscription_created(subscription):
     """Handle new subscription"""
     customer_id = subscription['customer']
+    subscription_id = subscription['id']
+    subscription_status = subscription['status']
+    
+    logger.info(f"Processing subscription.created webhook: {subscription_id} for customer {customer_id}, status: {subscription_status}")
+    
     try:
         user = User.objects.get(stripe_customer_id=customer_id)
         
         # Create or update subscription record
         sub, created = Subscription.objects.update_or_create(
-            stripe_subscription_id=subscription['id'],
+            stripe_subscription_id=subscription_id,
             defaults={
                 'user': user,
-                'status': subscription['status'],
+                'status': subscription_status,
                 'current_period_start': timezone.datetime.fromtimestamp(
                     subscription['current_period_start'], tz=timezone.utc
                 ),
@@ -263,10 +281,15 @@ def handle_subscription_created(subscription):
         )
         
         # Set premium status based on subscription status (active, trialing = premium)
-        user.is_premium = (subscription['status'] in ['active', 'trialing'])
+        is_premium = (subscription_status in ['active', 'trialing'])
+        user.is_premium = is_premium
         user.save()
+        
+        logger.info(f"Subscription {subscription_id} processed: user {user.email}, is_premium={is_premium}, created={created}")
     except User.DoesNotExist:
-        pass
+        logger.error(f"User not found for customer_id: {customer_id} in subscription.created webhook")
+    except Exception as e:
+        logger.error(f"Error processing subscription.created webhook: {str(e)}", exc_info=True)
 
 
 def handle_subscription_updated(subscription):
@@ -283,11 +306,34 @@ def handle_subscription_updated(subscription):
         sub.cancel_at_period_end = subscription.get('cancel_at_period_end', False)
         sub.save()
         
-        # Update user premium status
-        sub.user.is_premium = (sub.status == 'active')
+        # Update user premium status (active or trialing = premium)
+        sub.user.is_premium = (sub.status in ['active', 'trialing'])
         sub.user.save()
     except Subscription.DoesNotExist:
-        pass
+        # Subscription doesn't exist yet, try to create it
+        customer_id = subscription.get('customer')
+        if customer_id:
+            try:
+                user = User.objects.get(stripe_customer_id=customer_id)
+                sub, created = Subscription.objects.update_or_create(
+                    stripe_subscription_id=subscription['id'],
+                    defaults={
+                        'user': user,
+                        'status': subscription['status'],
+                        'current_period_start': timezone.datetime.fromtimestamp(
+                            subscription['current_period_start'], tz=timezone.utc
+                        ),
+                        'current_period_end': timezone.datetime.fromtimestamp(
+                            subscription['current_period_end'], tz=timezone.utc
+                        ),
+                        'cancel_at_period_end': subscription.get('cancel_at_period_end', False),
+                    }
+                )
+                # Set premium status
+                user.is_premium = (subscription['status'] in ['active', 'trialing'])
+                user.save()
+            except User.DoesNotExist:
+                pass
 
 
 def handle_subscription_deleted(subscription):
