@@ -2473,13 +2473,72 @@ class MathSectionAdmin(nested_admin.NestedModelAdmin):
 @admin.register(MathQuestion)
 class MathQuestionAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for math questions"""
-    list_display = ['prompt_short', 'math_section', 'question_id', 'order', 'correct_answer_index']
+    list_display = ['prompt_short', 'math_section', 'question_id', 'order', 'correct_answer_index', 'edit_explanation_link']
     list_filter = ['math_section', 'created_at']
     search_fields = ['prompt', 'question_id', 'math_section__title']
     
     def prompt_short(self, obj):
         return obj.prompt[:100] + '...' if len(obj.prompt) > 100 else obj.prompt
     prompt_short.short_description = 'Question'
+    
+    def edit_explanation_link(self, obj):
+        """Link to user-friendly explanation editor"""
+        if obj.pk:
+            url = reverse('admin:api_mathquestion_edit_explanation', args=[obj.pk])
+            return format_html(
+                '<a href="{}" class="button" style="padding: 8px 16px; background: #417690; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 12px;">📝 Edit Explanation</a>',
+                url
+            )
+        return "Save question first to edit explanation"
+    edit_explanation_link.short_description = 'Edit Explanation'
+    edit_explanation_link.allow_tags = True
+    
+    def get_urls(self):
+        """Add custom URL for explanation editor"""
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<uuid:question_id>/edit-explanation/',
+                self.admin_site.admin_view(self.edit_explanation_view),
+                name='api_mathquestion_edit_explanation',
+            ),
+        ]
+        return custom_urls + urls
+    
+    def edit_explanation_view(self, request, question_id):
+        """Handle the explanation editor page"""
+        from django.shortcuts import get_object_or_404, render, redirect
+        from django.contrib import messages
+        import json
+        
+        question = get_object_or_404(MathQuestion, pk=question_id)
+        
+        if request.method == 'POST':
+            try:
+                explanation_json = request.POST.get('explanation_json')
+                if explanation_json:
+                    explanation = json.loads(explanation_json)
+                    question.explanation = explanation
+                    question.save()
+                    messages.success(request, 'Explanation updated successfully!')
+                    return redirect('admin:api_mathquestion_change', question_id)
+            except Exception as e:
+                messages.error(request, f'Error updating explanation: {str(e)}')
+        
+        # Get available assets for diagram selection
+        available_assets = list(question.math_section.assets.values('asset_id', 's3_url'))
+        
+        context = {
+            'question': question,
+            'explanation_json': mark_safe(json.dumps(question.explanation or [])),
+            'available_assets': mark_safe(json.dumps(available_assets)),
+            'opts': self.model._meta,
+            'has_view_permission': self.has_view_permission(request, question),
+            'has_change_permission': self.has_change_permission(request, question),
+        }
+        
+        return render(request, 'admin/api/math_question_explanation_editor.html', context)
 
 
 @admin.register(MathQuestionOption)
