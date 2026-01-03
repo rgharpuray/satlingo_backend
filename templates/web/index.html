@@ -2722,74 +2722,10 @@
                     }
                     contentHTML += processedPrompt;
                     
-                    // Check if diagrams are already embedded in the prompt
-                    // Diagrams can be embedded via:
-                    // 1. Side-by-side blocks in JSON format
-                    // 2. Diagram sentinels [[Diagram asset_id]] in text
-                    let hasEmbeddedDiagrams = false;
-                    if (questionObj && Array.isArray(questionObj.text)) {
-                        // Check JSON blocks for side-by-side blocks with diagrams
-                        hasEmbeddedDiagrams = questionObj.text.some(block => {
-                            if (block && block.type === 'side_by_side') {
-                                const rows = block.rows || (block.diagram_asset_id ? [block] : []);
-                                return rows.some(row => row.diagram_asset_id);
-                            }
-                            // Check paragraph blocks for sentinels
-                            if (block && block.type === 'paragraph' && block.text) {
-                                return /\[\[Diagram\s+[\w-]+\]\]/i.test(block.text);
-                            }
-                            return false;
-                        });
-                    } else if (chunk.prompt) {
-                        // Check plain text for sentinels
-                        hasEmbeddedDiagrams = /\[\[Diagram\s+[\w-]+\]\]/i.test(chunk.prompt);
-                    }
-                    
-                    // If no diagrams are embedded in prompt, show linked assets as fallback
-                    // This handles old questions that have assets linked but not embedded in prompt
-                    if (!hasEmbeddedDiagrams) {
-                        let questionAssets = questionAssetsMap[chunkIdx];
-                        
-                        // If no assets linked but lesson has assets, try to match by question order (fallback)
-                        if ((!questionAssets || questionAssets.length === 0) && lesson.assets && lesson.assets.length > 0) {
-                            let questionNumber = 0;
-                            for (let i = 0; i < chunkIdx; i++) {
-                                if (lesson.chunks[i] && lesson.chunks[i].type === 'question') {
-                                    questionNumber++;
-                                }
-                            }
-                            if (chunkType === 'question' && questionNumber < lesson.assets.length) {
-                                const matchedAsset = lesson.assets[questionNumber];
-                                questionAssets = [matchedAsset];
-                            }
-                        }
-                        
-                        if (questionAssets && questionAssets.length > 0) {
-                            contentHTML += `<div style="margin: 20px 0;">`;
-                            questionAssets.forEach(asset => {
-                                let imageUrl = asset.s3_url || asset.url || '';
-                                if (imageUrl) {
-                                    imageUrl = imageUrl.trim().replace(/[: ]+$/, '');
-                                    if (imageUrl.endsWith('/') || imageUrl.match(/lessons\/[^/]+:$/)) {
-                                        const assetId = asset.asset_id || 'diagram-1';
-                                        const lessonId = lesson.lesson_id || 'proportion';
-                                        imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}.png`;
-                                    }
-                                    if (!/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(imageUrl)) {
-                                        if (!imageUrl.includes('.')) {
-                                            imageUrl += '.png';
-                                        }
-                                    }
-                                } else if (asset.asset_id && lesson.lesson_id) {
-                                    imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${lesson.lesson_id}/${asset.asset_id}.png`;
-                                }
-                                if (imageUrl) {
-                                    contentHTML += `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(asset.asset_id || 'Diagram')}" style="max-width: 100%; height: auto; margin: 15px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load image:', this.src); this.style.display='none';" />`;
-                                }
-                            });
-                            contentHTML += `</div>`;
-                        }
-                    }
+                    // Diagrams should ONLY appear if embedded in the prompt blocks themselves
+                    // (via side-by-side blocks or sentinels). We do NOT show linked assets
+                    // separately to avoid artifacts. If a question needs a diagram, it must
+                    // be added to the prompt blocks using the admin editor.
                     
                     contentHTML += `<div class="options-container">`;
                     (chunk.choices || []).forEach((choice, idx) => {
