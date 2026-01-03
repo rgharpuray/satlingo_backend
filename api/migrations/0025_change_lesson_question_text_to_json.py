@@ -121,6 +121,7 @@ def reverse_convert_lesson_question_data_to_text(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False  # Make the entire migration non-atomic to avoid trigger issues
 
     dependencies = [
         ('api', '0024_change_math_question_prompt_to_json'),
@@ -138,9 +139,20 @@ class Migration(migrations.Migration):
             name='explanation_json',
             field=models.JSONField(default=list, null=True, blank=True),
         ),
-        # Step 2: Convert data from text to JSON in temporary fields
-        migrations.RunPython(convert_lesson_question_data_to_json, reverse_convert_lesson_question_data_to_text),
-        # Step 3: Remove old text fields
+        # Step 2: Convert data from text to JSON in temporary fields (non-atomic)
+        migrations.RunPython(convert_lesson_question_data_to_json, reverse_convert_lesson_question_data_to_text, atomic=False),
+        # Step 3: Make old fields nullable first (to avoid constraint issues)
+        migrations.AlterField(
+            model_name='lessonquestion',
+            name='text',
+            field=models.TextField(blank=True, null=True),
+        ),
+        migrations.AlterField(
+            model_name='lessonquestion',
+            name='explanation',
+            field=models.TextField(blank=True, null=True),
+        ),
+        # Step 4: Remove old text fields
         migrations.RemoveField(
             model_name='lessonquestion',
             name='text',
@@ -149,7 +161,7 @@ class Migration(migrations.Migration):
             model_name='lessonquestion',
             name='explanation',
         ),
-        # Step 4: Rename temporary fields to original names
+        # Step 5: Rename temporary fields to original names
         migrations.RenameField(
             model_name='lessonquestion',
             old_name='text_json',
@@ -160,7 +172,7 @@ class Migration(migrations.Migration):
             old_name='explanation_json',
             new_name='explanation',
         ),
-        # Step 5: Update fields to finalize them
+        # Step 6: Update fields to finalize them
         migrations.AlterField(
             model_name='lessonquestion',
             name='text',
