@@ -385,6 +385,14 @@
             .passage-columns,
             .questions-columns {
                 grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .passage-columns,
+            .questions-columns {
+                gap: 15px;
             }
         }
         
@@ -922,20 +930,224 @@
         
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
-            .landing-hero {
-                padding: 80px 24px;
+            /* Body and container adjustments */
+            body {
+                padding: 10px;
             }
             
-            .hero-title {
-                font-size: 48px;
+            .container {
+                max-width: 100%;
             }
             
-            .hero-tagline {
+            /* Header adjustments */
+            header {
+                padding: 16px 12px;
+                flex-wrap: wrap;
+                justify-content: space-between;
+            }
+            
+            .logo {
+                gap: 8px;
+            }
+            
+            .logo img {
+                height: 40px;
+            }
+            
+            .logo span {
+                font-size: 24px;
+            }
+            
+            header .auth-section {
+                position: static;
+                right: auto;
+                margin-top: 12px;
+                width: 100%;
+                justify-content: center;
+                order: 2;
+            }
+            
+            header {
+                flex-direction: column;
+            }
+            
+            header .logo {
+                order: 1;
+            }
+            
+            /* Main content - stack vertically on mobile */
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .sidebar {
+                position: static;
+                max-height: none;
+                order: 2;
+            }
+            
+            .content-column {
+                order: 1;
+            }
+            
+            /* Category picker - make buttons more touch-friendly */
+            .category-picker {
+                padding: 3px;
+                margin-bottom: 20px;
+            }
+            
+            .category-picker button {
+                padding: 14px 12px;
+                font-size: 14px;
+            }
+            
+            /* View toggle buttons */
+            .view-toggle {
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-bottom: 15px;
+            }
+            
+            .view-toggle button {
+                flex: 1;
+                min-width: 120px;
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+            
+            /* Passage sections */
+            .passages-section {
+                padding: 20px 16px;
+                margin-bottom: 20px;
+            }
+            
+            .passages-section h2 {
+                font-size: 22px;
+                margin-bottom: 16px;
+            }
+            
+            /* Passage cards */
+            .passage-card {
+                padding: 16px;
+                margin-bottom: 12px;
+            }
+            
+            .passage-card h3 {
+                font-size: 18px;
+            }
+            
+            .passage-card p {
+                font-size: 14px;
+            }
+            
+            /* Question cards */
+            .question-card {
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+            
+            .question-card h4 {
+                font-size: 16px;
+                margin-bottom: 12px;
+            }
+            
+            .option {
+                padding: 14px;
+                margin-bottom: 10px;
+                font-size: 14px;
+            }
+            
+            /* Passage detail section */
+            .passage-detail-section {
+                padding: 0;
+            }
+            
+            .passage-detail-section > div:first-child {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .passage-detail-section button {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+            
+            /* Passage content */
+            .passage-content {
+                padding: 16px;
+            }
+            
+            .passage-content h2 {
                 font-size: 20px;
             }
             
-            .hero-features p {
+            /* Line numbers and text */
+            .line-number {
+                font-size: 10px;
+                min-width: 20px;
+                margin-right: 6px;
+            }
+            
+            .line-text {
+                font-size: 14px;
+            }
+            
+            /* Buttons - make more touch-friendly */
+            .btn {
+                padding: 12px 20px;
+                font-size: 15px;
+                min-height: 44px; /* iOS touch target minimum */
+            }
+            
+            .btn-primary,
+            .btn-secondary,
+            .btn-success {
+                min-height: 44px;
+            }
+            
+            /* Submit section */
+            #submitSection {
+                margin-top: 20px;
+            }
+            
+            #submitSection button {
+                width: 100%;
+                padding: 14px;
                 font-size: 16px;
+            }
+            
+            /* Word of day */
+            .word-of-day {
+                padding: 16px;
+            }
+            
+            .word-of-day h3 {
+                font-size: 18px;
+            }
+            
+            /* Landing page adjustments */
+            .landing-hero {
+                padding: 60px 20px;
+            }
+            
+            .hero-title {
+                font-size: 36px;
+            }
+            
+            .hero-tagline {
+                font-size: 18px;
+            }
+            
+            .hero-features p {
+                font-size: 15px;
+            }
+            
+            .btn-large {
+                padding: 16px 32px;
+                font-size: 16px;
+                width: 100%;
+                max-width: 300px;
             }
             
             .preview-cards {
@@ -960,7 +1172,116 @@
             
             .preview-section h3,
             .why-keuvi h3 {
-                font-size: 28px;
+                font-size: 24px;
+            }
+            
+            /* Side-by-side content - stack on mobile */
+            .side-by-side-content,
+            div[style*="flex-direction: row"] {
+                flex-direction: column !important;
+                gap: 15px !important;
+            }
+            
+            .side-by-side-content > div,
+            div[style*="flex-direction: row"] > div {
+                width: 100% !important;
+                flex: 1 1 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+            }
+            
+            /* Override inline min-width that might cause horizontal scroll */
+            div[style*="min-width: 250px"] {
+                min-width: 0 !important;
+            }
+            
+            /* User info section */
+            #userInfo {
+                padding: 16px;
+            }
+            
+            #userInfo h3 {
+                font-size: 18px;
+            }
+            
+            /* Results section */
+            #resultsSection {
+                padding: 16px;
+            }
+            
+            /* Ensure images don't overflow */
+            img {
+                max-width: 100%;
+                height: auto;
+            }
+            
+            /* Fix any inline styles that might cause issues */
+            .passage-content img,
+            .question-card img {
+                max-width: 100%;
+                height: auto;
+            }
+            
+            /* Modal adjustments */
+            .modal-content {
+                padding: 20px 16px;
+                width: 95%;
+                max-height: 95vh;
+            }
+            
+            .modal-content h2 {
+                font-size: 20px;
+                margin-bottom: 16px;
+            }
+            
+            .form-group {
+                margin-bottom: 12px;
+            }
+            
+            .form-group input,
+            .form-group textarea {
+                font-size: 16px; /* Prevents zoom on iOS */
+                padding: 12px;
+            }
+        }
+        
+        /* Extra small devices */
+        @media (max-width: 480px) {
+            body {
+                padding: 8px;
+            }
+            
+            header {
+                padding: 12px 8px;
+            }
+            
+            .logo span {
+                font-size: 20px;
+            }
+            
+            .logo img {
+                height: 32px;
+            }
+            
+            .category-picker button {
+                padding: 12px 8px;
+                font-size: 12px;
+            }
+            
+            .passages-section {
+                padding: 16px 12px;
+            }
+            
+            .passages-section h2 {
+                font-size: 20px;
+            }
+            
+            .hero-title {
+                font-size: 32px;
+            }
+            
+            .hero-tagline {
+                font-size: 16px;
             }
         }
         

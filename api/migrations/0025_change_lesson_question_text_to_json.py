@@ -6,118 +6,92 @@ import json
 
 def convert_lesson_question_data_to_json(apps, schema_editor):
     """Convert existing text prompts and explanations to JSON format"""
-    from django.db import connection
-    with connection.cursor() as cursor:
+    LessonQuestion = apps.get_model('api', 'LessonQuestion')
+    
+    # Use ORM for database-agnostic approach
+    questions = LessonQuestion.objects.all()
+    
+    for question in questions:
         # Convert text field
-        cursor.execute("SELECT id, text FROM lesson_questions WHERE text IS NOT NULL")
-        rows = cursor.fetchall()
-        
-        for question_id, text_value in rows:
-            if text_value and isinstance(text_value, str):
-                # Convert text to JSON array
-                if text_value.strip():
-                    text_json = json.dumps([{"type": "paragraph", "text": text_value}])
-                else:
-                    text_json = json.dumps([])
-                
-                cursor.execute(
-                    "UPDATE lesson_questions SET text_json = %s::jsonb WHERE id = %s",
-                    [text_json, question_id]
-                )
+        if question.text and isinstance(question.text, str):
+            # Convert text to JSON array
+            if question.text.strip():
+                question.text_json = [{"type": "paragraph", "text": question.text}]
+            else:
+                question.text_json = []
+            question.save(update_fields=['text_json'])
         
         # Convert explanation field
-        cursor.execute("SELECT id, explanation FROM lesson_questions WHERE explanation IS NOT NULL AND explanation != ''")
-        rows = cursor.fetchall()
-        
-        for question_id, explanation_value in rows:
-            if explanation_value and isinstance(explanation_value, str):
-                # Convert text to JSON array
-                if explanation_value.strip():
-                    explanation_json = json.dumps([{"type": "paragraph", "text": explanation_value}])
-                else:
-                    explanation_json = json.dumps([])
-                
-                cursor.execute(
-                    "UPDATE lesson_questions SET explanation_json = %s::jsonb WHERE id = %s",
-                    [explanation_json, question_id]
-                )
+        if question.explanation and isinstance(question.explanation, str):
+            # Convert text to JSON array
+            if question.explanation.strip():
+                question.explanation_json = [{"type": "paragraph", "text": question.explanation}]
+            else:
+                question.explanation_json = []
+            question.save(update_fields=['explanation_json'])
 
 
 def reverse_convert_lesson_question_data_to_text(apps, schema_editor):
     """Convert JSON prompts and explanations back to text (for rollback)"""
-    from django.db import connection
-    with connection.cursor() as cursor:
+    LessonQuestion = apps.get_model('api', 'LessonQuestion')
+    
+    # Use ORM for database-agnostic approach
+    questions = LessonQuestion.objects.all()
+    
+    for question in questions:
         # Convert text_json back to text
-        cursor.execute("SELECT id, text_json FROM lesson_questions WHERE text_json IS NOT NULL")
-        rows = cursor.fetchall()
-        
-        for question_id, text_json in rows:
-            if text_json:
-                try:
-                    if isinstance(text_json, str):
-                        text_data = json.loads(text_json)
-                    else:
-                        text_data = text_json
-                    
-                    if isinstance(text_data, list):
-                        text_parts = []
-                        for block in text_data:
-                            if isinstance(block, dict):
-                                if block.get('type') == 'paragraph' and block.get('text'):
-                                    text_parts.append(block['text'])
-                                elif block.get('type') == 'side_by_side':
-                                    rows = block.get('rows', [])
-                                    if not rows and block.get('explanation'):
-                                        rows = [{'explanation': block.get('explanation', '')}]
-                                    for row in rows:
-                                        if row.get('explanation'):
-                                            text_parts.append(row['explanation'])
-                        text_value = ' '.join(text_parts)
-                    else:
-                        text_value = str(text_data)
-                    
-                    cursor.execute(
-                        "UPDATE lesson_questions SET text = %s WHERE id = %s",
-                        [text_value, question_id]
-                    )
-                except (json.JSONDecodeError, TypeError):
-                    pass
+        if question.text_json:
+            try:
+                text_data = question.text_json
+                
+                if isinstance(text_data, list):
+                    text_parts = []
+                    for block in text_data:
+                        if isinstance(block, dict):
+                            if block.get('type') == 'paragraph' and block.get('text'):
+                                text_parts.append(block['text'])
+                            elif block.get('type') == 'side_by_side':
+                                rows = block.get('rows', [])
+                                if not rows and block.get('explanation'):
+                                    rows = [{'explanation': block.get('explanation', '')}]
+                                for row in rows:
+                                    if row.get('explanation'):
+                                        text_parts.append(row['explanation'])
+                    text_value = ' '.join(text_parts)
+                else:
+                    text_value = str(text_data)
+                
+                question.text = text_value
+                question.save(update_fields=['text'])
+            except (json.JSONDecodeError, TypeError):
+                pass
         
         # Convert explanation_json back to explanation
-        cursor.execute("SELECT id, explanation_json FROM lesson_questions WHERE explanation_json IS NOT NULL")
-        rows = cursor.fetchall()
-        
-        for question_id, explanation_json in rows:
-            if explanation_json:
-                try:
-                    if isinstance(explanation_json, str):
-                        explanation_data = json.loads(explanation_json)
-                    else:
-                        explanation_data = explanation_json
-                    
-                    if isinstance(explanation_data, list):
-                        text_parts = []
-                        for block in explanation_data:
-                            if isinstance(block, dict):
-                                if block.get('type') == 'paragraph' and block.get('text'):
-                                    text_parts.append(block['text'])
-                                elif block.get('type') == 'side_by_side':
-                                    rows = block.get('rows', [])
-                                    if not rows and block.get('explanation'):
-                                        rows = [{'explanation': block.get('explanation', '')}]
-                                    for row in rows:
-                                        if row.get('explanation'):
-                                            text_parts.append(row['explanation'])
-                        explanation_value = ' '.join(text_parts)
-                    else:
-                        explanation_value = str(explanation_data)
-                    
-                    cursor.execute(
-                        "UPDATE lesson_questions SET explanation = %s WHERE id = %s",
-                        [explanation_value, question_id]
-                    )
-                except (json.JSONDecodeError, TypeError):
-                    pass
+        if question.explanation_json:
+            try:
+                explanation_data = question.explanation_json
+                
+                if isinstance(explanation_data, list):
+                    text_parts = []
+                    for block in explanation_data:
+                        if isinstance(block, dict):
+                            if block.get('type') == 'paragraph' and block.get('text'):
+                                text_parts.append(block['text'])
+                            elif block.get('type') == 'side_by_side':
+                                rows = block.get('rows', [])
+                                if not rows and block.get('explanation'):
+                                    rows = [{'explanation': block.get('explanation', '')}]
+                                for row in rows:
+                                    if row.get('explanation'):
+                                        text_parts.append(row['explanation'])
+                    explanation_value = ' '.join(text_parts)
+                else:
+                    explanation_value = str(explanation_data)
+                
+                question.explanation = explanation_value
+                question.save(update_fields=['explanation'])
+            except (json.JSONDecodeError, TypeError):
+                pass
 
 
 class Migration(migrations.Migration):
