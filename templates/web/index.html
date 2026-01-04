@@ -655,6 +655,12 @@
             font-size: 14px;
             line-height: 1.6;
             font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        body.dark-mode .explanation {
+            background: rgba(52, 152, 219, 0.15);
+            color: var(--text-primary);
         }
         
         .results-summary {
@@ -1700,7 +1706,7 @@
                     </div>
                     
                     <div id="questionExplanation" class="hidden" style="display: none; background: var(--bg-secondary); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px var(--shadow); border: 1px solid var(--border-color);">
-                        <h3 style="color: #3498DB; margin-bottom: 15px; font-size: 18px;">Explanation</h3>
+                        <h3 style="color: var(--accent-color); margin-bottom: 15px; font-size: 18px;">Explanation</h3>
                         <div id="questionExplanationContent" style="color: var(--text-primary); line-height: 1.6;">
                             <!-- Explanation will be inserted here -->
                         </div>
@@ -3383,7 +3389,9 @@
                             processedExplanation = replaceDiagramSentinels(explanation, lesson.assets || [], lesson.lesson_id);
                             processedExplanation = replaceUnderlineSentinels(processedExplanation);
                         }
-                        contentHTML += `<div id="explanation_${questionId}" style="display: none; margin-top: 15px; padding: 12px; background: #f0f8ff; border-left: 4px solid #3498DB; border-radius: 4px;">
+                        const explanationBg = document.body.classList.contains('dark-mode') ? 'rgba(52, 152, 219, 0.15)' : '#f0f8ff';
+                        const explanationColor = document.body.classList.contains('dark-mode') ? 'var(--text-primary)' : '#000';
+                        contentHTML += `<div id="explanation_${questionId}" style="display: none; margin-top: 15px; padding: 12px; background: ${explanationBg}; border-left: 4px solid var(--accent-color); border-radius: 4px; color: ${explanationColor};">
                             <strong>Explanation:</strong> ${processedExplanation}
                         </div>`;
                     }
@@ -5211,9 +5219,11 @@
                         console.log('Final type:', typeof processedExplanation);
                         console.log('=== EXPLANATION DEBUG END ===');
                         
+                        const explanationTextColor = document.body.classList.contains('dark-mode') ? 'var(--text-primary)' : '#333';
+                        const explanationLabelColor = document.body.classList.contains('dark-mode') ? 'var(--text-secondary)' : '#666';
                         questionExplanationContent.innerHTML = `
-                            <div style="color: #666; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
-                            <div style="color: #333; line-height: 1.6;">${processedExplanation}</div>
+                            <div style="color: ${explanationLabelColor}; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
+                            <div style="color: ${explanationTextColor}; line-height: 1.6;">${processedExplanation}</div>
                         `;
                         questionExplanation.style.display = 'block';
                         questionExplanation.classList.remove('hidden');
@@ -5224,9 +5234,10 @@
                         // No explanation available for this question
                         const questionNumber = question && question.order !== undefined ? question.order : 
                             (Object.keys(currentQuestionsMap).indexOf(questionId) + 1);
+                        const explanationLabelColor = document.body.classList.contains('dark-mode') ? 'var(--text-secondary)' : '#666';
                         questionExplanationContent.innerHTML = `
-                            <div style="color: #666; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
-                            <div style="color: #666; font-style: italic;">No explanation available for this question.</div>
+                            <div style="color: ${explanationLabelColor}; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
+                            <div style="color: ${explanationLabelColor}; font-style: italic;">No explanation available for this question.</div>
                         `;
                         questionExplanation.style.display = 'block';
                         questionExplanation.classList.remove('hidden');
@@ -5668,7 +5679,7 @@
                             }).join('')}
                         </div>
                         ${question.explanation ? `
-                            <div class="explanation" style="margin-top: 15px; padding: 12px; background: #f0f8ff; border-left: 4px solid #3498DB; border-radius: 4px;">
+                            <div class="explanation" style="margin-top: 15px; padding: 12px; border-left: 4px solid var(--accent-color); border-radius: 4px;">
                                 <strong>Explanation:</strong> ${replaceUnderlineSentinels(replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id))}
                             </div>
                         ` : ''}
