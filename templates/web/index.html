@@ -1637,7 +1637,7 @@
                     
                     <div id="questionExplanation" class="hidden" style="display: none; background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         <h3 style="color: #3498DB; margin-bottom: 15px; font-size: 18px;">Explanation</h3>
-                        <div id="questionExplanationContent" style="color: #333; line-height: 1.6;">
+                        <div id="questionExplanationContent" style="color: var(--text-primary); line-height: 1.6;">
                             <!-- Explanation will be inserted here -->
                         </div>
                     </div>
@@ -1682,7 +1682,7 @@
                 <div id="loginError" class="error"></div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
                 <div style="text-align: center; margin: 15px 0; color: #666;">or</div>
-                <button type="button" class="btn" onclick="handleGoogleLogin()" style="width: 100%; background: white; color: #333; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <button type="button" class="btn" onclick="handleGoogleLogin()" style="width: 100%; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; gap: 8px;">
                     <svg width="18" height="18" viewBox="0 0 18 18">
                         <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
                         <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
@@ -1712,7 +1712,7 @@
                 <div id="registerError" class="error"></div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Register</button>
                 <div style="text-align: center; margin: 15px 0; color: #666;">or</div>
-                <button type="button" class="btn" onclick="handleGoogleLogin()" style="width: 100%; background: white; color: #333; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <button type="button" class="btn" onclick="handleGoogleLogin()" style="width: 100%; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; gap: 8px;">
                     <svg width="18" height="18" viewBox="0 0 18 18">
                         <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
                         <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
@@ -1738,6 +1738,30 @@
         function toggleDarkMode() {
             const isDark = document.body.classList.toggle('dark-mode');
             localStorage.setItem('darkMode', isDark);
+            // Force update of all dynamically generated content
+            updateDarkModeTextColors();
+        }
+        
+        // Helper function to get current text color based on mode
+        function getTextColor() {
+            return document.body.classList.contains('dark-mode') ? '#ffffff' : '#000000';
+        }
+        
+        function getTextSecondaryColor() {
+            return document.body.classList.contains('dark-mode') ? '#b0b0b0' : '#666666';
+        }
+        
+        // Update all inline styles with black text to use current mode
+        function updateDarkModeTextColors() {
+            const isDark = document.body.classList.contains('dark-mode');
+            const textColor = isDark ? '#ffffff' : '#000000';
+            const textSecondary = isDark ? '#b0b0b0' : '#666666';
+            
+            // Update all elements with inline color styles
+            document.querySelectorAll('[style*="color: #000"], [style*="color:#000"], [style*="color: #333"], [style*="color:#333"]').forEach(el => {
+                const style = el.getAttribute('style') || '';
+                el.setAttribute('style', style.replace(/color:\s*#(000|333|222|666|555|000000|333333)/gi, `color: ${textColor}`));
+            });
         }
         
         // Initialize dark mode on page load
