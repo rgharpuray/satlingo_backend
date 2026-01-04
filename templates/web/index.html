@@ -12,12 +12,38 @@
             box-sizing: border-box;
         }
         
+        /* CSS Variables for theming */
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e0e0e0;
+            --text-primary: #000000;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --accent-color: #3498DB;
+            --accent-hover: #2980B9;
+            --shadow: rgba(0,0,0,0.08);
+        }
+        
+        body.dark-mode {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #3d3d3d;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --border-color: #404040;
+            --accent-color: #5dade2;
+            --accent-hover: #3498DB;
+            --shadow: rgba(0,0,0,0.3);
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f5f5;
+            background: var(--bg-primary);
             min-height: 100vh;
             padding: 20px;
-            color: #000;
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         
         .container {
@@ -26,26 +52,87 @@
         }
         
         header {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 10px;
             padding: 24px 30px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px var(--shadow);
+            border: 1px solid var(--border-color);
             display: flex;
             justify-content: center;
             align-items: center;
             position: relative;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .logo {
             text-decoration: none;
-            color: #3498DB;
+            color: var(--accent-color);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 16px;
-            transition: transform 0.2s ease;
+            transition: transform 0.2s ease, color 0.3s ease;
+        }
+        
+        /* Dark Mode Toggle Button */
+        .dark-mode-toggle {
+            position: absolute;
+            left: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            width: 50px;
+            height: 28px;
+            cursor: pointer;
+            padding: 2px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+        
+        .dark-mode-toggle:hover {
+            border-color: var(--accent-color);
+        }
+        
+        .dark-mode-toggle-slider {
+            width: 24px;
+            height: 24px;
+            background: var(--bg-secondary);
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px var(--shadow);
+        }
+        
+        body.dark-mode .dark-mode-toggle-slider {
+            transform: translateX(22px);
+        }
+        
+        .dark-mode-toggle-icon {
+            font-size: 14px;
+            transition: opacity 0.3s ease;
+        }
+        
+        .dark-mode-toggle-icon.sun {
+            opacity: 1;
+        }
+        
+        .dark-mode-toggle-icon.moon {
+            opacity: 0;
+            position: absolute;
+        }
+        
+        body.dark-mode .dark-mode-toggle-icon.sun {
+            opacity: 0;
+        }
+        
+        body.dark-mode .dark-mode-toggle-icon.moon {
+            opacity: 1;
         }
         
         .logo:hover {
@@ -83,33 +170,34 @@
         }
         
         .btn-primary {
-            background: #3498DB;
+            background: var(--accent-color);
             color: #fff;
             font-weight: 500;
         }
         
         .btn-primary:hover {
-            background: #2980B9;
+            background: var(--accent-hover);
         }
         
         .btn-secondary {
-            background: #e0e0e0;
-            color: #000;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
             font-weight: 500;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         
         .btn-secondary:hover {
-            background: #d0d0d0;
+            background: var(--border-color);
         }
         
         .btn-success {
-            background: #3498DB;
+            background: var(--accent-color);
             color: #fff;
             font-weight: 500;
         }
         
         .btn-success:hover {
-            background: #2980B9;
+            background: var(--accent-hover);
         }
         
         .main-content {
@@ -119,32 +207,34 @@
         }
         
         .passages-section {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 10px;
             padding: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px var(--shadow);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .passages-section h2 {
-            color: #3498DB;
+            color: var(--accent-color);
             font-size: 28px;
             font-weight: 600;
             margin-bottom: 20px;
             padding-bottom: 12px;
-            border-bottom: 2px solid #3498DB;
+            border-bottom: 2px solid var(--accent-color);
         }
         
         .category-picker {
             display: flex;
             gap: 0;
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 10px;
             padding: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px var(--shadow);
+            border: 1px solid var(--border-color);
             margin-bottom: 30px;
             overflow: hidden;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .category-picker button {
@@ -152,7 +242,7 @@
             padding: 12px 24px;
             border: none;
             background: transparent;
-            color: #666;
+            color: var(--text-secondary);
             font-size: 16px;
             font-weight: 500;
             cursor: pointer;
@@ -161,12 +251,12 @@
         }
         
         .category-picker button.active {
-            background: #3498DB;
+            background: var(--accent-color);
             color: white;
         }
         
         .category-picker button:hover:not(.active) {
-            background: #f5f5f5;
+            background: var(--bg-primary);
         }
         
         .category-content {
@@ -178,33 +268,34 @@
         }
         
         .sidebar {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 10px;
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px var(--shadow);
+            border: 1px solid var(--border-color);
             height: fit-content;
             position: sticky;
             top: 20px;
             align-self: flex-start;
             max-height: calc(100vh - 40px);
             overflow-y: auto;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .passage-card {
-            border: 1px solid #d0d0d0;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 16px;
             cursor: pointer;
             transition: all 0.2s ease;
-            background: #ffffff;
+            background: var(--bg-secondary);
         }
         
         .passage-card:hover {
             box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
             transform: translateY(-2px);
-            border-color: #3498DB;
+            border-color: var(--accent-color);
         }
         
         .passage-card h3 {
@@ -298,35 +389,38 @@
         }
         
         .passage-detail-section {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 10px;
             padding: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px var(--shadow);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .passage-content {
-            background: #f9f9f9;
+            background: var(--bg-primary);
             border-radius: 8px;
             padding: 25px;
             margin-bottom: 30px;
             line-height: 1.8;
             font-size: 16px;
-            color: #000;
-            border: 1px solid #e0e0e0;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
             white-space: pre-wrap;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         }
         
         .passage-content-sat {
-            background: #f9f9f9;
+            background: var(--bg-primary);
             border-radius: 8px;
             padding: 25px;
             margin-bottom: 30px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--border-color);
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
             font-size: 16px;
             line-height: 1.6;
-            color: #000;
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         }
         
         .passage-columns {
@@ -357,7 +451,7 @@
         }
         
         .line-number {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 11px;
             font-weight: bold;
             margin-right: 8px;
@@ -373,6 +467,7 @@
             font-size: 15px;
             line-height: 1.5;
             white-space: pre;
+            color: var(--text-primary);
         }
         
         .questions-columns {
@@ -397,16 +492,17 @@
         }
         
         .question-card {
-            border: 1px solid #d0d0d0;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            background: #ffffff;
+            background: var(--bg-secondary);
             font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .question-card h4 {
-            color: #000;
+            color: var(--text-primary);
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 15px;
@@ -415,6 +511,7 @@
         
         .question-card p {
             font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
+            color: var(--text-primary);
         }
         
         .option {
@@ -422,22 +519,23 @@
             align-items: flex-start;
             padding: 12px;
             margin-bottom: 10px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid var(--border-color);
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s ease;
-            background: #ffffff;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
         }
         
         .option:hover {
-            border-color: #3498DB;
-            background: #f0f8ff;
+            border-color: var(--accent-color);
+            background: var(--bg-primary);
         }
         
         .option.selected {
-            border-color: #3498DB;
-            background: #e3f2fd;
+            border-color: var(--accent-color);
+            background: var(--bg-primary);
         }
         
         .option.correct {
@@ -513,28 +611,33 @@
             justify-content: center;
         }
         
+        body.dark-mode .modal {
+            background: rgba(0,0,0,0.7);
+        }
+        
         .modal.active {
             display: flex;
         }
         
         .modal-content {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 10px;
             padding: 30px;
             max-width: 500px;
             width: 90%;
             max-height: 90vh;
             overflow-y: auto;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .modal-content h2 {
-            color: #3498DB;
+            color: var(--accent-color);
             font-size: 24px;
             font-weight: 600;
             margin-bottom: 20px;
             padding-bottom: 12px;
-            border-bottom: 2px solid #3498DB;
+            border-bottom: 2px solid var(--accent-color);
         }
         
         .form-group {
@@ -545,22 +648,25 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
-            color: #000;
+            color: var(--text-primary);
         }
         
-        .form-group input {
+        .form-group input,
+        .form-group textarea {
             width: 100%;
             padding: 12px;
-            border: 1px solid #d0d0d0;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             font-size: 14px;
-            background: #ffffff;
-            color: #000;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         }
         
-        .form-group input:focus {
+        .form-group input:focus,
+        .form-group textarea:focus {
             outline: none;
-            border-color: #3498DB;
+            border-color: var(--accent-color);
             box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
         }
         
@@ -572,10 +678,11 @@
         
         .user-info {
             padding: 16px;
-            background: #f5f5f5;
+            background: var(--bg-primary);
             border-radius: 8px;
             margin-bottom: 15px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .user-info strong {
@@ -597,31 +704,32 @@
         
         .word-of-day {
             padding: 20px;
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 8px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--border-color);
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .word-of-day h3 {
-            color: #3498DB;
+            color: var(--accent-color);
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 16px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #3498DB;
+            border-bottom: 2px solid var(--accent-color);
         }
         
         .word-of-day .word {
             font-size: 24px;
             font-weight: 700;
-            color: #000;
+            color: var(--text-primary);
             margin-bottom: 12px;
         }
         
         .word-of-day .definition {
-            color: #333;
+            color: var(--text-secondary);
             font-size: 14px;
             line-height: 1.6;
             margin-bottom: 12px;
@@ -646,7 +754,7 @@
         
         .word-of-day .synonym-tag {
             background: rgba(52, 152, 219, 0.1);
-            color: #3498DB;
+            color: var(--accent-color);
             padding: 4px 10px;
             border-radius: 4px;
             font-size: 12px;
@@ -657,20 +765,21 @@
         .word-of-day .example {
             margin-top: 12px;
             padding: 12px;
-            background: #f5f5f5;
+            background: var(--bg-primary);
             border-radius: 6px;
-            border-left: 3px solid #3498DB;
+            border-left: 3px solid var(--accent-color);
+            transition: background-color 0.3s ease;
         }
         
         .word-of-day .example-label {
             font-weight: 600;
-            color: #000;
+            color: var(--text-primary);
             font-size: 13px;
             margin-bottom: 6px;
         }
         
         .word-of-day .example-sentence {
-            color: #333;
+            color: var(--text-secondary);
             font-size: 13px;
             line-height: 1.6;
             font-style: italic;
@@ -678,7 +787,7 @@
         
         .word-of-day .loading {
             text-align: center;
-            color: #666;
+            color: var(--text-secondary);
             padding: 20px;
         }
         
@@ -714,15 +823,16 @@
         }
         
         .landing-hero {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 16px;
             padding: 100px 40px;
             text-align: center;
             max-width: 800px;
             margin: 0 auto 60px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            border: 1px solid #e0e0e0;
+            box-shadow: 0 4px 20px var(--shadow);
+            border: 1px solid var(--border-color);
             animation: fadeIn 0.8s ease-in;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
         
         .hero-logo {
@@ -739,14 +849,14 @@
         .hero-title {
             font-size: 56px;
             font-weight: 700;
-            color: #000;
+            color: var(--text-primary);
             margin-bottom: 20px;
             line-height: 1.2;
         }
         
         .hero-tagline {
             font-size: 22px;
-            color: #000;
+            color: var(--text-primary);
             margin-bottom: 32px;
             font-weight: 700;
         }
@@ -757,7 +867,7 @@
         
         .hero-features p {
             font-size: 18px;
-            color: #000;
+            color: var(--text-primary);
             margin-bottom: 12px;
             line-height: 1.6;
             font-weight: 400;
@@ -807,11 +917,11 @@
         }
         
         .preview-card {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 16px;
             padding: 32px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-            border: 1px solid #e8e8e8;
+            box-shadow: 0 4px 16px var(--shadow);
+            border: 1px solid var(--border-color);
             cursor: pointer;
             transition: all 0.3s ease;
             text-align: center;
@@ -819,7 +929,7 @@
         
         .preview-card:hover {
             transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            box-shadow: 0 8px 24px var(--shadow);
         }
         
         .preview-card-icon {
@@ -828,14 +938,14 @@
         }
         
         .preview-card h4 {
-            color: var(--navy);
+            color: var(--text-primary);
             font-size: 22px;
             font-weight: 600;
             margin-bottom: 12px;
         }
         
         .preview-card p {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 15px;
             line-height: 1.6;
         }
@@ -895,29 +1005,33 @@
         }
         
         .feature-card {
-            background: linear-gradient(135deg, rgba(52, 152, 219, 0.02) 0%, rgba(255, 255, 255, 1) 100%);
+            background: var(--bg-secondary);
             border-radius: 16px;
             padding: 40px 32px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-            border: 1px solid #e8e8e8;
+            box-shadow: 0 4px 16px var(--shadow);
+            border: 1px solid var(--border-color);
             text-align: center;
             transition: all 0.3s ease;
         }
         
+        body.dark-mode .feature-card {
+            background: linear-gradient(135deg, rgba(52, 152, 219, 0.05) 0%, var(--bg-secondary) 100%);
+        }
+        
         .feature-card:hover {
             transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            box-shadow: 0 8px 24px var(--shadow);
         }
         
         .feature-card h3 {
-            color: var(--navy);
+            color: var(--text-primary);
             font-size: 24px;
             font-weight: 600;
             margin-bottom: 16px;
         }
         
         .feature-card p {
-            color: #555;
+            color: var(--text-secondary);
             font-size: 16px;
             line-height: 1.7;
         }
@@ -974,6 +1088,14 @@
             
             header .logo {
                 order: 1;
+            }
+            
+            /* Dark mode toggle on mobile */
+            .dark-mode-toggle {
+                position: static;
+                transform: none;
+                margin-bottom: 12px;
+                order: 0;
             }
             
             /* Main content - stack vertically on mobile */
@@ -1336,6 +1458,12 @@
 <body>
     <div class="container">
         <header>
+            <button class="dark-mode-toggle" onclick="toggleDarkMode()" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <div class="dark-mode-toggle-slider">
+                    <span class="dark-mode-toggle-icon sun">☀️</span>
+                    <span class="dark-mode-toggle-icon moon">🌙</span>
+                </div>
+            </button>
             <a href="#" class="logo" onclick="showLanding(); return false;">
                 <img src="{% static 'web/images/keuvi.png' %}" alt="Keuvi Logo">
                 
@@ -1579,6 +1707,22 @@
     </div>
     
     <script>
+        // Dark Mode Toggle Functionality
+        function initDarkMode() {
+            const darkMode = localStorage.getItem('darkMode') === 'true';
+            if (darkMode) {
+                document.body.classList.add('dark-mode');
+            }
+        }
+        
+        function toggleDarkMode() {
+            const isDark = document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', isDark);
+        }
+        
+        // Initialize dark mode on page load
+        initDarkMode();
+        
         const API_BASE = '/api/v1';
         let authToken = localStorage.getItem('authToken');
         let currentUser = null;
