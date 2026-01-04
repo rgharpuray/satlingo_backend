@@ -57,6 +57,70 @@
             color: var(--text-secondary) !important;
         }
         
+        /* Override white/light backgrounds in dark mode */
+        body.dark-mode [style*="background: white"],
+        body.dark-mode [style*="background:white"],
+        body.dark-mode [style*="background: #fff"],
+        body.dark-mode [style*="background:#fff"],
+        body.dark-mode [style*="background: #ffffff"],
+        body.dark-mode [style*="background:#ffffff"],
+        body.dark-mode [style*="background: #f9f9f9"],
+        body.dark-mode [style*="background:#f9f9f9"],
+        body.dark-mode [style*="background: #f0f8ff"],
+        body.dark-mode [style*="background:#f0f8ff"],
+        body.dark-mode [style*="background: #f0fff0"],
+        body.dark-mode [style*="background:#f0fff0"],
+        body.dark-mode [style*="background: #fff0f0"],
+        body.dark-mode [style*="background:#fff0f0"],
+        body.dark-mode [style*="background: #fff9e6"],
+        body.dark-mode [style*="background:#fff9e6"],
+        body.dark-mode [style*="background: #fffacd"],
+        body.dark-mode [style*="background:#fffacd"],
+        body.dark-mode [style*="background: #fff3cd"],
+        body.dark-mode [style*="background:#fff3cd"],
+        body.dark-mode [style*="background: #e3f2fd"],
+        body.dark-mode [style*="background:#e3f2fd"],
+        body.dark-mode [style*="background: #f0f0f0"],
+        body.dark-mode [style*="background:#f0f0f0"],
+        body.dark-mode [style*="background: #f5f5f5"],
+        body.dark-mode [style*="background:#f5f5f5"] {
+            background: var(--bg-secondary) !important;
+        }
+        
+        /* Override light blue backgrounds with darker version */
+        body.dark-mode [style*="background: #f0f8ff"],
+        body.dark-mode [style*="background:#f0f8ff"],
+        body.dark-mode [style*="background: #e3f2fd"],
+        body.dark-mode [style*="background:#e3f2fd"] {
+            background: rgba(52, 152, 219, 0.15) !important;
+        }
+        
+        /* Override light green backgrounds */
+        body.dark-mode [style*="background: #f0fff0"],
+        body.dark-mode [style*="background:#f0fff0"],
+        body.dark-mode [style*="background: #d4edda"],
+        body.dark-mode [style*="background:#d4edda"] {
+            background: rgba(40, 167, 69, 0.15) !important;
+        }
+        
+        /* Override light red backgrounds */
+        body.dark-mode [style*="background: #fff0f0"],
+        body.dark-mode [style*="background:#fff0f0"],
+        body.dark-mode [style*="background: #f8d7da"],
+        body.dark-mode [style*="background:#f8d7da"] {
+            background: rgba(220, 53, 69, 0.15) !important;
+        }
+        
+        /* Override light yellow backgrounds */
+        body.dark-mode [style*="background: #fff9e6"],
+        body.dark-mode [style*="background:#fff9e6"],
+        body.dark-mode [style*="background: #fffacd"],
+        body.dark-mode [style*="background:#fffacd"],
+        body.dark-mode [style*="background: #fff3cd"],
+        body.dark-mode [style*="background:#fff3cd"] {
+            background: rgba(255, 193, 7, 0.15) !important;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: var(--bg-primary);
@@ -1635,7 +1699,7 @@
                         <div class="loading">Loading...</div>
                     </div>
                     
-                    <div id="questionExplanation" class="hidden" style="display: none; background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div id="questionExplanation" class="hidden" style="display: none; background: var(--bg-secondary); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px var(--shadow); border: 1px solid var(--border-color);">
                         <h3 style="color: #3498DB; margin-bottom: 15px; font-size: 18px;">Explanation</h3>
                         <div id="questionExplanationContent" style="color: var(--text-primary); line-height: 1.6;">
                             <!-- Explanation will be inserted here -->
@@ -1749,6 +1813,21 @@
         
         function getTextSecondaryColor() {
             return document.body.classList.contains('dark-mode') ? '#b0b0b0' : '#666666';
+        }
+        
+        // Helper function to get background color for example boxes
+        function getExampleBgColor(type) {
+            const isDark = document.body.classList.contains('dark-mode');
+            if (type === 'example') {
+                return isDark ? 'rgba(52, 152, 219, 0.15)' : '#f0f8ff';
+            } else if (type === 'correct') {
+                return isDark ? 'rgba(40, 167, 69, 0.15)' : '#f0fff0';
+            } else if (type === 'incorrect') {
+                return isDark ? 'rgba(220, 53, 69, 0.15)' : '#fff0f0';
+            } else if (type === 'rule') {
+                return isDark ? 'rgba(255, 193, 7, 0.15)' : '#fff9e6';
+            }
+            return isDark ? 'var(--bg-secondary)' : '#f9f9f9';
         }
         
         // Update all inline styles with black text to use current mode
@@ -3186,10 +3265,12 @@
             
             // Add pagination controls
             if (totalPages > 1) {
-                contentHTML += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 10px; background: #f5f5f5; border-radius: 8px;">`;
-                contentHTML += `<button id="prevPageBtn" onclick="navigateLessonPage(${pageIndex - 1})" ${pageIndex === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #3498DB; color: white; border: none; border-radius: 4px; cursor: pointer;"'}>&larr; Previous</button>`;
-                contentHTML += `<span style="font-weight: bold; color: #333;">Page ${pageIndex + 1} of ${totalPages}</span>`;
-                contentHTML += `<button id="nextPageBtn" onclick="navigateLessonPage(${pageIndex + 1})" ${pageIndex === totalPages - 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #3498DB; color: white; border: none; border-radius: 4px; cursor: pointer;"'}>Next &rarr;</button>`;
+                const paginationBg = document.body.classList.contains('dark-mode') ? 'var(--bg-secondary)' : '#f5f5f5';
+                const paginationText = document.body.classList.contains('dark-mode') ? 'var(--text-primary)' : '#333';
+                contentHTML += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 10px; background: ${paginationBg}; border-radius: 8px; border: 1px solid var(--border-color);">`;
+                contentHTML += `<button id="prevPageBtn" onclick="navigateLessonPage(${pageIndex - 1})" ${pageIndex === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed; padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-secondary); border: none; border-radius: 4px;"' : 'style="padding: 8px 16px; background: var(--accent-color); color: white; border: none; border-radius: 4px; cursor: pointer;"'}>&larr; Previous</button>`;
+                contentHTML += `<span style="font-weight: bold; color: ${paginationText};">Page ${pageIndex + 1} of ${totalPages}</span>`;
+                contentHTML += `<button id="nextPageBtn" onclick="navigateLessonPage(${pageIndex + 1})" ${pageIndex === totalPages - 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed; padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-secondary); border: none; border-radius: 4px;"' : 'style="padding: 8px 16px; background: var(--accent-color); color: white; border: none; border-radius: 4px; cursor: pointer;"'}>Next &rarr;</button>`;
                 contentHTML += `</div>`;
             }
             
