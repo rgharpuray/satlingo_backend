@@ -37,6 +37,26 @@
             --shadow: rgba(0,0,0,0.3);
         }
         
+        /* Override inline black text colors in dark mode */
+        body.dark-mode [style*="color: #000"],
+        body.dark-mode [style*="color:#000"],
+        body.dark-mode [style*="color: #333"],
+        body.dark-mode [style*="color:#333"],
+        body.dark-mode [style*="color: #222"],
+        body.dark-mode [style*="color:#222"],
+        body.dark-mode [style*="color: black"],
+        body.dark-mode [style*="color:black"] {
+            color: var(--text-primary) !important;
+        }
+        
+        /* Override inline dark gray text in dark mode */
+        body.dark-mode [style*="color: #666"],
+        body.dark-mode [style*="color:#666"],
+        body.dark-mode [style*="color: #555"],
+        body.dark-mode [style*="color:#555"] {
+            color: var(--text-secondary) !important;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: var(--bg-primary);
@@ -299,14 +319,14 @@
         }
         
         .passage-card h3 {
-            color: #000;
+            color: var(--text-primary);
             font-size: 20px;
             font-weight: 600;
             margin-bottom: 8px;
         }
         
         .passage-card p {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 14px;
             margin: 0;
         }
