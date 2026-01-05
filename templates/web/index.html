@@ -1274,18 +1274,52 @@
             
             /* Passage detail section */
             .passage-detail-section {
-                padding: 0;
+                padding: 20px 16px;
             }
             
+            /* Back button container - ensure it has proper spacing */
             .passage-detail-section > div:first-child {
                 flex-wrap: wrap;
                 gap: 12px;
                 margin-bottom: 24px;
+                padding-left: 0;
+                padding-right: 0;
+                margin-left: 0;
+                margin-right: 0;
             }
             
             .passage-detail-section button {
                 padding: 12px 16px;
                 font-size: 14px;
+            }
+            
+            /* Passage content container - ensure proper padding */
+            #passageContent {
+                padding-left: 0;
+                padding-right: 0;
+            }
+            
+            /* Passage content header/title - ensure it respects container padding */
+            .passage-detail-section h2,
+            .passage-detail-section h1,
+            #passageContent h2,
+            #passageContent h1 {
+                padding-left: 0;
+                padding-right: 0;
+                margin-left: 0;
+                margin-right: 0;
+            }
+            
+            /* Questions container */
+            #questionsContainer {
+                padding-left: 0;
+                padding-right: 0;
+            }
+            
+            /* Submit section */
+            #submitSection {
+                padding-left: 0;
+                padding-right: 0;
             }
             
             /* Passage content */
@@ -3199,6 +3233,10 @@
             if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
             if (passageDetailSection) passageDetailSection.style.display = 'block';
             
+            // Hide word of the day when viewing lessons
+            const wordOfDay = document.getElementById('wordOfDay');
+            if (wordOfDay) wordOfDay.style.display = 'none';
+            
             // Clear attempt history button
             document.getElementById('attemptHistoryButtonContainer').innerHTML = '';
             
@@ -3617,6 +3655,10 @@
             // COMMENTED OUT: Writing sections removed, only showing lessons
             // document.getElementById('writingSectionsListSection').style.display = 'none';
             document.getElementById('passageDetailSection').style.display = 'block';
+            
+            // Hide word of the day when viewing lesson previews
+            const wordOfDay = document.getElementById('wordOfDay');
+            if (wordOfDay) wordOfDay.style.display = 'none';
             
             // Get first few chunks for preview
             const previewChunks = lesson.chunks ? lesson.chunks.slice(0, 3) : [];
@@ -4889,10 +4931,10 @@
             if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
             if (passageDetailSection) passageDetailSection.style.display = 'block';
             
-            // Hide word of the day, show explanation container
+            // Show word of the day for passages (hidden for lessons)
             const wordOfDay = document.getElementById('wordOfDay');
             const questionExplanation = document.getElementById('questionExplanation');
-            if (wordOfDay) wordOfDay.style.display = 'none';
+            if (wordOfDay) wordOfDay.style.display = 'block';
             if (questionExplanation) {
                 questionExplanation.style.display = 'block';
                 questionExplanation.classList.remove('hidden');
