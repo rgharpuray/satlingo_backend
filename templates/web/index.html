@@ -1293,8 +1293,62 @@
                 padding: 20px;
             }
             
+            .passage-content-sat {
+                padding: 20px !important;
+            }
+            
             .passage-content h2 {
                 font-size: 20px;
+            }
+            
+            /* Lesson content container - add horizontal padding */
+            .lesson-content {
+                padding-left: 12px;
+                padding-right: 12px;
+            }
+            
+            /* Add more padding to example boxes and highlighted text containers on mobile */
+            /* Override padding for boxes with background colors */
+            .lesson-content div[style*="background: #f0f8ff"],
+            .lesson-content div[style*="background:#f0f8ff"],
+            .lesson-content div[style*="background: rgba(52, 152, 219, 0.15)"],
+            .lesson-content div[style*="background: #f0fff0"],
+            .lesson-content div[style*="background:#f0fff0"],
+            .lesson-content div[style*="background: #fff0f0"],
+            .lesson-content div[style*="background:#fff0f0"],
+            .lesson-content div[style*="background: #fff9e6"],
+            .lesson-content div[style*="background:#fff9e6"],
+            .lesson-content div[style*="background: #e3f2fd"],
+            .lesson-content div[style*="background:#e3f2fd"] {
+                padding-left: 20px !important;
+                padding-right: 20px !important;
+            }
+            
+            /* Explanation boxes - ensure good padding */
+            .explanation {
+                padding-left: 20px !important;
+                padding-right: 20px !important;
+            }
+            
+            /* Boxes with left border (example boxes) - increase padding */
+            .lesson-content div[style*="border-left: 4px solid"],
+            .lesson-content div[style*="border-left: 3px solid"] {
+                padding-left: 20px !important;
+                padding-right: 20px !important;
+            }
+            
+            /* All divs with padding in lesson content - ensure minimum horizontal padding */
+            .lesson-content div[style*="padding: 10px"],
+            .lesson-content div[style*="padding: 12px"],
+            .lesson-content div[style*="padding: 15px"] {
+                padding-left: 20px !important;
+                padding-right: 20px !important;
+            }
+            
+            /* Paragraphs and text blocks in lesson content */
+            .lesson-content p {
+                padding-left: 4px;
+                padding-right: 4px;
             }
             
             /* Line numbers and text */
