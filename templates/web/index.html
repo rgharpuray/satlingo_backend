@@ -2458,19 +2458,95 @@
         let currentCategory = 'reading';
         
         function switchCategory(category, forceReload = false) {
+            console.log('switchCategory called with:', category);
             currentCategory = category;
+            
+            // Hide detail section when switching categories
+            const passageDetailSection = document.getElementById('passageDetailSection');
+            if (passageDetailSection) {
+                passageDetailSection.style.display = 'none';
+            }
+            
+            // Clear current detail view state
+            currentPassageId = null;
+            currentLessonId = null;
+            currentMathSectionId = null;
             
             // Update button states
             document.querySelectorAll('.category-picker button').forEach(btn => {
                 btn.classList.remove('active');
             });
-            document.getElementById(`category-${category}-btn`).classList.add('active');
+            const categoryBtn = document.getElementById(`category-${category}-btn`);
+            if (categoryBtn) {
+                categoryBtn.classList.add('active');
+                console.log('Category button activated:', category);
+            } else {
+                console.error('Category button not found:', `category-${category}-btn`);
+            }
             
-            // Update content visibility
+            // Update content visibility - hide all category content first
             document.querySelectorAll('.category-content').forEach(content => {
                 content.classList.remove('active');
+                content.style.display = 'none'; // Explicitly hide
             });
-            document.getElementById(`category-${category}`).classList.add('active');
+            
+            // Show the selected category content
+            const categoryContent = document.getElementById(`category-${category}`);
+            if (categoryContent) {
+                categoryContent.classList.add('active');
+                categoryContent.style.display = 'block'; // Explicitly show
+                console.log('Category content activated:', category);
+            } else {
+                console.error('Category content not found:', `category-${category}`);
+            }
+            
+            // Show list sections for the selected category and hide others
+            const allListSections = [
+                'readingLessonsListSection',
+                'passagesListSection',
+                'writingLessonsListSection',
+                'mathLessonsListSection',
+                'mathSectionsListSection'
+            ];
+            
+            // Hide all list sections first
+            allListSections.forEach(sectionId => {
+                const section = document.getElementById(sectionId);
+                if (section) {
+                    section.style.display = 'none';
+                }
+            });
+            
+            // Show list sections for the selected category
+            if (category === 'reading') {
+                const readingLessonsListSection = document.getElementById('readingLessonsListSection');
+                const passagesListSection = document.getElementById('passagesListSection');
+                if (readingLessonsListSection) {
+                    readingLessonsListSection.style.display = 'block';
+                    console.log('Reading lessons section shown');
+                }
+                if (passagesListSection) {
+                    passagesListSection.style.display = 'block';
+                    console.log('Passages section shown');
+                }
+            } else if (category === 'writing') {
+                const writingLessonsListSection = document.getElementById('writingLessonsListSection');
+                if (writingLessonsListSection) {
+                    writingLessonsListSection.style.display = 'block';
+                    console.log('Writing lessons section shown');
+                }
+            } else if (category === 'math') {
+                const mathLessonsListSection = document.getElementById('mathLessonsListSection');
+                const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+                if (mathLessonsListSection) {
+                    mathLessonsListSection.style.display = 'block';
+                    console.log('Math lessons section shown');
+                }
+                if (mathSectionsListSection) {
+                    mathSectionsListSection.style.display = 'block';
+                    console.log('Math sections section shown');
+                }
+            }
             
             // Load content for the selected category
             // Use setTimeout to ensure DOM is ready
@@ -2507,6 +2583,9 @@
                 }
             }, 0);
         }
+        
+        // Make switchCategory globally accessible
+        window.switchCategory = switchCategory;
         
         async function loadLessonsByType(lessonType, listElementId) {
             try {
