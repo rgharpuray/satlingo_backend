@@ -1667,45 +1667,11 @@
                 <button class="btn-large" onclick="showPassages()">Get Started</button>
             </div>
             
-            <!-- Why Keuvi Section -->
-            <div class="why-keuvi">
-                <h3>Why Keuvi?</h3>
-                <div class="differentiators">
-                    <div class="differentiator-pill">
-                        <span class="pill-icon">✓</span> Realistic SAT-style passages
-                    </div>
-                    <div class="differentiator-pill">
-                        <span class="pill-icon">✓</span> Smart explanations
-                    </div>
-                    <div class="differentiator-pill">
-                        <span class="pill-icon">✓</span> Adaptive difficulty
-                    </div>
-                    <div class="differentiator-pill">
-                        <span class="pill-icon">✓</span> Free to start
-                    </div>
-                    <div class="differentiator-pill">
-                        <span class="pill-icon">✓</span> Updated weekly
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Feature Cards -->
-            <div class="landing-features">
-                <div class="feature-card">
-                    <div class="feature-icon">📚</div>
-                    <h3>Extensive Passage Library</h3>
-                    <p>Access a growing collection of reading passages covering diverse topics and difficulty levels.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">✨</div>
-                    <h3>Free & Premium Content</h3>
-                    <p>Start with free passages, then unlock premium content for advanced practice and detailed explanations.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔄</div>
-                    <h3>Regular Updates</h3>
-                    <p>New passages and content added regularly to keep your practice fresh and challenging.</p>
-                </div>
+            <!-- Premium Section -->
+            <div class="why-keuvi" style="text-align: center; padding: 30px 20px;">
+                <p style="font-size: 18px; color: var(--text-primary); line-height: 1.6; margin: 0;">
+                    Sign up for premium to get double the practice questions and new additions every week for $5 a month.
+                </p>
             </div>
         </div>
         
@@ -1765,11 +1731,13 @@
                             <div id="mathLessonsList"></div>
                         </div>
                         
-                        <!-- Math Sections List View -->
+                        <!-- Math Sections List View - COMMENTED OUT: Math sections removed, only showing lessons -->
+                        <!--
                         <div class="passages-section" id="mathSectionsListSection">
                             <h2>Math Sections</h2>
                             <div id="mathSectionsList"></div>
                         </div>
+                        -->
                     </div>
                     
                     <!-- Passage/Lesson Detail View -->
@@ -1793,8 +1761,8 @@
                         <div class="loading">Loading...</div>
                     </div>
                     
-                    <div id="questionExplanation" class="hidden" style="display: none; background: var(--bg-secondary); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px var(--shadow); border: 1px solid var(--border-color);">
-                        <h3 style="color: var(--accent-color); margin-bottom: 15px; font-size: 18px;">Explanation</h3>
+                    <div id="questionExplanation" class="hidden" style="display: none; background: var(--bg-secondary); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; box-shadow: 0 2px 4px var(--shadow); border-left: 3px solid var(--accent-color);">
+                        <h3 style="color: var(--accent-color); margin-bottom: 8px; font-size: 16px; margin-left: 0;">Explanation</h3>
                         <div id="questionExplanationContent" style="color: var(--text-primary); line-height: 1.6;">
                             <!-- Explanation will be inserted here -->
                         </div>
@@ -2129,10 +2097,11 @@
             const passagesListSection = document.getElementById('passagesListSection');
             // COMMENTED OUT: Writing sections removed, only showing lessons
             // const writingSectionsListSection = document.getElementById('writingSectionsListSection');
-            const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+            // COMMENTED OUT: Math sections removed, only showing lessons
+            // const mathSectionsListSection = document.getElementById('mathSectionsListSection');
             if (passagesListSection) passagesListSection.style.display = 'block';
             // if (writingSectionsListSection) writingSectionsListSection.style.display = 'block';
-            if (mathSectionsListSection) mathSectionsListSection.style.display = 'block';
+            // if (mathSectionsListSection) mathSectionsListSection.style.display = 'block';
             // Clear any detail view state
             currentPassageId = null;
             currentLessonId = null;
@@ -2505,8 +2474,9 @@
                 'readingLessonsListSection',
                 'passagesListSection',
                 'writingLessonsListSection',
-                'mathLessonsListSection',
-                'mathSectionsListSection'
+                'mathLessonsListSection'
+                // COMMENTED OUT: Math sections removed, only showing lessons
+                // 'mathSectionsListSection'
             ];
             
             // Hide all list sections first
@@ -2537,15 +2507,16 @@
                 }
             } else if (category === 'math') {
                 const mathLessonsListSection = document.getElementById('mathLessonsListSection');
-                const mathSectionsListSection = document.getElementById('mathSectionsListSection');
+                // COMMENTED OUT: Math sections removed, only showing lessons
+                // const mathSectionsListSection = document.getElementById('mathSectionsListSection');
                 if (mathLessonsListSection) {
                     mathLessonsListSection.style.display = 'block';
                     console.log('Math lessons section shown');
                 }
-                if (mathSectionsListSection) {
-                    mathSectionsListSection.style.display = 'block';
-                    console.log('Math sections section shown');
-                }
+                // if (mathSectionsListSection) {
+                //     mathSectionsListSection.style.display = 'block';
+                //     console.log('Math sections section shown');
+                // }
             }
             
             // Load content for the selected category
@@ -2573,13 +2544,15 @@
                     // }
                 } else if (category === 'math') {
                     const mathLessonsEl = document.getElementById('mathLessonsList');
-                    const mathSectionsEl = document.getElementById('mathSectionsList');
+                    // COMMENTED OUT: Math sections removed, only showing lessons
+                    // const mathSectionsEl = document.getElementById('mathSectionsList');
                     if (forceReload || !mathLessonsEl || mathLessonsEl.innerHTML === '') {
                         loadLessonsByType('math', 'mathLessonsList');
                     }
-                    if (forceReload || !mathSectionsEl || mathSectionsEl.innerHTML === '') {
-                        loadMathSections();
-                    }
+                    // COMMENTED OUT: Math sections removed, only showing lessons
+                    // if (forceReload || !mathSectionsEl || mathSectionsEl.innerHTML === '') {
+                    //     loadMathSections();
+                    // }
                 }
             }, 0);
         }
@@ -5042,10 +5015,11 @@
             if (mathLessonsListSection) mathLessonsListSection.style.display = 'none';
             if (passageDetailSection) passageDetailSection.style.display = 'block';
             
-            // Show word of the day for passages (hidden for lessons)
+            // Hide word of the day for reading passages (too busy)
+            // Show word of the day only for writing/math sections, not reading passages
             const wordOfDay = document.getElementById('wordOfDay');
             const questionExplanation = document.getElementById('questionExplanation');
-            if (wordOfDay) wordOfDay.style.display = 'block';
+            if (wordOfDay) wordOfDay.style.display = 'none'; // Hide for reading passages
             if (questionExplanation) {
                 questionExplanation.style.display = 'block';
                 questionExplanation.classList.remove('hidden');
@@ -5346,111 +5320,14 @@
             }
             
             // For lessons: show explanation inline (existing behavior)
+            // For passages/sections: don't show explanation until after submit
             if (currentLessonId && currentLessonData) {
                 const explanationDiv = document.getElementById(`explanation_${questionId}`);
                 if (explanationDiv) {
                     explanationDiv.style.display = 'block';
                 }
-            } else {
-                // For passages/sections: show explanation in sidebar
-                console.log('selectOption - showing explanation in sidebar for questionId:', questionId);
-                console.log('currentQuestionsMap keys:', Object.keys(currentQuestionsMap));
-                const question = currentQuestionsMap[questionId];
-                console.log('Question found:', question ? 'YES' : 'NO', question);
-                const questionExplanation = document.getElementById('questionExplanation');
-                const questionExplanationContent = document.getElementById('questionExplanationContent');
-                console.log('Explanation elements found:', questionExplanation ? 'YES' : 'NO', questionExplanationContent ? 'YES' : 'NO');
-                
-                if (questionExplanation && questionExplanationContent) {
-                    if (question && question.explanation) {
-                        // Get question number for display
-                        const questionNumber = question.order !== undefined ? question.order : 
-                            (Object.keys(currentQuestionsMap).indexOf(questionId) + 1);
-                        
-                        // Process explanation (handle diagrams and underlines)
-                        // Note: Math questions have explanation as an array of objects, not a string
-                        console.log('=== EXPLANATION DEBUG START ===');
-                        console.log('Question ID:', questionId);
-                        console.log('Question object:', question);
-                        console.log('Explanation value:', question.explanation);
-                        console.log('Explanation type:', typeof question.explanation);
-                        console.log('Is array:', Array.isArray(question.explanation));
-                        console.log('Is math section:', !!currentMathSectionId);
-                        console.log('Current math section ID:', currentMathSectionId);
-                        
-                        let processedExplanation = formatMathExplanation(question.explanation, !!currentMathSectionId);
-                        console.log('After formatMathExplanation:', processedExplanation);
-                        console.log('After formatMathExplanation type:', typeof processedExplanation);
-                        
-                        // Apply sentinel replacement for math sections
-                        if (currentMathSectionId && currentMathSectionData) {
-                            const beforeSentinel = processedExplanation;
-                            processedExplanation = replaceDiagramSentinels(processedExplanation, currentMathSectionData.assets || [], currentMathSectionData.section_id || currentMathSectionData.id);
-                            console.log('After replaceDiagramSentinels:', processedExplanation);
-                        }
-                        // Apply sentinel replacement for passages (if they get assets in the future)
-                        else if (currentPassageId && currentPassageData) {
-                            // Passages don't have assets currently, but we can add this if needed
-                        }
-                        // Apply sentinel replacement for writing sections (if they get assets in the future)
-                        else if (currentWritingSectionId && currentWritingSectionData) {
-                            // Writing sections don't have assets currently, but we can add this if needed
-                        }
-                        
-                        // Replace underline sentinels (only if it's a string)
-                        if (typeof processedExplanation === 'string') {
-                            processedExplanation = replaceUnderlineSentinels(processedExplanation);
-                            console.log('After replaceUnderlineSentinels:', processedExplanation);
-                        }
-                        
-                        // CRITICAL: Ensure processedExplanation is ALWAYS a string before inserting into HTML
-                        if (typeof processedExplanation !== 'string') {
-                            console.error('ERROR: Processed explanation is NOT a string!', {
-                                value: processedExplanation,
-                                type: typeof processedExplanation,
-                                isArray: Array.isArray(processedExplanation),
-                                stringified: String(processedExplanation)
-                            });
-                            // Try to convert it properly
-                            if (Array.isArray(processedExplanation)) {
-                                processedExplanation = processedExplanation.join(' ');
-                            } else if (processedExplanation && typeof processedExplanation === 'object') {
-                                processedExplanation = JSON.stringify(processedExplanation);
-                            } else {
-                                processedExplanation = String(processedExplanation || '');
-                            }
-                            console.log('After conversion:', processedExplanation, 'type:', typeof processedExplanation);
-                        }
-                        
-                        console.log('Final processed explanation:', processedExplanation);
-                        console.log('Final type:', typeof processedExplanation);
-                        console.log('=== EXPLANATION DEBUG END ===');
-                        
-                        const explanationTextColor = document.body.classList.contains('dark-mode') ? 'var(--text-primary)' : '#333';
-                        const explanationLabelColor = document.body.classList.contains('dark-mode') ? 'var(--text-secondary)' : '#666';
-                        questionExplanationContent.innerHTML = `
-                            <div style="color: ${explanationLabelColor}; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
-                            <div style="color: ${explanationTextColor}; line-height: 1.6;">${processedExplanation}</div>
-                        `;
-                        questionExplanation.style.display = 'block';
-                        questionExplanation.classList.remove('hidden');
-                        
-                        // Scroll sidebar to explanation if needed
-                        questionExplanation.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    } else {
-                        // No explanation available for this question
-                        const questionNumber = question && question.order !== undefined ? question.order : 
-                            (Object.keys(currentQuestionsMap).indexOf(questionId) + 1);
-                        const explanationLabelColor = document.body.classList.contains('dark-mode') ? 'var(--text-secondary)' : '#666';
-                        questionExplanationContent.innerHTML = `
-                            <div style="color: ${explanationLabelColor}; font-size: 13px; margin-bottom: 10px; font-weight: 600;">Question ${questionNumber}</div>
-                            <div style="color: ${explanationLabelColor}; font-style: italic;">No explanation available for this question.</div>
-                        `;
-                        questionExplanation.style.display = 'block';
-                        questionExplanation.classList.remove('hidden');
-                    }
-                }
             }
+            // Removed: Sidebar explanation for passages/sections - explanations now only show after submit
         }
         
         async function submitAnswers() {
@@ -5767,9 +5644,9 @@
                             }).join('')}
                         </div>
                         ${explanationText ? `
-                            <div class="explanation" style="white-space: pre-wrap;">
-                                <strong>Explanation:</strong>
-                                <div style="margin-top: 8px; line-height: 1.6;">${explanationText}</div>
+                            <div class="explanation" style="white-space: pre-wrap; margin-top: 12px; padding: 12px 16px; background: var(--bg-secondary); border-left: 3px solid var(--accent-color); border-radius: 4px;">
+                                <strong style="color: var(--accent-color); display: block; margin-bottom: 8px;">Explanation:</strong>
+                                <div style="line-height: 1.6; color: var(--text-primary);">${explanationText}</div>
                             </div>
                         ` : ''}
                     </div>
