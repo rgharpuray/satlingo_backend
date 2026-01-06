@@ -1956,8 +1956,8 @@
             
             if (hash.startsWith('passage/')) {
                 const passageId = hash.split('/')[1];
-                // Only open if we're not already opening this passage (prevent loop)
-                if (!isOpeningPassage || currentPassageId !== passageId) {
+                // Only open if we're not already opening this passage and it's different from current (prevent loop)
+                if (!isOpeningPassage && currentPassageId !== passageId) {
                     showPassages(true);
                     setTimeout(() => {
                         console.log('Opening passage from hash:', passageId);
@@ -1966,11 +1966,14 @@
                 }
             } else if (hash.startsWith('lesson/')) {
                 const lessonId = hash.split('/')[1];
-                showPassages(true);
-                setTimeout(() => {
-                    console.log('Opening lesson from hash:', lessonId);
-                    openLesson(lessonId);
-                }, 100);
+                // Only open if it's different from current lesson (prevent loop)
+                if (currentLessonId !== lessonId) {
+                    showPassages(true);
+                    setTimeout(() => {
+                        console.log('Opening lesson from hash:', lessonId);
+                        openLesson(lessonId);
+                    }, 100);
+                }
             // COMMENTED OUT: Writing sections removed, only showing lessons
             // } else if (hash.startsWith('writing-section/')) {
             //     const sectionId = hash.split('/')[1];
@@ -1981,8 +1984,8 @@
             //     }, 100);
             } else if (hash.startsWith('math-section/')) {
                 const sectionId = hash.split('/')[1];
-                // Don't reload if we're already opening this section
-                if (!isOpeningMathSection || currentMathSectionId !== sectionId) {
+                // Only open if we're not already opening this section and it's different from current (prevent loop)
+                if (!isOpeningMathSection && currentMathSectionId !== sectionId) {
                     // Show passages view but don't reload content (we're opening a detail view)
                     document.getElementById('landingPage').style.display = 'none';
                     document.getElementById('passagesView').style.display = 'block';
@@ -1996,7 +1999,16 @@
             } else if (hash === 'passages' || hash === 'lessons' || hash === 'math-sections' || hash === '') {
                 // COMMENTED OUT: 'writing-sections' removed from hash check
                 console.log('Showing passages view from hash');
-                showPassages(true);
+                // Only show passages if we're not currently viewing a detail (prevent loop)
+                if (!currentPassageId && !currentLessonId && !currentMathSectionId) {
+                    showPassages(true);
+                } else {
+                    // We're navigating away from a detail view, clear state and show list
+                    currentPassageId = null;
+                    currentLessonId = null;
+                    currentMathSectionId = null;
+                    showPassages(true);
+                }
             } else {
                 showLanding();
             }
@@ -2088,7 +2100,11 @@
             document.querySelectorAll('.view-toggle button').forEach(btn => {
                 btn.classList.remove('active');
             });
-            // Update URL
+            // Clear any detail view state
+            currentPassageId = null;
+            currentLessonId = null;
+            currentMathSectionId = null;
+            // Clear URL hash completely when going to landing page
             if (window.location.hash !== '') {
                 window.history.replaceState(null, '', window.location.pathname);
             }
@@ -2117,10 +2133,14 @@
             if (passagesListSection) passagesListSection.style.display = 'block';
             // if (writingSectionsListSection) writingSectionsListSection.style.display = 'block';
             if (mathSectionsListSection) mathSectionsListSection.style.display = 'block';
-            // Update URL only if hash doesn't match expected patterns
+            // Clear any detail view state
+            currentPassageId = null;
+            currentLessonId = null;
+            currentMathSectionId = null;
+            // Always update URL to #passages when showing list view (this prevents hashchange from re-opening detail views)
             const currentHash = window.location.hash.substring(1);
-            // COMMENTED OUT: 'writing-section/' removed from hash check
-            if (currentHash !== 'passages' && !currentHash.startsWith('passage/') && !currentHash.startsWith('lesson/') && !currentHash.startsWith('math-section/')) {
+            if (currentHash !== 'passages') {
+                // Use replaceState to avoid triggering hashchange event
                 window.history.replaceState(null, '', window.location.pathname + '#passages');
             }
             // Load content for the current category
@@ -3160,11 +3180,16 @@
         async function openLesson(lessonId) {
             try {
                 currentLessonId = lessonId;
-                currentPassageId = null; // Clear passage data
+                // Clear other detail view states
+                currentPassageId = null;
                 currentPassageData = null;
+                currentMathSectionId = null;
+                currentMathSectionData = null;
+                currentWritingSectionId = null;
+                currentWritingSectionData = null;
                 userAnswers = {};
                 
-                // Update URL hash
+                // Update URL hash (replaceState doesn't trigger hashchange, which is what we want)
                 window.history.replaceState(null, '', window.location.pathname + `#lesson/${lessonId}`);
                 
                 const headers = {};
@@ -3783,9 +3808,16 @@
                 console.log('Opening passage:', passageId);
                 isOpeningPassage = true;
                 currentPassageId = passageId;
+                // Clear other detail view states
+                currentLessonId = null;
+                currentLessonData = null;
+                currentMathSectionId = null;
+                currentMathSectionData = null;
+                currentWritingSectionId = null;
+                currentWritingSectionData = null;
                 userAnswers = {};
                 
-                // Update URL hash (this might trigger hashchange, but we have the flag to prevent loop)
+                // Update URL hash (replaceState doesn't trigger hashchange, which is what we want)
                 window.history.replaceState(null, '', window.location.pathname + `#passage/${passageId}`);
                 
                 const headers = {};
