@@ -5309,21 +5309,72 @@
             userAnswers[questionId] = optionIndex;
             
             // Update visual selection
-            const questionCard = document.querySelector(`input[name="question_${questionId}"]`).closest('.question-card');
+            const questionCard = document.querySelector(`input[name="question_${questionId}"]`)?.closest('.question-card');
             if (questionCard) {
-                questionCard.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
+                // Find the question to check correct answer
+                const question = currentLessonData?.questions?.find(q => String(q.id) === String(questionId));
+                const correctAnswerIndex = question?.correct_answer_index;
+                const isCorrect = optionIndex === correctAnswerIndex;
+                
+                // Update all options with correct/incorrect styling
+                questionCard.querySelectorAll('.option').forEach((opt, idx) => {
+                    opt.classList.remove('selected', 'correct', 'incorrect');
+                    if (idx === optionIndex) {
+                        opt.classList.add('selected');
+                        if (currentLessonId && currentLessonData && correctAnswerIndex !== undefined) {
+                            opt.classList.add(isCorrect ? 'correct' : 'incorrect');
+                        }
+                    } else if (currentLessonId && currentLessonData && idx === correctAnswerIndex) {
+                        // Mark correct answer even if not selected
+                        opt.classList.add('correct');
+                    }
+                });
+                
                 const selectedOption = questionCard.querySelector(`#opt_${questionId}_${optionIndex}`);
                 if (selectedOption) {
-                    selectedOption.closest('.option').classList.add('selected');
                     selectedOption.checked = true;
                 }
             }
             
-            // For lessons: show explanation inline (existing behavior)
+            // For lessons: show explanation inline with correct/incorrect feedback
             // For passages/sections: don't show explanation until after submit
             if (currentLessonId && currentLessonData) {
                 const explanationDiv = document.getElementById(`explanation_${questionId}`);
                 if (explanationDiv) {
+                    // Find the question to check if answer is correct
+                    const question = currentLessonData.questions?.find(q => String(q.id) === String(questionId));
+                    if (question) {
+                        const isCorrect = optionIndex === question.correct_answer_index;
+                        const correctAnswerIndex = question.correct_answer_index;
+                        
+                        // Get the question card to find the choices
+                        const questionCard = document.querySelector(`input[name="question_${questionId}"]`)?.closest('.question-card');
+                        const choices = questionCard?.querySelectorAll('.option-label') || [];
+                        const correctChoiceText = choices[correctAnswerIndex]?.textContent?.trim() || `Option ${String.fromCharCode(65 + correctAnswerIndex)}`;
+                        
+                        // Update explanation div to show feedback
+                        const correctColor = '#28a745';
+                        const incorrectColor = '#dc3545';
+                        const feedbackColor = isCorrect ? correctColor : incorrectColor;
+                        const feedbackIcon = isCorrect ? '✓' : '✗';
+                        const feedbackText = isCorrect ? 'Correct!' : 'Incorrect';
+                        
+                        // Get existing explanation content (everything after "Explanation:")
+                        const existingContent = explanationDiv.innerHTML;
+                        const explanationMatch = existingContent.match(/<strong>Explanation:<\/strong>(.*)/s);
+                        const explanationContent = explanationMatch ? explanationMatch[1] : '';
+                        
+                        // Update with feedback
+                        explanationDiv.innerHTML = `
+                            <div style="margin-bottom: 10px; padding: 8px; border-radius: 4px; background: ${isCorrect ? '#d4edda' : '#f8d7da'}; border-left: 3px solid ${feedbackColor};">
+                                <strong style="color: ${feedbackColor}; font-size: 16px;">${feedbackIcon} ${feedbackText}</strong>
+                                ${!isCorrect ? `<div style="margin-top: 6px; color: #333; font-size: 14px;">Correct answer: <strong>${correctChoiceText}</strong></div>` : ''}
+                            </div>
+                            <div>
+                                <strong>Explanation:</strong>${explanationContent}
+                            </div>
+                        `;
+                    }
                     explanationDiv.style.display = 'block';
                 }
             }
