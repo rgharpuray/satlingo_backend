@@ -18,17 +18,35 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 @permission_classes([IsAuthenticated])
 def create_checkout_session(request):
     """Create Stripe checkout session for premium subscription"""
-    if not settings.STRIPE_SECRET_KEY or not settings.STRIPE_PRICE_ID:
+    # Check configuration
+    if not settings.STRIPE_SECRET_KEY:
+        logger.error("STRIPE_SECRET_KEY not configured")
         return Response(
-            {'error': {'code': 'INTERNAL_ERROR', 'message': 'Stripe not configured'}},
+            {'error': {'code': 'CONFIG_ERROR', 'message': 'Stripe secret key not configured. Please contact support.'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    if not settings.STRIPE_PRICE_ID:
+        logger.error("STRIPE_PRICE_ID not configured")
+        return Response(
+            {'error': {'code': 'CONFIG_ERROR', 'message': 'Stripe price ID not configured. Please contact support.'}},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
     user = request.user
     
+    # Validate user has email
+    if not user.email:
+        logger.error(f"User {user.id} does not have an email address")
+        return Response(
+            {'error': {'code': 'BAD_REQUEST', 'message': 'User email is required for subscription'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
     try:
         # Create or get Stripe customer
         if not user.stripe_customer_id:
+            logger.info(f"Creating new Stripe customer for user {user.id} with email {user.email}")
             customer = stripe.Customer.create(
                 email=user.email,
                 metadata={'user_id': str(user.id)}
@@ -36,9 +54,27 @@ def create_checkout_session(request):
             user.stripe_customer_id = customer.id
             user.save()
         else:
+            logger.info(f"Retrieving existing Stripe customer {user.stripe_customer_id} for user {user.id}")
             customer = stripe.Customer.retrieve(user.stripe_customer_id)
         
         # Create checkout session
+        logger.info(f"Creating checkout session for customer {customer.id} with price {settings.STRIPE_PRICE_ID}")
+        
+        # Build absolute URLs for success and cancel
+        # Force HTTPS in production (Heroku uses HTTPS)
+        host = request.get_host()
+        # Use HTTPS for production (keuvi.app), HTTP only for localhost
+        if 'keuvi.app' in host or not settings.DEBUG:
+            scheme = 'https'
+        else:
+            scheme = 'http'
+        
+        success_url = f"{scheme}://{host}/web/?from=subscription&session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{scheme}://{host}/web/subscription/cancel"
+        
+        logger.info(f"Success URL: {success_url}")
+        logger.info(f"Cancel URL: {cancel_url}")
+        
         checkout_session = stripe.checkout.Session.create(
             customer=customer.id,
             payment_method_types=['card'],
@@ -47,22 +83,42 @@ def create_checkout_session(request):
                 'quantity': 1,
             }],
             mode='subscription',
-            success_url=request.build_absolute_uri('/web/?from=subscription&session_id={CHECKOUT_SESSION_ID}'),
-            cancel_url=request.build_absolute_uri('/web/subscription/cancel'),
+            success_url=success_url,
+            cancel_url=cancel_url,
             metadata={
                 'user_id': str(user.id),
             },
         )
         
+        logger.info(f"Checkout session created successfully: {checkout_session.id}")
         return Response({
             'session_id': checkout_session.id,
             'url': checkout_session.url,
         })
     
-    except stripe.error.StripeError as e:
+    except stripe.error.InvalidRequestError as e:
+        logger.error(f"Stripe invalid request error: {str(e)}")
+        # Check if it's a price ID issue
+        if 'price' in str(e).lower() or 'No such price' in str(e):
+            return Response(
+                {'error': {'code': 'CONFIG_ERROR', 'message': f'Invalid Stripe price ID configured: {settings.STRIPE_PRICE_ID}. Please contact support.'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         return Response(
-            {'error': {'code': 'PAYMENT_ERROR', 'message': str(e)}},
+            {'error': {'code': 'PAYMENT_ERROR', 'message': f'Invalid request: {str(e)}'}},
             status=status.HTTP_400_BAD_REQUEST
+        )
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error: {str(e)} (type: {type(e).__name__})")
+        return Response(
+            {'error': {'code': 'PAYMENT_ERROR', 'message': f'Payment error: {str(e)}'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error creating checkout session: {str(e)}", exc_info=True)
+        return Response(
+            {'error': {'code': 'INTERNAL_ERROR', 'message': 'An unexpected error occurred. Please try again.'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 

@@ -6466,7 +6466,10 @@
                     localStorage.setItem('pendingSubscription', 'true');
                     window.location.href = data.url;
                 } else {
-                    alert('Failed to create checkout session. Please try again.');
+                    // Show more detailed error message
+                    const errorMessage = data.error?.message || 'Failed to create checkout session. Please try again.';
+                    console.error('Checkout error:', data);
+                    alert(errorMessage);
                 }
             } catch (error) {
                 console.error('Failed to create checkout:', error);
