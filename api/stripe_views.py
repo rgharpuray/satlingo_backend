@@ -55,7 +55,21 @@ def create_checkout_session(request):
             user.save()
         else:
             logger.info(f"Retrieving existing Stripe customer {user.stripe_customer_id} for user {user.id}")
-            customer = stripe.Customer.retrieve(user.stripe_customer_id)
+            try:
+                customer = stripe.Customer.retrieve(user.stripe_customer_id)
+            except stripe.error.InvalidRequestError as e:
+                if 'No such customer' in str(e):
+                    # Customer ID exists in DB but not in Stripe - create a new one
+                    logger.warning(f"Customer {user.stripe_customer_id} not found in Stripe, creating new customer for user {user.id}")
+                    customer = stripe.Customer.create(
+                        email=user.email,
+                        metadata={'user_id': str(user.id)}
+                    )
+                    user.stripe_customer_id = customer.id
+                    user.save()
+                    logger.info(f"Created new Stripe customer {customer.id} for user {user.id}")
+                else:
+                    raise
         
         # Create checkout session
         logger.info(f"Creating checkout session for customer {customer.id} with price {settings.STRIPE_PRICE_ID}")
