@@ -1936,11 +1936,11 @@
                 const lessonId = hash.split('/')[1];
                 // Only open if it's different from current lesson (prevent loop)
                 if (currentLessonId !== lessonId) {
-                    showPassages(true);
-                    setTimeout(() => {
-                        console.log('Opening lesson from hash:', lessonId);
-                        openLesson(lessonId);
-                    }, 100);
+                showPassages(true);
+                setTimeout(() => {
+                    console.log('Opening lesson from hash:', lessonId);
+                    openLesson(lessonId);
+                }, 100);
                 }
             // COMMENTED OUT: Writing sections removed, only showing lessons
             // } else if (hash.startsWith('writing-section/')) {
@@ -1969,7 +1969,7 @@
                 console.log('Showing passages view from hash');
                 // Only show passages if we're not currently viewing a detail (prevent loop)
                 if (!currentPassageId && !currentLessonId && !currentMathSectionId) {
-                    showPassages(true);
+                showPassages(true);
                 } else {
                     // We're navigating away from a detail view, clear state and show list
                     currentPassageId = null;
@@ -6410,12 +6410,15 @@
                 <div class="modal-content" style="max-width: 500px;">
                     <h2>🔒 Premium Content</h2>
                     <p style="margin-bottom: 20px; color: #666;">
-                        This is part of our premium content. Upgrade to Keuvi Premium for $5/month to get:
+                        This ${contentType} is part of our premium collection. Upgrade to unlock full access to all ${contentType}s, passages, and writing sections.
                     </p>
                     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                        <ul style="text-align: left; margin: 0; padding-left: 20px; list-style: none;">
-                            <li style="margin-bottom: 10px;">— twice the practice questions</li>
-                            <li>— new material (that's exclusive to Premium) added every week</li>
+                        <h3 style="margin-top: 0; color: white;">Premium Benefits</h3>
+                        <ul style="text-align: left; margin: 0; padding-left: 20px;">
+                            <li>Access to all premium passages</li>
+                            <li>Access to all premium lessons</li>
+                            <li>Access to all premium writing sections</li>
+                            <li>Detailed explanations and analytics</li>
                         </ul>
                     </div>
                     ${authToken ? 
