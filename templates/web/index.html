@@ -3533,11 +3533,21 @@
                     
                     contentHTML += `<div class="options-container">`;
                     (chunk.choices || []).forEach((choice, idx) => {
+                        // Process choice text for diagrams (if it contains sentinels)
+                        let processedChoice = choice;
+                        if (typeof choice === 'string' && choice.includes('[[Diagram')) {
+                            // Process diagram sentinels in choice text
+                            processedChoice = replaceDiagramSentinels(choice, lesson.assets || [], lesson.lesson_id);
+                        } else {
+                            // Escape HTML if no diagrams
+                            processedChoice = escapeHtml(choice);
+                        }
+                        
                         contentHTML += `
                             <div class="option" onclick="selectOption('${questionId}', ${idx})">
                                 <input type="radio" name="question_${questionId}" value="${idx}" id="opt_${questionId}_${idx}">
                                 <label class="option-label" for="opt_${questionId}_${idx}" style="color: #000; cursor: pointer; display: block; padding: 8px; border-radius: 4px; transition: background 0.2s;">
-                                    ${String.fromCharCode(65 + idx)}. ${escapeHtml(choice)}
+                                    ${String.fromCharCode(65 + idx)}. ${processedChoice}
                                 </label>
                             </div>
                         `;
@@ -5828,13 +5838,32 @@
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
                 
                 // Get options from question object
-                const options = question.options || [];
+                let options = question.options || [];
+                
+                // Process options for diagrams in lessons
+                const lessonAssets = lessonData?.assets || currentLessonData?.assets || [];
+                const lessonId = lessonData?.lesson_id || currentLessonData?.lesson_id || '';
+                if (options.length > 0 && lessonAssets.length > 0) {
+                    options = options.map(option => {
+                        const optionText = typeof option === 'string' ? option : (option.text || option);
+                        if (typeof optionText === 'string' && optionText.includes('[[Diagram')) {
+                            // Process diagram sentinels in option text
+                            const processed = replaceDiagramSentinels(optionText, lessonAssets, lessonId);
+                            // Return object format if original was object, otherwise return processed string
+                            if (typeof option === 'object' && option !== null) {
+                                return { ...option, text: processed };
+                            }
+                            return processed;
+                        }
+                        return option;
+                    });
+                }
                 
                 // Process question prompt - handle both JSON blocks and plain text
                 let questionPrompt = '';
                 if (Array.isArray(question.text)) {
                     // New format: array of blocks
-                    questionPrompt = formatLessonPrompt(question.text, currentLessonData?.assets || [], currentLessonData?.lesson_id || '');
+                    questionPrompt = formatLessonPrompt(question.text, lessonAssets, lessonId);
                 } else if (typeof question.text === 'string' && question.text) {
                     // Old format: plain text (backwards compatibility)
                     questionPrompt = `<p style="margin-bottom: 15px; font-size: 16px; color: #000;">${escapeHtml(question.text)}</p>`;
@@ -5855,7 +5884,16 @@
                                     optionClass += ' incorrect';
                                 }
                                 
-                                const optionText = typeof option === 'string' ? option : (option.text || option);
+                                let optionText = typeof option === 'string' ? option : (option.text || option);
+                                // If optionText contains HTML (from diagram processing), don't escape it
+                                if (typeof optionText === 'string' && (optionText.includes('<img') || optionText.includes('[[Diagram'))) {
+                                    // Already processed with diagrams, use as-is (or process if still has sentinel)
+                                    if (optionText.includes('[[Diagram')) {
+                                        optionText = replaceDiagramSentinels(optionText, lessonAssets, lessonId);
+                                    }
+                                } else {
+                                    optionText = escapeHtml(optionText);
+                                }
                                 
                                 return `
                                     <div class="${optionClass}">
