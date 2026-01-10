@@ -3508,13 +3508,34 @@
                     const questionObj = questionMap[chunkIdx];
                     const questionId = questionObj ? questionObj.id : `chunk_${chunkIdx}`;
                     
-                    // Get assets for this question - prefer question-specific assets, fallback to lesson assets
-                    const questionAssets = questionAssetsMap[chunkIdx] || (questionObj && questionObj.assets) || lesson.assets || [];
+                    // Get assets for this question - prefer question-specific assets, but always include lesson assets
+                    // Aggregate all available assets so we can find diagrams by asset_id
+                    const questionSpecificAssets = questionAssetsMap[chunkIdx] || (questionObj && questionObj.assets) || [];
+                    const allLessonAssets = lesson.assets || [];
+                    
+                    // Combine question-specific and lesson assets (lesson assets as fallback)
+                    // Use a Map to deduplicate by asset_id, preferring question-specific assets
+                    const assetMap = new Map();
+                    // First add all lesson assets
+                    allLessonAssets.forEach(asset => {
+                        if (asset && asset.asset_id) {
+                            assetMap.set(asset.asset_id, asset);
+                        }
+                    });
+                    // Then add question-specific assets (these will override if same asset_id)
+                    questionSpecificAssets.forEach(asset => {
+                        if (asset && asset.asset_id) {
+                            assetMap.set(asset.asset_id, asset);
+                        }
+                    });
+                    const questionAssets = Array.from(assetMap.values());
+                    
                     const lessonId = lesson.lesson_id || '';
                     
                     // Debug logging for assets
-                    if (questionAssets.length === 0 && lesson.assets && lesson.assets.length > 0) {
-                        console.log(`Question ${questionId} has no question-specific assets, using lesson assets:`, lesson.assets.length);
+                    console.log(`Question ${questionId} - Question-specific assets: ${questionSpecificAssets.length}, Lesson assets: ${allLessonAssets.length}, Combined: ${questionAssets.length}`);
+                    if (allLessonAssets.length > 0) {
+                        console.log(`Available lesson asset IDs:`, allLessonAssets.map(a => a.asset_id));
                     }
                     
                     // Render question directly from chunk (questions are embedded in chunks)
@@ -3565,16 +3586,10 @@
                             console.log('Available assets:', questionAssets);
                             processedChoice = replaceDiagramSentinels(choiceText, questionAssets, lessonId);
                             console.log(`Processed choice ${idx}:`, processedChoice);
-                            // If still contains sentinel after processing, it means assets weren't found - try with lesson assets
-                            if (processedChoice.includes('[[Diagram') && questionAssets.length === 0) {
-                                console.log('No question assets, trying lesson assets...');
-                                const lessonAssets = lesson.assets || [];
-                                processedChoice = replaceDiagramSentinels(choiceText, lessonAssets, lessonId);
-                                console.log(`After lesson assets processing:`, processedChoice);
-                            }
-                            // If still contains sentinel, don't escape (it will show as text) - but log a warning
+                            // If still contains sentinel after processing, log warning (we already aggregated all assets)
                             if (processedChoice.includes('[[Diagram')) {
-                                console.warn(`Diagram sentinel not replaced in choice ${idx}. Text: ${choiceText}, Assets available: ${questionAssets.length}`);
+                                console.warn(`Diagram sentinel not replaced in choice ${idx} after trying all aggregated assets. Text: ${choiceText}`);
+                                console.warn(`Available asset IDs:`, questionAssets.map(a => a.asset_id));
                             }
                         } else {
                             // Escape HTML if no diagrams
@@ -4612,12 +4627,34 @@
                 // Trim whitespace from asset_id
                 assetId = assetId.trim();
                 console.log(`Processing sentinel: "${match}" with asset_id: "${assetId}"`);
+                console.log(`Available assets (${assets?.length || 0}):`, assets?.map(a => ({asset_id: a.asset_id, s3_url: a.s3_url?.substring(0, 50) + '...'})));
                 
                 // Find the asset by asset_id (only if assets array exists and has items)
                 const asset = (assets && Array.isArray(assets) && assets.length > 0) 
                     ? assets.find(a => a.asset_id === assetId) 
                     : null;
                 console.log(`Found asset for "${assetId}":`, asset);
+                
+                // If not found, try case-insensitive match
+                if (!asset && assets && Array.isArray(assets) && assets.length > 0) {
+                    const caseInsensitiveAsset = assets.find(a => a.asset_id && a.asset_id.toLowerCase() === assetId.toLowerCase());
+                    if (caseInsensitiveAsset) {
+                        console.log(`Found asset with case-insensitive match:`, caseInsensitiveAsset);
+                        // Use the case-insensitive match
+                        const matchedAsset = caseInsensitiveAsset;
+                        if (matchedAsset && matchedAsset.s3_url) {
+                            let imageUrl = matchedAsset.s3_url;
+                            imageUrl = imageUrl.trim().replace(/[: ]+$/, '');
+                            if (!/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(imageUrl)) {
+                                if (!imageUrl.includes('.')) {
+                                    imageUrl += '.png';
+                                }
+                            }
+                            console.log(`Using image URL from case-insensitive match: ${imageUrl}`);
+                            return `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                        }
+                    }
+                }
                 
                 if (asset && asset.s3_url) {
                     // Use the S3 URL from the asset
@@ -4654,9 +4691,14 @@
                 } else if (assetId && lessonId) {
                     // If asset not found but we have asset_id and lesson_id, construct URL
                     // Both lessons and math sections now use lessons/ prefix
-                    const constructedUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}.png`;
+                    // Try multiple URL formats in case the asset was uploaded with different naming
+                    const baseUrl = `https://keuvi.s3.amazonaws.com/lessons/${lessonId}/${assetId}`;
+                    const constructedUrl = `${baseUrl}.png`;
                     console.log(`Constructing fallback URL: ${constructedUrl}`);
-                    return `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram:', this.src); this.style.display='none';" />`;
+                    console.log(`Lesson ID: "${lessonId}", Asset ID: "${assetId}"`);
+                    
+                    // Return image with multiple format attempts
+                    return `<img src="${escapeHtml(constructedUrl)}" alt="${escapeHtml(assetId)}" style="max-width: 100%; height: auto; margin: 15px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;" onerror="console.error('Failed to load diagram from:', this.src); this.onerror=null; this.src='${baseUrl}.jpg'; this.onerror=function(){this.onerror=null; this.src='${baseUrl}';};" />`;
                 } else {
                     // Asset not found, return placeholder
                     console.warn(`Diagram sentinel [[Diagram ${assetId}]] found but asset not found. Assets:`, assets);
