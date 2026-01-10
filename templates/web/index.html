@@ -5243,18 +5243,43 @@
                     questionPrompt = `<p style="margin-bottom: 15px; font-size: 16px; color: #000;">${escapeHtml(question.text || '')}</p>`;
                 }
                 
+                // Process choices for diagrams (math sections - we're in displayMathSection function)
+                let processedChoices = question.choices || [];
+                if (processedChoices.length > 0) {
+                    processedChoices = processedChoices.map(choice => {
+                        const choiceText = typeof choice === 'string' ? choice : (choice.text || choice);
+                        if (typeof choiceText === 'string' && choiceText.includes('[[Diagram')) {
+                            // Process diagram sentinels in choice text
+                            const processed = replaceDiagramSentinels(choiceText, mathAssets, mathSectionId);
+                            // Return object format if original was object, otherwise return processed string
+                            if (typeof choice === 'object' && choice !== null) {
+                                return { ...choice, text: processed };
+                            }
+                            return processed;
+                        }
+                        return choice;
+                    });
+                }
+                
                 questionCard.innerHTML = `
                     <h4>Question ${questionNumber}</h4>
                     <div style="margin-bottom: 15px; font-size: 16px; color: #000;">${questionPrompt}</div>
                     <div class="options-container">
-                        ${question.choices && question.choices.length > 0 ? question.choices.map((choice, optIndex) => `
+                        ${processedChoices && processedChoices.length > 0 ? processedChoices.map((choice, optIndex) => {
+                            const choiceText = typeof choice === 'string' ? choice : (choice.text || choice);
+                            // If choiceText contains HTML (from diagram processing), don't escape it
+                            const displayText = typeof choiceText === 'string' && choiceText.includes('<img') 
+                                ? choiceText 
+                                : escapeHtml(choiceText);
+                            return `
                             <div class="option" onclick="selectOption('${question.id}', ${optIndex})">
                                 <input type="radio" name="question_${question.id}" value="${optIndex}" id="opt_${question.id}_${optIndex}">
                                 <label class="option-label" for="opt_${question.id}_${optIndex}">
-                                    ${String.fromCharCode(65 + optIndex)}. ${escapeHtml(choice.text || choice)}
+                                    ${String.fromCharCode(65 + optIndex)}. ${displayText}
                                 </label>
                             </div>
-                        `).join('') : '<p style="color: red;">No options available for this question</p>'}
+                        `;
+                        }).join('') : '<p style="color: red;">No options available for this question</p>'}
                     </div>
                 `;
                 
@@ -5622,7 +5647,27 @@
                 const isCorrect = reviewAnswer ? reviewAnswer.is_correct : (userAnswer === question.correct_answer_index);
                 
                 // Get options - handle both array of strings and array of objects
-                const options = question.options || question.choices || [];
+                let options = question.options || question.choices || [];
+                
+                // Process options for diagrams in math sections
+                if (isMathSection && options.length > 0) {
+                    const mathAssets = currentMathSectionData?.assets || [];
+                    const mathSectionId = currentMathSectionData?.section_id || currentMathSectionData?.id || '';
+                    options = options.map(option => {
+                        const optionText = typeof option === 'string' ? option : (option.text || option);
+                        if (typeof optionText === 'string' && optionText.includes('[[Diagram')) {
+                            // Process diagram sentinels in option text
+                            const processed = replaceDiagramSentinels(optionText, mathAssets, mathSectionId);
+                            // Return object format if original was object, otherwise return processed string
+                            if (typeof option === 'object' && option !== null) {
+                                return { ...option, text: processed };
+                            }
+                            return processed;
+                        }
+                        return option;
+                    });
+                }
+                
                 const userOption = options[userAnswer];
                 const correctOption = options[question.correct_answer_index];
                 
@@ -5680,7 +5725,18 @@
                                 }
                                 
                                 // Handle both object format (from passage detail) and string format (from questions endpoint)
-                                const optionText = typeof option === 'string' ? option : option.text;
+                                let optionText = typeof option === 'string' ? option : option.text;
+                                // If optionText contains HTML (from diagram processing), don't escape it
+                                if (isMathSection && typeof optionText === 'string' && (optionText.includes('<img') || optionText.includes('[[Diagram'))) {
+                                    // Already processed with diagrams, use as-is (or process if still has sentinel)
+                                    if (optionText.includes('[[Diagram')) {
+                                        const mathAssets = currentMathSectionData?.assets || [];
+                                        const mathSectionId = currentMathSectionData?.section_id || currentMathSectionData?.id || '';
+                                        optionText = replaceDiagramSentinels(optionText, mathAssets, mathSectionId);
+                                    }
+                                } else {
+                                    optionText = escapeHtml(optionText);
+                                }
                                 
                                 return `
                                     <div class="${optionClass}">
@@ -5872,7 +5928,15 @@
                                 }
                                 
                                 // Handle both object format (from passage detail) and string format (from questions endpoint)
-                                const optionText = typeof option === 'string' ? option : option.text;
+                                let optionText = typeof option === 'string' ? option : option.text;
+                                // Process diagrams for math sections
+                                if (isMathSection && typeof optionText === 'string' && optionText.includes('[[Diagram')) {
+                                    const mathAssets = currentMathSectionData?.assets || [];
+                                    const mathSectionId = currentMathSectionData?.section_id || currentMathSectionData?.id || '';
+                                    optionText = replaceDiagramSentinels(optionText, mathAssets, mathSectionId);
+                                } else if (typeof optionText === 'string') {
+                                    optionText = escapeHtml(optionText);
+                                }
                                 
                                 return `
                                     <div class="${optionClass}">
@@ -6228,12 +6292,30 @@
                     const questionNumber = question.order !== undefined ? question.order : (index + 1);
                     
                     // Get options - handle both array of strings and array of objects
-                    const options = question.options || question.choices || [];
+                    let options = question.options || question.choices || [];
+                    
+                    // Process options for diagrams in math sections
+                    const mathAssets = currentMathSectionData?.assets || sectionData.assets || [];
+                    const mathSectionId = currentMathSectionData?.section_id || currentMathSectionData?.id || sectionData.section_id || sectionData.id || '';
+                    
+                    if (options.length > 0 && mathAssets.length > 0) {
+                        options = options.map(option => {
+                            const optionText = typeof option === 'string' ? option : (option.text || option);
+                            if (typeof optionText === 'string' && optionText.includes('[[Diagram')) {
+                                // Process diagram sentinels in option text
+                                const processed = replaceDiagramSentinels(optionText, mathAssets, mathSectionId);
+                                // Return object format if original was object, otherwise return processed string
+                                if (typeof option === 'object' && option !== null) {
+                                    return { ...option, text: processed };
+                                }
+                                return processed;
+                            }
+                            return option;
+                        });
+                    }
                     
                     // Get question text - math sections use 'prompt' (can be array or string), others use 'text'
                     let questionText = '';
-                    const mathAssets = currentMathSectionData?.assets || [];
-                    const mathSectionId = currentMathSectionData?.section_id || currentMathSectionData?.id || '';
                     
                     if (Array.isArray(question.prompt)) {
                         // New format: array of blocks
@@ -6260,7 +6342,16 @@
                                         optionClass += ' incorrect';
                                     }
                                     
-                                    const optionText = typeof option === 'string' ? option : option.text;
+                                    let optionText = typeof option === 'string' ? option : option.text;
+                                    // If optionText contains HTML (from diagram processing), don't escape it
+                                    if (typeof optionText === 'string' && (optionText.includes('<img') || optionText.includes('[[Diagram'))) {
+                                        // Already processed with diagrams, use as-is (or process if still has sentinel)
+                                        if (optionText.includes('[[Diagram')) {
+                                            optionText = replaceDiagramSentinels(optionText, mathAssets, mathSectionId);
+                                        }
+                                    } else {
+                                        optionText = escapeHtml(optionText);
+                                    }
                                     
                                     return `
                                         <div class="${optionClass}" style="pointer-events: none;">
