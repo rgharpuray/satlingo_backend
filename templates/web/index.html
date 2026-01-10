@@ -3508,6 +3508,10 @@
                     const questionObj = questionMap[chunkIdx];
                     const questionId = questionObj ? questionObj.id : `chunk_${chunkIdx}`;
                     
+                    // Get assets for this question - prefer question-specific assets, fallback to lesson assets
+                    const questionAssets = questionAssetsMap[chunkIdx] || (questionObj && questionObj.assets) || lesson.assets || [];
+                    const lessonId = lesson.lesson_id || '';
+                    
                     // Render question directly from chunk (questions are embedded in chunks)
                     contentHTML += `<div class="question-card" style="margin: 20px 0; padding: 15px; border: 2px solid #3498DB; border-radius: 8px; background: #f9f9f9;">`;
                     
@@ -3515,10 +3519,10 @@
                     let processedPrompt = '';
                     if (questionObj && Array.isArray(questionObj.text)) {
                         // New format: array of blocks
-                        processedPrompt = formatLessonPrompt(questionObj.text, lesson.assets || [], lesson.lesson_id);
+                        processedPrompt = formatLessonPrompt(questionObj.text, questionAssets, lessonId);
                     } else if (chunk.prompt) {
                         // Old format: plain text from chunk
-                        processedPrompt = replaceDiagramSentinels(chunk.prompt, lesson.assets || [], lesson.lesson_id);
+                        processedPrompt = replaceDiagramSentinels(chunk.prompt, questionAssets, lessonId);
                         processedPrompt = replaceUnderlineSentinels(processedPrompt);
                         processedPrompt = `<h4 style="color: #000; margin-bottom: 10px;">${processedPrompt}</h4>`;
                     } else {
@@ -3531,16 +3535,33 @@
                     // separately to avoid artifacts. If a question needs a diagram, it must
                     // be added to the prompt blocks using the admin editor.
                     
+                    // Get choices - prefer questionObj.options (from database, can be edited in admin), fallback to chunk.choices (from JSON)
+                    let choices = [];
+                    if (questionObj && questionObj.options && questionObj.options.length > 0) {
+                        // Use options from database (can include diagrams edited in admin)
+                        choices = questionObj.options.map(opt => opt.text || opt);
+                        console.log(`Using questionObj.options for question ${questionId}, ${choices.length} options`);
+                    } else if (chunk.choices && chunk.choices.length > 0) {
+                        // Fallback to chunk.choices from JSON
+                        choices = chunk.choices;
+                        console.log(`Using chunk.choices for question ${questionId}, ${choices.length} options`);
+                    }
+                    
                     contentHTML += `<div class="options-container">`;
-                    (chunk.choices || []).forEach((choice, idx) => {
+                    choices.forEach((choice, idx) => {
+                        // Handle both string and object format for choices
+                        let choiceText = typeof choice === 'string' ? choice : (choice.text || choice);
+                        
                         // Process choice text for diagrams (if it contains sentinels)
-                        let processedChoice = choice;
-                        if (typeof choice === 'string' && choice.includes('[[Diagram')) {
-                            // Process diagram sentinels in choice text
-                            processedChoice = replaceDiagramSentinels(choice, lesson.assets || [], lesson.lesson_id);
+                        let processedChoice = choiceText;
+                        if (typeof choiceText === 'string' && choiceText.includes('[[Diagram')) {
+                            // Process diagram sentinels in choice text using question-specific or lesson assets
+                            console.log(`Processing diagram in choice ${idx}, text:`, choiceText, 'assets:', questionAssets.length, 'lessonId:', lessonId);
+                            processedChoice = replaceDiagramSentinels(choiceText, questionAssets, lessonId);
+                            console.log(`Processed choice ${idx}:`, processedChoice);
                         } else {
                             // Escape HTML if no diagrams
-                            processedChoice = escapeHtml(choice);
+                            processedChoice = escapeHtml(choiceText);
                         }
                         
                         contentHTML += `
