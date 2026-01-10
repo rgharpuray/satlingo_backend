@@ -3512,6 +3512,11 @@
                     const questionAssets = questionAssetsMap[chunkIdx] || (questionObj && questionObj.assets) || lesson.assets || [];
                     const lessonId = lesson.lesson_id || '';
                     
+                    // Debug logging for assets
+                    if (questionAssets.length === 0 && lesson.assets && lesson.assets.length > 0) {
+                        console.log(`Question ${questionId} has no question-specific assets, using lesson assets:`, lesson.assets.length);
+                    }
+                    
                     // Render question directly from chunk (questions are embedded in chunks)
                     contentHTML += `<div class="question-card" style="margin: 20px 0; padding: 15px; border: 2px solid #3498DB; border-radius: 8px; background: #f9f9f9;">`;
                     
@@ -3557,8 +3562,20 @@
                         if (typeof choiceText === 'string' && choiceText.includes('[[Diagram')) {
                             // Process diagram sentinels in choice text using question-specific or lesson assets
                             console.log(`Processing diagram in choice ${idx}, text:`, choiceText, 'assets:', questionAssets.length, 'lessonId:', lessonId);
+                            console.log('Available assets:', questionAssets);
                             processedChoice = replaceDiagramSentinels(choiceText, questionAssets, lessonId);
                             console.log(`Processed choice ${idx}:`, processedChoice);
+                            // If still contains sentinel after processing, it means assets weren't found - try with lesson assets
+                            if (processedChoice.includes('[[Diagram') && questionAssets.length === 0) {
+                                console.log('No question assets, trying lesson assets...');
+                                const lessonAssets = lesson.assets || [];
+                                processedChoice = replaceDiagramSentinels(choiceText, lessonAssets, lessonId);
+                                console.log(`After lesson assets processing:`, processedChoice);
+                            }
+                            // If still contains sentinel, don't escape (it will show as text) - but log a warning
+                            if (processedChoice.includes('[[Diagram')) {
+                                console.warn(`Diagram sentinel not replaced in choice ${idx}. Text: ${choiceText}, Assets available: ${questionAssets.length}`);
+                            }
                         } else {
                             // Escape HTML if no diagrams
                             processedChoice = escapeHtml(choiceText);
@@ -4523,9 +4540,10 @@
                 console.log('replaceDiagramSentinels: No text provided');
                 return text;
             }
+            // Don't return early if no assets - we can still construct URLs from sentinels if we have lessonId
             if (!assets || !Array.isArray(assets) || assets.length === 0) {
-                console.log('replaceDiagramSentinels: No assets provided', {assets, lessonId});
-                return text;
+                console.log('replaceDiagramSentinels: No assets provided, will try to construct URLs from sentinels', {assets, lessonId});
+                // Continue processing - we can still construct URLs from asset_id in sentinel
             }
             
             // Only log if text actually contains the marker (reduce noise)
@@ -4595,8 +4613,10 @@
                 assetId = assetId.trim();
                 console.log(`Processing sentinel: "${match}" with asset_id: "${assetId}"`);
                 
-                // Find the asset by asset_id
-                const asset = assets.find(a => a.asset_id === assetId);
+                // Find the asset by asset_id (only if assets array exists and has items)
+                const asset = (assets && Array.isArray(assets) && assets.length > 0) 
+                    ? assets.find(a => a.asset_id === assetId) 
+                    : null;
                 console.log(`Found asset for "${assetId}":`, asset);
                 
                 if (asset && asset.s3_url) {
