@@ -3617,8 +3617,9 @@
                         let processedExplanation = '';
                         if (Array.isArray(explanation)) {
                             // New format: array of blocks (use formatMathExplanation which handles both)
+                            // formatMathExplanation will use currentLessonData.assets internally for side_by_side blocks
                             processedExplanation = formatMathExplanation(explanation, false);
-                            // Also process sentinels
+                            // Also process any remaining diagram sentinels in the explanation text
                             processedExplanation = replaceDiagramSentinels(processedExplanation, lesson.assets || [], lesson.lesson_id);
                         } else if (typeof explanation === 'string') {
                             // Old format: plain text
@@ -4420,28 +4421,36 @@
                                 }];
                             }
                             
+                            // Determine if this is a lesson or math section, and get appropriate assets
+                            const isLesson = !!currentLessonData;
+                            const lessonAssets = currentLessonData?.assets || [];
+                            const lessonId = currentLessonData?.lesson_id || '';
+                            const mathAssets = currentMathSectionData?.assets || [];
+                            const mathSectionId = currentMathSectionData?.section_id || currentMathSectionData?.id || '';
+                            
+                            // Use lesson assets if available, otherwise math section assets
+                            const availableAssets = isLesson ? lessonAssets : mathAssets;
+                            const contextId = isLesson ? lessonId : mathSectionId;
+                            
                             // Render each row
                             const rowsHtml = rows.map((row, rowIndex) => {
                                 let processedExplanation = row.explanation || '';
-                                // Process sentinels in explanation
+                                // Process sentinels in explanation (including diagram sentinels)
+                                processedExplanation = replaceDiagramSentinels(processedExplanation, availableAssets, contextId);
                                 processedExplanation = replaceUnderlineSentinels(processedExplanation);
                                 processedExplanation = replaceBoldItalicSentinels(processedExplanation);
                                 
                                 let rightSideHtml = '';
                                 if (row.diagram_asset_id) {
-                                    // Get math section assets from currentMathSectionData
-                                    const mathAssets = currentMathSectionData?.assets || [];
-                                    const mathSectionId = currentMathSectionData?.section_id || currentMathSectionData?.id || '';
-                                    
                                     // Find the asset in the assets array
-                                    const asset = mathAssets.find(a => a.asset_id === row.diagram_asset_id);
+                                    const asset = availableAssets.find(a => a.asset_id === row.diagram_asset_id);
                                     let imageUrl = '';
                                     
                                     if (asset && asset.s3_url) {
                                         imageUrl = asset.s3_url;
-                                    } else if (row.diagram_asset_id && mathSectionId) {
-                                        // Fallback: construct URL
-                                        imageUrl = `https://keuvi.s3.amazonaws.com/math-sections/${mathSectionId}/${row.diagram_asset_id}.png`;
+                                    } else if (row.diagram_asset_id && contextId) {
+                                        // Fallback: construct URL (use lessons/ prefix for both lessons and math sections)
+                                        imageUrl = `https://keuvi.s3.amazonaws.com/lessons/${contextId}/${row.diagram_asset_id}.png`;
                                     }
                                     
                                     if (imageUrl) {
