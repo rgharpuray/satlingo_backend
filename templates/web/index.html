@@ -1355,12 +1355,16 @@
                 padding: 16px !important;
                 max-width: 100% !important;
                 box-sizing: border-box !important;
-                font-size: 14px !important; /* Reduced uniformly to fit more text */
+                font-size: 13px !important; /* More aggressive reduction for tablets */
             }
             
             .passage-line,
             .line-text {
-                font-size: 13px !important; /* Reduced uniformly to fit more text */
+                font-size: 12px !important; /* More aggressive reduction for tablets */
+            }
+            
+            .line-number {
+                font-size: 10px !important;
             }
             
             /* Override any inline max-width styles on mobile */
@@ -1666,7 +1670,7 @@
             
             .passage-content-sat {
                 padding: 12px !important;
-                font-size: 13px !important; /* Further reduced uniformly on phones */
+                font-size: 11px !important; /* Very aggressive reduction for small phones */
             }
             
             .passage-content {
@@ -1676,11 +1680,11 @@
             /* Reduce font size for passage lines on very small devices */
             .passage-line,
             .line-text {
-                font-size: 12px !important; /* Further reduced uniformly on phones */
+                font-size: 10px !important; /* Very aggressive reduction for small phones */
             }
             
             .line-number {
-                font-size: 10px !important; /* Proportionally smaller line numbers */
+                font-size: 9px !important; /* Proportionally smaller line numbers */
             }
             
             .logo span {
@@ -1710,6 +1714,23 @@
             
             .hero-tagline {
                 font-size: 16px;
+            }
+        }
+        
+        /* Extra extra small devices - very aggressive font reduction */
+        @media (max-width: 360px) {
+            .passage-content-sat {
+                padding: 10px !important;
+                font-size: 10px !important; /* Very small for tiny screens */
+            }
+            
+            .passage-line,
+            .line-text {
+                font-size: 9px !important; /* Very small for tiny screens */
+            }
+            
+            .line-number {
+                font-size: 8px !important;
             }
         }
         
