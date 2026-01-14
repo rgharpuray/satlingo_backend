@@ -491,7 +491,10 @@
         .passage-detail-section {
             background: var(--bg-secondary);
             border-radius: 10px;
-            padding: clamp(16px, 4vw, 30px);
+            padding-top: clamp(16px, 4vw, 30px);
+            padding-bottom: clamp(16px, 4vw, 30px);
+            padding-left: 0;
+            padding-right: 0;
             box-shadow: 0 2px 8px var(--shadow);
             border: 1px solid var(--border-color);
             transition: background-color 0.3s ease, border-color 0.3s ease;
@@ -501,7 +504,7 @@
         /* Reading container wrapper - simplified, no font-size logic */
         .passage-reading-container {
             width: 100%;
-            padding-inline: 10px;
+            padding-inline: 0;
         }
         
         .passage-content {
@@ -1369,8 +1372,15 @@
                 padding-right: 0;
             }
             
-            /* clamp() handles all responsive sizing automatically - no device-specific overrides needed */
-            /* Reading container already uses clamp() for padding-inline */
+            /* Remove horizontal padding on mobile for maximum content width */
+            .passage-reading-container {
+                padding-inline: 0 !important;
+            }
+            
+            .passage-detail-section {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
             
             .passage-content h2 {
                 font-size: 20px;
