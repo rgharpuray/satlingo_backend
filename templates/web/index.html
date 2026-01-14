@@ -1352,19 +1352,15 @@
             }
             
             .passage-content-sat {
-                padding: 16px 12px !important; /* Reduced horizontal padding */
+                padding: 16px !important;
                 max-width: 100% !important;
                 box-sizing: border-box !important;
-            }
-            
-            /* Reduce font size slightly on tablets to fit more text per line */
-            .passage-content-sat {
-                font-size: 15px !important;
+                font-size: 14px !important; /* Reduced uniformly to fit more text */
             }
             
             .passage-line,
             .line-text {
-                font-size: 14px !important; /* Slightly smaller to fit more text */
+                font-size: 13px !important; /* Reduced uniformly to fit more text */
             }
             
             /* Override any inline max-width styles on mobile */
@@ -1372,15 +1368,17 @@
                 max-width: 100% !important;
             }
             
-            /* Keep passage lines as single lines (no wrapping) on mobile */
-            /* We'll reduce padding and font size instead to fit more text */
+            /* Ensure passage lines wrap on mobile to prevent horizontal scrolling */
             .passage-line,
             .line-text {
-                white-space: pre !important;
-                /* Don't wrap - keep original line structure */
+                white-space: pre-wrap !important;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
             }
             
-            /* passage-line-numbered keeps default flex layout */
+            .passage-line-numbered {
+                flex-wrap: wrap;
+            }
             
             /* Ensure passage detail section doesn't overflow */
             #passageContent {
@@ -1667,18 +1665,18 @@
             }
             
             .passage-content-sat {
-                padding: 12px 8px !important; /* Further reduced horizontal padding on phones */
-                font-size: 14px !important; /* Smaller font on very small devices */
+                padding: 12px !important;
+                font-size: 13px !important; /* Further reduced uniformly on phones */
             }
             
             .passage-content {
-                padding: 12px 8px !important; /* Reduced horizontal padding */
+                padding: 12px !important;
             }
             
             /* Reduce font size for passage lines on very small devices */
             .passage-line,
             .line-text {
-                font-size: 13px !important; /* Smaller to fit more text per line */
+                font-size: 12px !important; /* Further reduced uniformly on phones */
             }
             
             .line-number {
