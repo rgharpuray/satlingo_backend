@@ -521,6 +521,14 @@
             width: 100%;
         }
         
+        /* Desktop-specific padding for passage detail section */
+        @media (min-width: 769px) {
+            .passage-detail-section {
+                padding-left: clamp(16px, 4vw, 30px);
+                padding-right: clamp(16px, 4vw, 30px);
+            }
+        }
+        
         /* Reading container wrapper - simplified, no font-size logic */
         .passage-reading-container {
             width: 100%;
@@ -7017,19 +7025,30 @@
                 // Adaptive minimum based on container width
                 // Very narrow devices (like TCL 30Z ~300px container) can go to 10px
                 // Normal devices (400px+) should have higher minimum
+                // Desktop devices need smaller max to prevent overflow
+                const isDesktop = window.innerWidth >= 769;
                 let minFontSize;
+                let maxFontSize;
+                
                 if (containerWidth < 350) {
                     // Very narrow devices - allow smaller font (TCL 30Z fix)
                     minFontSize = 10;
+                    maxFontSize = 20;
                 } else if (containerWidth < 450) {
                     // Narrow devices - slightly higher minimum
                     minFontSize = 14;
+                    maxFontSize = 20;
+                } else if (isDesktop) {
+                    // Desktop devices - prevent overflow with lower max
+                    minFontSize = 15;
+                    maxFontSize = 16;
                 } else {
-                    // Normal devices (most iPhones) - larger minimum for readability
+                    // Normal mobile devices (most iPhones) - larger minimum for readability
                     minFontSize = 19;
+                    maxFontSize = 20;
                 }
                 
-                fontSize = Math.max(minFontSize, Math.min(fontSize, 20));
+                fontSize = Math.max(minFontSize, Math.min(fontSize, maxFontSize));
                 
                 reader.style.fontSize = `${fontSize}px`;
                 
