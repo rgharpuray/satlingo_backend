@@ -502,18 +502,18 @@
         .passage-reading-container {
             max-width: 100%;
             margin: 0 auto;
-            padding-inline: clamp(8px, 2vw, 14px);
+            padding-inline: clamp(6px, 1.5vw, 14px);
             width: 100%;
         }
         
         .passage-content {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding-inline: clamp(10px, 2vw, 14px);
+            padding-inline: clamp(8px, 1.5vw, 14px);
             padding-block: 14px;
             margin-bottom: 1.5em;
             line-height: 1.45;
-            font-size: clamp(15px, 1.8vw, 16.5px);
+            font-size: clamp(10px, 1.4vw, 16.5px);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
             white-space: normal;
@@ -531,12 +531,12 @@
         .passage-content-sat {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding-inline: clamp(10px, 2vw, 14px);
+            padding-inline: clamp(8px, 1.5vw, 14px);
             padding-block: 14px;
             margin-bottom: 1.5em;
             border: 1px solid var(--border-color);
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: clamp(15px, 1.8vw, 16.5px);
+            font-size: clamp(10px, 1.4vw, 16.5px);
             line-height: 1.45;
             color: var(--text-primary);
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
@@ -548,28 +548,6 @@
         
         .passage-content-sat p {
             margin: 0 0 0.85em 0;
-        }
-        
-        /* Exception: Very narrow devices like TCL 30Z (720px width) */
-        @media (max-width: 720px) {
-            .passage-content,
-            .passage-content-sat {
-                font-size: 11px !important;
-                padding-inline: 8px !important;
-            }
-            
-            .passage-line,
-            .line-text {
-                font-size: 11px !important;
-            }
-            
-            .line-number {
-                font-size: 9px !important;
-            }
-            
-            .passage-reading-container {
-                padding-inline: 6px !important;
-            }
         }
         
         .passage-columns {
@@ -585,7 +563,7 @@
         
         .passage-line {
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: clamp(15px, 1.8vw, 16.5px);
+            font-size: clamp(10px, 1.4vw, 16.5px);
             line-height: 1.45;
             white-space: normal;
             margin: 0;
@@ -617,7 +595,7 @@
         .line-text {
             flex: 1;
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: clamp(15px, 1.8vw, 16.5px);
+            font-size: clamp(10px, 1.4vw, 16.5px);
             line-height: 1.45;
             white-space: normal;
             color: var(--text-primary);
