@@ -518,6 +518,10 @@
             line-height: 1.6;
             color: var(--text-primary);
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+            box-sizing: border-box;
+            max-width: 100%;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
         
         .passage-columns {
@@ -565,6 +569,9 @@
             line-height: 1.5;
             white-space: pre;
             color: var(--text-primary);
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            min-width: 0;
         }
         
         .questions-columns {
@@ -1287,7 +1294,9 @@
             
             /* Passage detail section */
             .passage-detail-section {
-                padding: 20px 16px;
+                padding: 16px;
+                max-width: 100%;
+                box-sizing: border-box;
             }
             
             /* Back button container - ensure it has proper spacing */
@@ -1337,11 +1346,61 @@
             
             /* Passage content */
             .passage-content {
-                padding: 20px;
+                padding: 16px;
+                max-width: 100%;
+                box-sizing: border-box;
             }
             
             .passage-content-sat {
-                padding: 20px !important;
+                padding: 16px !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* Override any inline max-width styles on mobile */
+            .passage-content-sat[style*="max-width"] {
+                max-width: 100% !important;
+            }
+            
+            /* Ensure passage lines wrap on mobile */
+            .passage-line,
+            .line-text {
+                white-space: pre-wrap !important;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+            
+            .passage-line-numbered {
+                flex-wrap: wrap;
+            }
+            
+            /* Ensure passage detail section doesn't overflow */
+            #passageContent {
+                max-width: 100%;
+                box-sizing: border-box;
+                overflow-x: hidden;
+            }
+            
+            #passageContent > * {
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            
+            /* Ensure all passage content containers respect mobile width */
+            .passage-detail-section,
+            .passage-detail-section > * {
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            
+            /* Prevent horizontal scrolling on mobile */
+            body {
+                overflow-x: hidden;
+            }
+            
+            .container {
+                max-width: 100%;
+                overflow-x: hidden;
             }
             
             .passage-content h2 {
@@ -1593,6 +1652,18 @@
             
             .question-card {
                 padding: 16px;
+            }
+            
+            .passage-detail-section {
+                padding: 12px !important;
+            }
+            
+            .passage-content-sat {
+                padding: 12px !important;
+            }
+            
+            .passage-content {
+                padding: 12px !important;
             }
             
             .logo span {
@@ -4796,7 +4867,7 @@
             content = normalizedContent;
             
             // Build the formatted content with selections
-            let formattedHTML = '<div class="passage-content-sat" style="line-height: 1.8; font-size: 16px; max-width: 800px;">';
+            let formattedHTML = '<div class="passage-content-sat" style="line-height: 1.8; font-size: 16px; max-width: 100%; box-sizing: border-box;">';
             let lastIndex = 0;
             let htmlParts = [];
             
