@@ -510,7 +510,10 @@
         .passage-content {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding: 14px;
+            padding-top: 14px;
+            padding-bottom: 14px;
+            padding-left: 8px;
+            padding-right: 14px;
             margin-bottom: 1.5em;
             line-height: 1.45;
             color: var(--text-primary);
@@ -531,7 +534,10 @@
         .passage-content-sat {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding: 14px;
+            padding-top: 14px;
+            padding-bottom: 14px;
+            padding-left: 8px;
+            padding-right: 14px;
             margin-bottom: 1.5em;
             border: 1px solid var(--border-color);
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
@@ -576,7 +582,7 @@
             align-items: flex-start;
             margin: 0 0 0.5em 0;
             padding: 0;
-            gap: clamp(4px, 1vw, 8px);
+            gap: clamp(3px, 0.8vw, 6px);
         }
         
         .line-number {
@@ -6980,8 +6986,8 @@
                 
                 let fontSize = containerWidth / (TARGET_CHARS * CHAR_WIDTH_EM);
                 
-                // Hard safety clamps
-                fontSize = Math.max(12, Math.min(fontSize, 16.5));
+                // Hard safety clamps - allow smaller font for very narrow devices like TCL 30Z
+                fontSize = Math.max(10, Math.min(fontSize, 16.5));
                 
                 reader.style.fontSize = `${fontSize}px`;
                 
