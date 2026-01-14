@@ -500,16 +500,17 @@
         
         /* Reading container wrapper - centers content and constrains width */
         .passage-reading-container {
-            max-width: min(68ch, 100%);
+            max-width: min(72ch, 100%);
             margin: 0 auto;
-            padding-inline: clamp(12px, 3vw, 18px);
+            padding-inline: clamp(8px, 2vw, 14px);
             width: 100%;
         }
         
         .passage-content {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding: clamp(14px, 3vw, 20px);
+            padding-inline: clamp(10px, 2.5vw, 14px);
+            padding-block: clamp(14px, 3vw, 18px);
             margin-bottom: 1.5em;
             line-height: 1.45;
             font-size: clamp(15px, 1.8vw, 16.5px);
@@ -518,7 +519,7 @@
             white-space: normal;
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
             word-break: normal;
-            overflow-wrap: break-word;
+            overflow-wrap: anywhere;
             hyphens: auto;
             width: 100%;
         }
@@ -530,7 +531,8 @@
         .passage-content-sat {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding: clamp(14px, 3vw, 20px);
+            padding-inline: clamp(10px, 2.5vw, 14px);
+            padding-block: clamp(14px, 3vw, 18px);
             margin-bottom: 1.5em;
             border: 1px solid var(--border-color);
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
@@ -539,7 +541,7 @@
             color: var(--text-primary);
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
             word-break: normal;
-            overflow-wrap: break-word;
+            overflow-wrap: anywhere;
             hyphens: auto;
             width: 100%;
         }
@@ -567,7 +569,7 @@
             margin: 0;
             padding: 0;
             word-break: normal;
-            overflow-wrap: break-word;
+            overflow-wrap: anywhere;
             hyphens: auto;
         }
         
@@ -598,7 +600,7 @@
             white-space: normal;
             color: var(--text-primary);
             word-break: normal;
-            overflow-wrap: break-word;
+            overflow-wrap: anywhere;
             hyphens: auto;
             min-width: 0;
         }
