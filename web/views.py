@@ -4,8 +4,21 @@ from django.conf import settings
 
 def index(request):
     """Main web app page"""
+    # Extract Sentry JS key from DSN (the key is the part before @)
+    sentry_js_key = ''
+    if settings.SENTRY_DSN:
+        try:
+            # DSN format: https://KEY@o123.ingest.sentry.io/PROJECT_ID
+            sentry_js_key = settings.SENTRY_DSN.split('//')[1].split('@')[0]
+        except (IndexError, AttributeError):
+            pass
+    
     return render(request, 'web/index.html', {
         'stripe_publishable_key': settings.STRIPE_PUBLISHABLE_KEY,
+        'SENTRY_JS_KEY': sentry_js_key,
+        'POSTHOG_API_KEY': getattr(settings, 'POSTHOG_API_KEY', ''),
+        'POSTHOG_HOST': getattr(settings, 'POSTHOG_HOST', 'https://us.i.posthog.com'),
+        'DEBUG': settings.DEBUG,
     })
 
 

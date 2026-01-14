@@ -6,6 +6,8 @@ from pathlib import Path
 import os
 import dj_database_url
 from dotenv import load_dotenv
+import sentry_sdk
+import posthog
 
 # Load environment variables from .env file
 load_dotenv()
@@ -227,3 +229,25 @@ GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
 GOOGLE_OAUTH_REDIRECT_URI = os.environ.get('GOOGLE_OAUTH_REDIRECT_URI', '')
 
+# Sentry Settings (Error Tracking)
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring
+        traces_sample_rate=0.1 if not DEBUG else 1.0,
+        # Set profiles_sample_rate to 1.0 to profile 100% of sampled transactions
+        profiles_sample_rate=0.1 if not DEBUG else 1.0,
+        # Send PII (user info) to Sentry
+        send_default_pii=True,
+        # Environment tag
+        environment='development' if DEBUG else 'production',
+    )
+
+# PostHog Settings (Analytics)
+POSTHOG_API_KEY = os.environ.get('POSTHOG_API_KEY', '')
+POSTHOG_HOST = os.environ.get('POSTHOG_HOST', 'https://us.i.posthog.com')
+if POSTHOG_API_KEY:
+    posthog.project_api_key = POSTHOG_API_KEY
+    posthog.host = POSTHOG_HOST
+    posthog.debug = DEBUG
