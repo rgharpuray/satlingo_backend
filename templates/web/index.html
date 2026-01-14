@@ -6991,17 +6991,17 @@
                 // Normal devices (400px+) should have higher minimum
                 let minFontSize;
                 if (containerWidth < 350) {
-                    // Very narrow devices - allow smaller font
+                    // Very narrow devices - allow smaller font (TCL 30Z fix)
                     minFontSize = 10;
                 } else if (containerWidth < 450) {
                     // Narrow devices - slightly higher minimum
-                    minFontSize = 13;
+                    minFontSize = 14;
                 } else {
-                    // Normal devices (most iPhones) - comfortable minimum
-                    minFontSize = 17.5;
+                    // Normal devices (most iPhones) - larger minimum for readability
+                    minFontSize = 19;
                 }
                 
-                fontSize = Math.max(minFontSize, Math.min(fontSize, 18));
+                fontSize = Math.max(minFontSize, Math.min(fontSize, 20));
                 
                 reader.style.fontSize = `${fontSize}px`;
                 
