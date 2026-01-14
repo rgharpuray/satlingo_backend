@@ -6,6 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Keuvi</title>
     <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        
+        html {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        body {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        
         *, *::before, *::after {
             box-sizing: border-box;
         }
@@ -149,6 +166,9 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
         
         header {
@@ -7039,7 +7059,7 @@
     </script>
     
     <!-- Footer -->
-    <footer style="background: var(--bg-secondary); border-top: 1px solid var(--border-color); padding: 20px 0; margin-top: 40px; text-align: center; color: var(--text-secondary); font-size: 14px;">
+    <footer style="background: var(--bg-secondary); border-top: 1px solid var(--border-color); padding: 20px 0; margin-top: auto; text-align: center; color: var(--text-secondary); font-size: 14px;">
         <div style="max-width: 1200px; margin: 0 auto; padding: 0 20px;">
             <p style="margin: 0 0 8px 0;">© 2026 Argos Ventures LLC. All rights reserved.</p>
             <p style="margin: 0;">
