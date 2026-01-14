@@ -6,10 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Keuvi</title>
     <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+        
         * {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
         
         /* CSS Variables for theming */
@@ -488,40 +491,61 @@
         .passage-detail-section {
             background: var(--bg-secondary);
             border-radius: 10px;
-            padding: 30px;
+            padding: clamp(16px, 4vw, 30px);
             box-shadow: 0 2px 8px var(--shadow);
             border: 1px solid var(--border-color);
             transition: background-color 0.3s ease, border-color 0.3s ease;
+            width: 100%;
+        }
+        
+        /* Reading container wrapper - centers content and constrains width */
+        .passage-reading-container {
+            max-width: min(68ch, 100%);
+            margin: 0 auto;
+            padding-inline: clamp(12px, 3vw, 18px);
+            width: 100%;
         }
         
         .passage-content {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 30px;
-            line-height: 1.8;
-            font-size: 16px;
+            padding: clamp(14px, 3vw, 20px);
+            margin-bottom: 1.5em;
+            line-height: 1.45;
+            font-size: clamp(15px, 1.8vw, 16.5px);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
-            white-space: pre-wrap;
+            white-space: normal;
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+            word-break: normal;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            width: 100%;
+        }
+        
+        .passage-content p {
+            margin: 0 0 0.85em 0;
         }
         
         .passage-content-sat {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 30px;
+            padding: clamp(14px, 3vw, 20px);
+            margin-bottom: 1.5em;
             border: 1px solid var(--border-color);
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: 16px;
-            line-height: 1.6;
+            font-size: clamp(15px, 1.8vw, 16.5px);
+            line-height: 1.45;
             color: var(--text-primary);
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-            box-sizing: border-box;
-            max-width: 100%;
+            word-break: normal;
             overflow-wrap: break-word;
-            word-wrap: break-word;
+            hyphens: auto;
+            width: 100%;
+        }
+        
+        .passage-content-sat p {
+            margin: 0 0 0.85em 0;
         }
         
         .passage-columns {
@@ -537,40 +561,45 @@
         
         .passage-line {
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: 15px;
-            line-height: 1.5;
-            white-space: pre;
+            font-size: clamp(15px, 1.8vw, 16.5px);
+            line-height: 1.45;
+            white-space: normal;
             margin: 0;
             padding: 0;
+            word-break: normal;
+            overflow-wrap: break-word;
+            hyphens: auto;
         }
         
         .passage-line-numbered {
             display: flex;
             align-items: flex-start;
-            margin: 0;
+            margin: 0 0 0.5em 0;
             padding: 0;
+            gap: clamp(6px, 1.5vw, 10px);
         }
         
         .line-number {
             color: var(--text-secondary);
-            font-size: 11px;
+            font-size: clamp(10px, 1.2vw, 12px);
             font-weight: bold;
-            margin-right: 8px;
-            min-width: 25px;
+            min-width: clamp(20px, 3vw, 28px);
             text-align: right;
             padding-top: 2px;
             font-family: "Myriad Pro", "Myriad", "Arial", sans-serif;
+            flex-shrink: 0;
         }
         
         .line-text {
             flex: 1;
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: 15px;
-            line-height: 1.5;
-            white-space: pre;
+            font-size: clamp(15px, 1.8vw, 16.5px);
+            line-height: 1.45;
+            white-space: normal;
             color: var(--text-primary);
+            word-break: normal;
             overflow-wrap: break-word;
-            word-wrap: break-word;
+            hyphens: auto;
             min-width: 0;
         }
         
@@ -1344,74 +1373,8 @@
                 padding-right: 0;
             }
             
-            /* Passage content */
-            .passage-content {
-                padding: 16px;
-                max-width: 100%;
-                box-sizing: border-box;
-            }
-            
-            .passage-content-sat {
-                padding: 16px !important;
-                max-width: 100% !important;
-                box-sizing: border-box !important;
-                font-size: 13px !important; /* More aggressive reduction for tablets */
-            }
-            
-            .passage-line,
-            .line-text {
-                font-size: 12px !important; /* More aggressive reduction for tablets */
-            }
-            
-            .line-number {
-                font-size: 10px !important;
-            }
-            
-            /* Override any inline max-width styles on mobile */
-            .passage-content-sat[style*="max-width"] {
-                max-width: 100% !important;
-            }
-            
-            /* Ensure passage lines wrap on mobile to prevent horizontal scrolling */
-            .passage-line,
-            .line-text {
-                white-space: pre-wrap !important;
-                word-wrap: break-word;
-                overflow-wrap: break-word;
-            }
-            
-            .passage-line-numbered {
-                flex-wrap: wrap;
-            }
-            
-            /* Ensure passage detail section doesn't overflow */
-            #passageContent {
-                max-width: 100%;
-                box-sizing: border-box;
-                overflow-x: hidden;
-            }
-            
-            #passageContent > * {
-                max-width: 100%;
-                box-sizing: border-box;
-            }
-            
-            /* Ensure all passage content containers respect mobile width */
-            .passage-detail-section,
-            .passage-detail-section > * {
-                max-width: 100%;
-                box-sizing: border-box;
-            }
-            
-            /* Prevent horizontal scrolling on mobile */
-            body {
-                overflow-x: hidden;
-            }
-            
-            .container {
-                max-width: 100%;
-                overflow-x: hidden;
-            }
+            /* clamp() handles all responsive sizing automatically - no device-specific overrides needed */
+            /* Reading container already uses clamp() for padding-inline */
             
             .passage-content h2 {
                 font-size: 20px;
@@ -1668,24 +1631,7 @@
                 padding: 12px !important;
             }
             
-            .passage-content-sat {
-                padding: 12px !important;
-                font-size: 11px !important; /* Very aggressive reduction for small phones */
-            }
-            
-            .passage-content {
-                padding: 12px !important;
-            }
-            
-            /* Reduce font size for passage lines on very small devices */
-            .passage-line,
-            .line-text {
-                font-size: 10px !important; /* Very aggressive reduction for small phones */
-            }
-            
-            .line-number {
-                font-size: 9px !important; /* Proportionally smaller line numbers */
-            }
+            /* clamp() handles all responsive sizing automatically - no overrides needed */
             
             .logo span {
                 font-size: 20px;
@@ -1717,22 +1663,7 @@
             }
         }
         
-        /* Extra extra small devices - very aggressive font reduction */
-        @media (max-width: 360px) {
-            .passage-content-sat {
-                padding: 10px !important;
-                font-size: 10px !important; /* Very small for tiny screens */
-            }
-            
-            .passage-line,
-            .line-text {
-                font-size: 9px !important; /* Very small for tiny screens */
-            }
-            
-            .line-number {
-                font-size: 8px !important;
-            }
-        }
+        /* clamp() handles all device sizes automatically - no device-specific hacks needed */
         
         .passages-view {
             display: none;
@@ -3975,7 +3906,9 @@
             
             document.getElementById('passageContent').innerHTML = `
                 <h2 style="color: #3498DB; margin-bottom: 15px;">${escapeHtml(passage.title)} <span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span></h2>
-                <div class="passage-content-sat premium-preview-overlay">${formattedContent}</div>
+                <div class="passage-reading-container">
+                    <div class="passage-content-sat premium-preview-overlay">${formattedContent}</div>
+                </div>
             `;
             
             // Add upgrade prompt
@@ -5299,7 +5232,9 @@
             }
             passageContent.innerHTML = `
                 <h2 style="color: #3498DB; margin-bottom: 15px;">${passage.title}</h2>
-                <div class="passage-content-sat">${formattedContent}</div>
+                <div class="passage-reading-container">
+                    <div class="passage-content-sat">${formattedContent}</div>
+                </div>
             `;
             
             // Display questions in two columns
