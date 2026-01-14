@@ -1352,9 +1352,19 @@
             }
             
             .passage-content-sat {
-                padding: 16px !important;
+                padding: 16px 12px !important; /* Reduced horizontal padding */
                 max-width: 100% !important;
                 box-sizing: border-box !important;
+            }
+            
+            /* Reduce font size slightly on tablets to fit more text per line */
+            .passage-content-sat {
+                font-size: 15px !important;
+            }
+            
+            .passage-line,
+            .line-text {
+                font-size: 14px !important; /* Slightly smaller to fit more text */
             }
             
             /* Override any inline max-width styles on mobile */
@@ -1362,17 +1372,15 @@
                 max-width: 100% !important;
             }
             
-            /* Ensure passage lines wrap on mobile */
+            /* Keep passage lines as single lines (no wrapping) on mobile */
+            /* We'll reduce padding and font size instead to fit more text */
             .passage-line,
             .line-text {
-                white-space: pre-wrap !important;
-                word-wrap: break-word;
-                overflow-wrap: break-word;
+                white-space: pre !important;
+                /* Don't wrap - keep original line structure */
             }
             
-            .passage-line-numbered {
-                flex-wrap: wrap;
-            }
+            /* passage-line-numbered keeps default flex layout */
             
             /* Ensure passage detail section doesn't overflow */
             #passageContent {
@@ -1659,11 +1667,22 @@
             }
             
             .passage-content-sat {
-                padding: 12px !important;
+                padding: 12px 8px !important; /* Further reduced horizontal padding on phones */
+                font-size: 14px !important; /* Smaller font on very small devices */
             }
             
             .passage-content {
-                padding: 12px !important;
+                padding: 12px 8px !important; /* Reduced horizontal padding */
+            }
+            
+            /* Reduce font size for passage lines on very small devices */
+            .passage-line,
+            .line-text {
+                font-size: 13px !important; /* Smaller to fit more text per line */
+            }
+            
+            .line-number {
+                font-size: 10px !important; /* Proportionally smaller line numbers */
             }
             
             .logo span {
