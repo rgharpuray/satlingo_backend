@@ -141,16 +141,11 @@
             padding: 20px;
             color: var(--text-primary);
             transition: background-color 0.3s ease, color 0.3s ease;
-            display: flex;
-            flex-direction: column;
         }
         
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
         }
         
         header {
@@ -306,7 +301,6 @@
             display: grid;
             grid-template-columns: 1fr 300px;
             gap: 20px;
-            flex: 1;
         }
         
         .passages-section {
@@ -908,7 +902,6 @@
         .landing-page {
             display: block;
             animation: fadeIn 0.6s ease-in;
-            flex: 1;
         }
         
         @keyframes fadeIn {
@@ -1156,13 +1149,11 @@
         @media (max-width: 768px) {
             /* Body and container adjustments */
             body {
-                padding: 16px !important; /* Ensure consistent padding on mobile */
+                padding: 16px;
             }
             
             .container {
                 max-width: 100%;
-                padding-left: 0;
-                padding-right: 0;
             }
             
             /* Header adjustments */
@@ -1263,53 +1254,10 @@
                 margin-bottom: 20px;
             }
             
-            /* Ensure subheaders (h3) are smaller than main headers (h2) on mobile */
-            .passages-section h3,
-            #passagesListSection h3,
-            #lessonsListSection h3,
-            #mathSectionsListSection h3,
-            h3.subheader {
-                font-size: 18px !important; /* Smaller than h2 (22px) on mobile */
-            }
-            
-            /* Ensure all content containers have proper padding */
-            .passages-section,
-            #passagesListSection,
-            #lessonsListSection,
-            #mathSectionsListSection {
-                padding-left: 0 !important; /* Body already has padding */
-                padding-right: 0 !important;
-            }
-            
-            .passage-detail-section {
-                padding-left: 0 !important; /* Body already has padding */
-                padding-right: 0 !important;
-            }
-            
-            /* Ensure main content column has proper spacing */
-            .content-column {
-                padding-left: 0;
-                padding-right: 0;
-            }
-            
-            /* Ensure passage cards and content don't overflow */
-            .passage-card,
-            .question-card,
-            .passage-content,
-            .passage-content-sat {
-                max-width: 100%;
-                box-sizing: border-box;
-            }
-            
             /* Passage cards */
             .passage-card {
-                padding: 20px 16px; /* Consistent horizontal padding on mobile */
+                padding: 20px;
                 margin-bottom: 16px;
-            }
-            
-            /* Question cards */
-            .question-card {
-                padding: 20px 16px; /* Consistent horizontal padding on mobile */
             }
             
             .passage-card h3 {
@@ -1320,7 +1268,11 @@
                 font-size: 14px;
             }
             
-            /* Question cards - padding already set above */
+            /* Question cards */
+            .question-card {
+                padding: 20px;
+                margin-bottom: 20px;
+            }
             
             .question-card h4 {
                 font-size: 16px;
@@ -2679,7 +2631,7 @@
                         const headerDiv = document.createElement('div');
                         headerDiv.style.cssText = 'margin-bottom: 30px;';
                         headerDiv.innerHTML = `
-                            <h3 class="subheader" style="color: #3498DB; font-size: 24px; font-weight: 600; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #3498DB;">
+                            <h3 style="color: #3498DB; font-size: 24px; font-weight: 600; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #3498DB;">
                                 ${escapeHtml(headerGroup.header.title)}
                             </h3>
                         `;
@@ -2918,7 +2870,7 @@
                         const headerDiv = document.createElement('div');
                         headerDiv.style.cssText = 'margin-bottom: 30px;';
                         headerDiv.innerHTML = `
-                            <h3 class="subheader" style="color: #3498DB; font-size: 24px; font-weight: 600; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #3498DB;">
+                            <h3 style="color: #3498DB; font-size: 24px; font-weight: 600; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #3498DB;">
                                 ${escapeHtml(headerGroup.header.title)}
                             </h3>
                         `;
@@ -3135,7 +3087,7 @@
                         const headerDiv = document.createElement('div');
                         headerDiv.style.cssText = 'margin-bottom: 30px;';
                         headerDiv.innerHTML = `
-                            <h3 class="subheader" style="color: #3498DB; font-size: 24px; font-weight: 600; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #3498DB;">
+                            <h3 style="color: #3498DB; font-size: 24px; font-weight: 600; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #3498DB;">
                                 ${escapeHtml(headerGroup.header.title)}
                             </h3>
                         `;
@@ -6956,7 +6908,7 @@
     </script>
     
     <!-- Footer -->
-    <footer style="background: var(--bg-secondary); border-top: 1px solid var(--border-color); padding: 20px 0; margin-top: auto; text-align: center; color: var(--text-secondary); font-size: 14px;">
+    <footer style="background: var(--bg-secondary); border-top: 1px solid var(--border-color); padding: 20px 0; margin-top: 40px; text-align: center; color: var(--text-secondary); font-size: 14px;">
         <div style="max-width: 1200px; margin: 0 auto; padding: 0 20px;">
             <p style="margin: 0 0 8px 0;">© 2026 Argos Ventures LLC. All rights reserved.</p>
             <p style="margin: 0;">
