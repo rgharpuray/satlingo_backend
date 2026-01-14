@@ -498,22 +498,18 @@
             width: 100%;
         }
         
-        /* Reading container wrapper - centers content and constrains width */
+        /* Reading container wrapper - simplified, no font-size logic */
         .passage-reading-container {
-            max-width: 100%;
-            margin: 0 auto;
-            padding-inline: clamp(6px, 1.5vw, 14px);
             width: 100%;
+            padding-inline: 10px;
         }
         
         .passage-content {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding-inline: clamp(8px, 1.5vw, 14px);
-            padding-block: 14px;
+            padding: 14px;
             margin-bottom: 1.5em;
             line-height: 1.45;
-            font-size: clamp(10px, 1.4vw, 16.5px);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
             white-space: normal;
@@ -522,21 +518,20 @@
             overflow-wrap: break-word;
             hyphens: auto;
             width: 100%;
+            box-sizing: border-box;
         }
         
         .passage-content p {
-            margin: 0 0 0.85em 0;
+            margin: 0 0 0.8em 0;
         }
         
         .passage-content-sat {
             background: var(--bg-primary);
             border-radius: 8px;
-            padding-inline: clamp(8px, 1.5vw, 14px);
-            padding-block: 14px;
+            padding: 14px;
             margin-bottom: 1.5em;
             border: 1px solid var(--border-color);
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: clamp(10px, 1.4vw, 16.5px);
             line-height: 1.45;
             color: var(--text-primary);
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
@@ -544,10 +539,11 @@
             overflow-wrap: break-word;
             hyphens: auto;
             width: 100%;
+            box-sizing: border-box;
         }
         
         .passage-content-sat p {
-            margin: 0 0 0.85em 0;
+            margin: 0 0 0.8em 0;
         }
         
         .passage-columns {
@@ -563,7 +559,6 @@
         
         .passage-line {
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: clamp(10px, 1.4vw, 16.5px);
             line-height: 1.45;
             white-space: normal;
             margin: 0;
@@ -595,7 +590,6 @@
         .line-text {
             flex: 1;
             font-family: "Minion Pro", "Minion", "Times New Roman", "Times", serif;
-            font-size: clamp(10px, 1.4vw, 16.5px);
             line-height: 1.45;
             white-space: normal;
             color: var(--text-primary);
@@ -3788,6 +3782,9 @@
             
             document.getElementById('passageContent').innerHTML = contentHTML;
             
+            // Adjust font size after content is loaded
+            setTimeout(adjustReaderFont, 100);
+            
             // Show submit section for lessons (questions are inline but can be answered)
             document.getElementById('questionsContainer').innerHTML = '';
             
@@ -5238,6 +5235,9 @@
                     <div class="passage-content-sat">${formattedContent}</div>
                 </div>
             `;
+            
+            // Adjust font size after content is loaded
+            setTimeout(adjustReaderFont, 100);
             
             // Display questions in two columns
             const questionsContainer = document.getElementById('questionsContainer');
@@ -6951,6 +6951,51 @@
                 }
             });
         });
+        
+        // Deterministic font scaling based on container width
+        function adjustReaderFont() {
+            const readers = document.querySelectorAll('.passage-content-sat, .passage-content');
+            readers.forEach(reader => {
+                if (!reader) return;
+                
+                const containerWidth = reader.clientWidth;
+                
+                // Target readable line length
+                const TARGET_CHARS = 66;
+                
+                // Avg serif glyph width ≈ 0.52em
+                const CHAR_WIDTH_EM = 0.52;
+                
+                let fontSize = containerWidth / (TARGET_CHARS * CHAR_WIDTH_EM);
+                
+                // Hard safety clamps
+                fontSize = Math.max(12, Math.min(fontSize, 16.5));
+                
+                reader.style.fontSize = `${fontSize}px`;
+                
+                // Also apply to line-text and passage-line within this container
+                const lineTexts = reader.querySelectorAll('.line-text, .passage-line');
+                lineTexts.forEach(el => {
+                    el.style.fontSize = `${fontSize}px`;
+                });
+            });
+        }
+        
+        // Run on resize, orientation change, and DOM ready
+        window.addEventListener('resize', adjustReaderFont);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(adjustReaderFont, 100);
+        });
+        
+        // Run after DOM is ready and after passage content is loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', adjustReaderFont);
+        } else {
+            adjustReaderFont();
+        }
+        
+        // Also run after a short delay to catch dynamically loaded content
+        setTimeout(adjustReaderFont, 500);
     </script>
     
     <!-- Footer -->
