@@ -192,6 +192,26 @@ def subscription_status(request):
     })
 
 
+def get_subscription_field(sub, field, default=None):
+    """Safely get a field from a Stripe subscription object (handles API version differences)"""
+    try:
+        # Try attribute access first
+        return getattr(sub, field)
+    except AttributeError:
+        pass
+    try:
+        # Try dictionary access
+        return sub[field]
+    except (KeyError, TypeError):
+        pass
+    try:
+        # Try .get() method
+        return sub.get(field, default)
+    except AttributeError:
+        pass
+    return default
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def sync_subscription_from_stripe(request):
@@ -215,40 +235,45 @@ def sync_subscription_from_stripe(request):
         now = timezone.now()
         active_stripe_subs = []
         for sub in subscriptions.data:
-            if sub.status in ['active', 'trialing']:
+            sub_status = get_subscription_field(sub, 'status')
+            if sub_status in ['active', 'trialing']:
                 active_stripe_subs.append(sub)
-            elif sub.status == 'canceled':
+            elif sub_status == 'canceled':
                 # Check if canceled subscription is still within its period
-                period_end = timezone.datetime.fromtimestamp(sub.current_period_end, tz=timezone.utc)
-                if period_end > now:
-                    # Canceled but still within period - treat as active
-                    active_stripe_subs.append(sub)
+                period_end_ts = get_subscription_field(sub, 'current_period_end')
+                if period_end_ts:
+                    period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc)
+                    if period_end > now:
+                        # Canceled but still within period - treat as active
+                        active_stripe_subs.append(sub)
         
         if active_stripe_subs:
             # Update with the most recent active subscription
             stripe_sub = active_stripe_subs[0]
             
+            # Get subscription fields safely
+            period_start_ts = get_subscription_field(stripe_sub, 'current_period_start')
+            period_end_ts = get_subscription_field(stripe_sub, 'current_period_end')
+            subscription_status = get_subscription_field(stripe_sub, 'status')
+            cancel_at_period_end = get_subscription_field(stripe_sub, 'cancel_at_period_end', False)
+            
             # Create or update subscription in database
-            period_end = timezone.datetime.fromtimestamp(
-                stripe_sub.current_period_end, tz=timezone.utc
-            )
+            period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None
+            period_start = timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None
             
             sub, created = Subscription.objects.update_or_create(
                 stripe_subscription_id=stripe_sub.id,
                 defaults={
                     'user': user,
-                    'status': stripe_sub.status,
-                    'current_period_start': timezone.datetime.fromtimestamp(
-                        stripe_sub.current_period_start, tz=timezone.utc
-                    ),
+                    'status': subscription_status,
+                    'current_period_start': period_start,
                     'current_period_end': period_end,
-                    'cancel_at_period_end': stripe_sub.get('cancel_at_period_end', False),
+                    'cancel_at_period_end': cancel_at_period_end,
                 }
             )
             
             # Set premium status - check if period has ended
             # Even if canceled (cancel_at_period_end=True), keep premium until period ends
-            subscription_status = stripe_sub.status
             now = timezone.now()
             
             if subscription_status in ['active', 'trialing']:
@@ -269,7 +294,7 @@ def sync_subscription_from_stripe(request):
             return Response({
                 'success': True,
                 'message': 'Subscription synced successfully',
-                'subscription_status': stripe_sub.status,
+                'subscription_status': subscription_status,
                 'is_premium': user.is_premium,
             })
         else:
@@ -361,7 +386,10 @@ def handle_checkout_session(session):
                 try:
                     # Retrieve the subscription from Stripe to get its status
                     stripe_sub = stripe.Subscription.retrieve(subscription_id)
-                    subscription_status = stripe_sub.status
+                    subscription_status = get_subscription_field(stripe_sub, 'status')
+                    period_start_ts = get_subscription_field(stripe_sub, 'current_period_start')
+                    period_end_ts = get_subscription_field(stripe_sub, 'current_period_end')
+                    cancel_at_period_end = get_subscription_field(stripe_sub, 'cancel_at_period_end', False)
                     
                     logger.info(f"Found subscription {subscription_id} in checkout session, status: {subscription_status}")
                     
@@ -371,13 +399,9 @@ def handle_checkout_session(session):
                         defaults={
                             'user': user,
                             'status': subscription_status,
-                            'current_period_start': timezone.datetime.fromtimestamp(
-                                stripe_sub.current_period_start, tz=timezone.utc
-                            ),
-                            'current_period_end': timezone.datetime.fromtimestamp(
-                                stripe_sub.current_period_end, tz=timezone.utc
-                            ),
-                            'cancel_at_period_end': stripe_sub.get('cancel_at_period_end', False),
+                            'current_period_start': timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None,
+                            'current_period_end': timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None,
+                            'cancel_at_period_end': cancel_at_period_end,
                         }
                     )
                     
@@ -396,20 +420,19 @@ def handle_checkout_session(session):
                     subscriptions = stripe.Subscription.list(customer=customer_id, limit=1, status='active')
                     if subscriptions.data:
                         stripe_sub = subscriptions.data[0]
-                        subscription_status = stripe_sub.status
+                        subscription_status = get_subscription_field(stripe_sub, 'status')
+                        period_start_ts = get_subscription_field(stripe_sub, 'current_period_start')
+                        period_end_ts = get_subscription_field(stripe_sub, 'current_period_end')
+                        cancel_at_period_end = get_subscription_field(stripe_sub, 'cancel_at_period_end', False)
                         
                         sub, created = Subscription.objects.update_or_create(
                             stripe_subscription_id=stripe_sub.id,
                             defaults={
                                 'user': user,
                                 'status': subscription_status,
-                                'current_period_start': timezone.datetime.fromtimestamp(
-                                    stripe_sub.current_period_start, tz=timezone.utc
-                                ),
-                                'current_period_end': timezone.datetime.fromtimestamp(
-                                    stripe_sub.current_period_end, tz=timezone.utc
-                                ),
-                                'cancel_at_period_end': stripe_sub.get('cancel_at_period_end', False),
+                                'current_period_start': timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None,
+                                'current_period_end': timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None,
+                                'cancel_at_period_end': cancel_at_period_end,
                             }
                         )
                         
@@ -429,9 +452,12 @@ def handle_checkout_session(session):
 
 def handle_subscription_created(subscription):
     """Handle new subscription"""
-    customer_id = subscription['customer']
-    subscription_id = subscription['id']
-    subscription_status = subscription['status']
+    customer_id = subscription.get('customer')
+    subscription_id = subscription.get('id')
+    subscription_status = subscription.get('status')
+    period_start_ts = subscription.get('current_period_start')
+    period_end_ts = subscription.get('current_period_end')
+    cancel_at_period_end = subscription.get('cancel_at_period_end', False)
     
     logger.info(f"Processing subscription.created webhook: {subscription_id} for customer {customer_id}, status: {subscription_status}")
     
@@ -444,13 +470,9 @@ def handle_subscription_created(subscription):
             defaults={
                 'user': user,
                 'status': subscription_status,
-                'current_period_start': timezone.datetime.fromtimestamp(
-                    subscription['current_period_start'], tz=timezone.utc
-                ),
-                'current_period_end': timezone.datetime.fromtimestamp(
-                    subscription['current_period_end'], tz=timezone.utc
-                ),
-                'cancel_at_period_end': subscription.get('cancel_at_period_end', False),
+                'current_period_start': timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None,
+                'current_period_end': timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None,
+                'cancel_at_period_end': cancel_at_period_end,
             }
         )
         
@@ -468,23 +490,26 @@ def handle_subscription_created(subscription):
 
 def handle_subscription_updated(subscription):
     """Handle subscription update"""
+    subscription_id = subscription.get('id')
+    subscription_status = subscription.get('status')
+    period_start_ts = subscription.get('current_period_start')
+    period_end_ts = subscription.get('current_period_end')
+    cancel_at_period_end = subscription.get('cancel_at_period_end', False)
+    
     try:
-        sub = Subscription.objects.get(stripe_subscription_id=subscription['id'])
-        sub.status = subscription['status']
-        sub.current_period_start = timezone.datetime.fromtimestamp(
-            subscription['current_period_start'], tz=timezone.utc
-        )
-        sub.current_period_end = timezone.datetime.fromtimestamp(
-            subscription['current_period_end'], tz=timezone.utc
-        )
-        sub.cancel_at_period_end = subscription.get('cancel_at_period_end', False)
+        sub = Subscription.objects.get(stripe_subscription_id=subscription_id)
+        sub.status = subscription_status
+        if period_start_ts:
+            sub.current_period_start = timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc)
+        if period_end_ts:
+            sub.current_period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc)
+        sub.cancel_at_period_end = cancel_at_period_end
         sub.save()
         
         # Update user premium status
         # IMPORTANT: Premium should remain active until the END of the billing period they paid for
         # (current_period_end from when they first subscribed), NOT from the cancellation date
         # Even if canceled (cancel_at_period_end=True), keep premium until the original period ends
-        subscription_status = subscription['status']
         period_end = sub.current_period_end  # This is the end of the period they originally paid for
         now = timezone.now()
         
@@ -500,32 +525,27 @@ def handle_subscription_updated(subscription):
         sub.user.is_premium = is_premium
         sub.user.save()
         
-        logger.info(f"Subscription {subscription['id']} updated: status={subscription_status}, cancel_at_period_end={sub.cancel_at_period_end}, period_end={period_end}, is_premium={is_premium}")
+        logger.info(f"Subscription {subscription_id} updated: status={subscription_status}, cancel_at_period_end={cancel_at_period_end}, period_end={period_end}, is_premium={is_premium}")
     except Subscription.DoesNotExist:
         # Subscription doesn't exist yet, try to create it
         customer_id = subscription.get('customer')
         if customer_id:
             try:
                 user = User.objects.get(stripe_customer_id=customer_id)
+                period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None
+                period_start = timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None
+                
                 sub, created = Subscription.objects.update_or_create(
-                    stripe_subscription_id=subscription['id'],
+                    stripe_subscription_id=subscription_id,
                     defaults={
                         'user': user,
-                        'status': subscription['status'],
-                        'current_period_start': timezone.datetime.fromtimestamp(
-                            subscription['current_period_start'], tz=timezone.utc
-                        ),
-                        'current_period_end': timezone.datetime.fromtimestamp(
-                            subscription['current_period_end'], tz=timezone.utc
-                        ),
-                        'cancel_at_period_end': subscription.get('cancel_at_period_end', False),
+                        'status': subscription_status,
+                        'current_period_start': period_start,
+                        'current_period_end': period_end,
+                        'cancel_at_period_end': cancel_at_period_end,
                     }
                 )
                 # Set premium status - check if period has ended
-                subscription_status = subscription['status']
-                period_end = timezone.datetime.fromtimestamp(
-                    subscription['current_period_end'], tz=timezone.utc
-                )
                 now = timezone.now()
                 
                 if subscription_status in ['active', 'trialing']:
@@ -538,22 +558,23 @@ def handle_subscription_updated(subscription):
                 user.is_premium = is_premium
                 user.save()
                 
-                logger.info(f"Subscription {subscription['id']} created via update: status={subscription_status}, period_end={period_end}, is_premium={is_premium}")
+                logger.info(f"Subscription {subscription_id} created via update: status={subscription_status}, period_end={period_end}, is_premium={is_premium}")
             except User.DoesNotExist:
                 pass
 
 
 def handle_subscription_deleted(subscription):
     """Handle subscription deletion (when period actually ends after cancellation)"""
+    subscription_id = subscription.get('id')
+    period_end_ts = subscription.get('current_period_end')
+    
     try:
-        sub = Subscription.objects.get(stripe_subscription_id=subscription['id'])
+        sub = Subscription.objects.get(stripe_subscription_id=subscription_id)
         sub.status = 'canceled'
         
         # Get period_end from the subscription object if available
-        if 'current_period_end' in subscription:
-            sub.current_period_end = timezone.datetime.fromtimestamp(
-                subscription['current_period_end'], tz=timezone.utc
-            )
+        if period_end_ts:
+            sub.current_period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc)
         
         sub.save()
         
@@ -563,14 +584,14 @@ def handle_subscription_deleted(subscription):
         if sub.current_period_end and sub.current_period_end > now:
             # Period hasn't ended yet - keep premium until period_end
             is_premium = True
-            logger.info(f"Subscription {subscription['id']} deleted but period hasn't ended yet (ends {sub.current_period_end}), keeping premium")
+            logger.info(f"Subscription {subscription_id} deleted but period hasn't ended yet (ends {sub.current_period_end}), keeping premium")
         else:
             # Period has ended - remove premium
             is_premium = False
-            logger.info(f"Subscription {subscription['id']} deleted and period has ended, removing premium")
+            logger.info(f"Subscription {subscription_id} deleted and period has ended, removing premium")
         
         sub.user.is_premium = is_premium
         sub.user.save()
     except Subscription.DoesNotExist:
-        logger.warning(f"Subscription {subscription.get('id')} not found in database when handling deletion")
+        logger.warning(f"Subscription {subscription_id} not found in database when handling deletion")
 
