@@ -221,23 +221,30 @@ def get_subscription_field(sub, field, default=None):
     except AttributeError:
         pass
     
-    # For subscription objects from retrieve(), check if it has items with billing info
-    # The new API sometimes puts period info in different places
+    # For subscription objects in the new API version (2025-12-15.clover),
+    # current_period_start and current_period_end are inside items.data[0]
     if field in ['current_period_start', 'current_period_end']:
         try:
-            # Try to get from the subscription object's underlying data
-            if hasattr(sub, '_previous') and sub._previous:
-                result = sub._previous.get(field)
-                if result is not None:
-                    return result
-        except (AttributeError, TypeError):
-            pass
+            # Try to get from items.data[0] (new API structure)
+            items = sub.get('items') if hasattr(sub, 'get') else getattr(sub, 'items', None)
+            if items:
+                items_data = items.get('data') if hasattr(items, 'get') else getattr(items, 'data', None)
+                if items_data and len(items_data) > 0:
+                    first_item = items_data[0]
+                    item_result = first_item.get(field) if hasattr(first_item, 'get') else getattr(first_item, field, None)
+                    if item_result is not None:
+                        logger.info(f"Found {field}={item_result} in items.data[0]")
+                        return item_result
+        except (AttributeError, TypeError, KeyError, IndexError) as e:
+            logger.debug(f"Error getting {field} from items: {e}")
         
         try:
-            # Check if there's a 'start_date' or similar field
-            if field == 'current_period_start' and hasattr(sub, 'start_date'):
-                return sub.start_date
-        except AttributeError:
+            # Fallback: Check if there's a 'start_date' field (sometimes used instead)
+            if field == 'current_period_start':
+                start_date = sub.get('start_date') if hasattr(sub, 'get') else getattr(sub, 'start_date', None)
+                if start_date:
+                    return start_date
+        except (AttributeError, TypeError):
             pass
     
     logger.debug(f"Could not find field '{field}' in subscription object, returning default: {default}")
