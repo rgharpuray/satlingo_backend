@@ -194,21 +194,53 @@ def subscription_status(request):
 
 def get_subscription_field(sub, field, default=None):
     """Safely get a field from a Stripe subscription object (handles API version differences)"""
+    result = default
+    
+    # Try dictionary access first (most common for webhook payloads)
     try:
-        # Try attribute access first
-        return getattr(sub, field)
+        if field in sub:
+            result = sub[field]
+            if result is not None:
+                return result
+    except (TypeError, KeyError):
+        pass
+    
+    # Try .get() method
+    try:
+        result = sub.get(field)
+        if result is not None:
+            return result
+    except (AttributeError, TypeError):
+        pass
+    
+    # Try attribute access (for Stripe objects)
+    try:
+        result = getattr(sub, field, None)
+        if result is not None:
+            return result
     except AttributeError:
         pass
-    try:
-        # Try dictionary access
-        return sub[field]
-    except (KeyError, TypeError):
-        pass
-    try:
-        # Try .get() method
-        return sub.get(field, default)
-    except AttributeError:
-        pass
+    
+    # For subscription objects from retrieve(), check if it has items with billing info
+    # The new API sometimes puts period info in different places
+    if field in ['current_period_start', 'current_period_end']:
+        try:
+            # Try to get from the subscription object's underlying data
+            if hasattr(sub, '_previous') and sub._previous:
+                result = sub._previous.get(field)
+                if result is not None:
+                    return result
+        except (AttributeError, TypeError):
+            pass
+        
+        try:
+            # Check if there's a 'start_date' or similar field
+            if field == 'current_period_start' and hasattr(sub, 'start_date'):
+                return sub.start_date
+        except AttributeError:
+            pass
+    
+    logger.debug(f"Could not find field '{field}' in subscription object, returning default: {default}")
     return default
 
 
@@ -386,12 +418,31 @@ def handle_checkout_session(session):
                 try:
                     # Retrieve the subscription from Stripe to get its status
                     stripe_sub = stripe.Subscription.retrieve(subscription_id)
+                    
+                    # Log the raw subscription object for debugging
+                    logger.info(f"Raw subscription object keys: {list(stripe_sub.keys()) if hasattr(stripe_sub, 'keys') else 'N/A'}")
+                    logger.info(f"Raw subscription object: {dict(stripe_sub) if hasattr(stripe_sub, 'keys') else str(stripe_sub)[:500]}")
+                    
                     subscription_status = get_subscription_field(stripe_sub, 'status')
                     period_start_ts = get_subscription_field(stripe_sub, 'current_period_start')
                     period_end_ts = get_subscription_field(stripe_sub, 'current_period_end')
                     cancel_at_period_end = get_subscription_field(stripe_sub, 'cancel_at_period_end', False)
                     
-                    logger.info(f"Found subscription {subscription_id} in checkout session, status: {subscription_status}")
+                    logger.info(f"Found subscription {subscription_id}: status={subscription_status}, period_start={period_start_ts}, period_end={period_end_ts}")
+                    
+                    # If period timestamps are missing, use current time as fallback
+                    now = timezone.now()
+                    if not period_start_ts:
+                        logger.warning(f"No current_period_start found for subscription {subscription_id}, using current time")
+                        period_start = now
+                    else:
+                        period_start = timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc)
+                    
+                    if not period_end_ts:
+                        logger.warning(f"No current_period_end found for subscription {subscription_id}, using 30 days from now")
+                        period_end = now + timezone.timedelta(days=30)
+                    else:
+                        period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc)
                     
                     # Create or update subscription record
                     sub, created = Subscription.objects.update_or_create(
@@ -399,8 +450,8 @@ def handle_checkout_session(session):
                         defaults={
                             'user': user,
                             'status': subscription_status,
-                            'current_period_start': timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None,
-                            'current_period_end': timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None,
+                            'current_period_start': period_start,
+                            'current_period_end': period_end,
                             'cancel_at_period_end': cancel_at_period_end,
                         }
                     )
@@ -425,13 +476,18 @@ def handle_checkout_session(session):
                         period_end_ts = get_subscription_field(stripe_sub, 'current_period_end')
                         cancel_at_period_end = get_subscription_field(stripe_sub, 'cancel_at_period_end', False)
                         
+                        # If period timestamps are missing, use current time as fallback
+                        now = timezone.now()
+                        period_start = timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else now
+                        period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else (now + timezone.timedelta(days=30))
+                        
                         sub, created = Subscription.objects.update_or_create(
                             stripe_subscription_id=stripe_sub.id,
                             defaults={
                                 'user': user,
                                 'status': subscription_status,
-                                'current_period_start': timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None,
-                                'current_period_end': timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None,
+                                'current_period_start': period_start,
+                                'current_period_end': period_end,
                                 'cancel_at_period_end': cancel_at_period_end,
                             }
                         )
@@ -459,10 +515,15 @@ def handle_subscription_created(subscription):
     period_end_ts = subscription.get('current_period_end')
     cancel_at_period_end = subscription.get('cancel_at_period_end', False)
     
-    logger.info(f"Processing subscription.created webhook: {subscription_id} for customer {customer_id}, status: {subscription_status}")
+    logger.info(f"Processing subscription.created webhook: {subscription_id} for customer {customer_id}, status: {subscription_status}, period_start={period_start_ts}, period_end={period_end_ts}")
     
     try:
         user = User.objects.get(stripe_customer_id=customer_id)
+        
+        # If period timestamps are missing, use current time as fallback
+        now = timezone.now()
+        period_start = timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else now
+        period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else (now + timezone.timedelta(days=30))
         
         # Create or update subscription record
         sub, created = Subscription.objects.update_or_create(
@@ -470,8 +531,8 @@ def handle_subscription_created(subscription):
             defaults={
                 'user': user,
                 'status': subscription_status,
-                'current_period_start': timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None,
-                'current_period_end': timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None,
+                'current_period_start': period_start,
+                'current_period_end': period_end,
                 'cancel_at_period_end': cancel_at_period_end,
             }
         )
@@ -532,8 +593,11 @@ def handle_subscription_updated(subscription):
         if customer_id:
             try:
                 user = User.objects.get(stripe_customer_id=customer_id)
-                period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None
-                period_start = timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else None
+                
+                # If period timestamps are missing, use current time as fallback
+                now = timezone.now()
+                period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else (now + timezone.timedelta(days=30))
+                period_start = timezone.datetime.fromtimestamp(period_start_ts, tz=timezone.utc) if period_start_ts else now
                 
                 sub, created = Subscription.objects.update_or_create(
                     stripe_subscription_id=subscription_id,
@@ -546,8 +610,6 @@ def handle_subscription_updated(subscription):
                     }
                 )
                 # Set premium status - check if period has ended
-                now = timezone.now()
-                
                 if subscription_status in ['active', 'trialing']:
                     # Subscription is active - check if period has ended
                     is_premium = (period_end > now) if period_end else True
