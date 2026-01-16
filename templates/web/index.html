@@ -2779,11 +2779,17 @@
                 lessonsList.innerHTML = '';
                 
                 if (data.results && data.results.length > 0) {
+                    // Filter to only intro lessons if user is not logged in
+                    let filteredResults = data.results;
+                    if (!currentUser) {
+                        filteredResults = data.results.filter(lesson => isIntroLesson(lesson.title));
+                    }
+                    
                     // Group lessons by header
                     const lessonsByHeader = {};
                     const lessonsWithoutHeader = [];
                     
-                    data.results.forEach(lesson => {
+                    filteredResults.forEach(lesson => {
                         console.log(`Lesson "${lesson.title}" has header:`, lesson.header);
                         if (lesson.header && lesson.header.id) {
                             const headerId = lesson.header.id;
@@ -2831,9 +2837,8 @@
                             card.className = `passage-card ${lesson.tier === 'premium' ? 'premium' : ''}`;
                             card.style.cssText = 'margin-bottom: 15px;';
                             const isPremium = lesson.tier === 'premium';
-                            const isIntro = isIntroLesson(lesson.title);
                             card.innerHTML = `
-                                <h4>${escapeHtml(lesson.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''} ${isIntro && !currentUser ? '<span style="background: #27ae60; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 5px;">FREE</span>' : ''}</h4>
+                                <h4>${escapeHtml(lesson.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h4>
                             `;
                             card.onclick = () => openLesson(lesson.id, lesson.title);
                             lessonsContainer.appendChild(card);
@@ -2855,9 +2860,8 @@
                             card.className = `passage-card ${lesson.tier === 'premium' ? 'premium' : ''}`;
                             card.style.cssText = 'margin-bottom: 15px;';
                             const isPremium = lesson.tier === 'premium';
-                            const isIntro = isIntroLesson(lesson.title);
                             card.innerHTML = `
-                                <h4>${escapeHtml(lesson.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''} ${isIntro && !currentUser ? '<span style="background: #27ae60; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 5px;">FREE</span>' : ''}</h4>
+                                <h4>${escapeHtml(lesson.title)} ${isPremium ? '<span class="premium-badge">PREMIUM</span> <span class="premium-lock">🔒</span>' : ''}</h4>
                             `;
                             card.onclick = () => openLesson(lesson.id, lesson.title);
                             lessonsContainer.appendChild(card);
@@ -2866,10 +2870,28 @@
                     }
                     
                     if (sortedHeaders.length === 0 && lessonsWithoutHeader.length === 0) {
-                        lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
+                        if (!currentUser) {
+                            lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">Log in to access all lessons.</p>';
+                        } else {
+                            lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
+                        }
+                    } else if (!currentUser) {
+                        // Add CTA banner for non-logged-in users
+                        const ctaBanner = document.createElement('div');
+                        ctaBanner.style.cssText = 'background: linear-gradient(135deg, #3498DB 0%, #2980b9 100%); color: white; padding: 20px; border-radius: 12px; margin-top: 25px; text-align: center;';
+                        ctaBanner.innerHTML = `
+                            <h4 style="margin: 0 0 8px 0; font-size: 18px;">Want more lessons?</h4>
+                            <p style="margin: 0 0 15px 0; opacity: 0.9;">Sign up for free to access all our content!</p>
+                            <button onclick="showLoginModal()" style="background: white; color: #3498DB; border: none; padding: 10px 25px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">Sign Up Free</button>
+                        `;
+                        lessonsList.appendChild(ctaBanner);
                     }
                 } else {
-                    lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
+                    if (!currentUser) {
+                        lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">Log in to access all lessons.</p>';
+                    } else {
+                        lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
+                    }
                 }
             } catch (error) {
                 console.error(`Failed to load ${lessonType} lessons:`, error);
@@ -3233,9 +3255,14 @@
                 passagesList.innerHTML = '';
                 
                 // Handle both paginated (data.results) and non-paginated (data is array) responses
-                const passages = Array.isArray(data) ? data : (data.results || []);
+                let passages = Array.isArray(data) ? data : (data.results || []);
                 console.log('Processing passages:', passages.length, 'passages');
                 console.log('First passage sample:', passages[0]);
+                
+                // Filter to only intro passages if user is not logged in
+                if (!currentUser) {
+                    passages = passages.filter(passage => isIntroLesson(passage.title));
+                }
                 
                 if (passages && passages.length > 0) {
                     // Group passages by header
@@ -3410,9 +3437,25 @@
                             passagesList.appendChild(card);
                         });
                     }
+                    
+                    // Add CTA banner for non-logged-in users
+                    if (!currentUser) {
+                        const ctaBanner = document.createElement('div');
+                        ctaBanner.style.cssText = 'background: linear-gradient(135deg, #3498DB 0%, #2980b9 100%); color: white; padding: 20px; border-radius: 12px; margin-top: 25px; text-align: center;';
+                        ctaBanner.innerHTML = `
+                            <h4 style="margin: 0 0 8px 0; font-size: 18px;">Want more passages?</h4>
+                            <p style="margin: 0 0 15px 0; opacity: 0.9;">Sign up for free to access all our content!</p>
+                            <button onclick="showLoginModal()" style="background: white; color: #3498DB; border: none; padding: 10px 25px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">Sign Up Free</button>
+                        `;
+                        passagesList.appendChild(ctaBanner);
+                    }
                 } else {
                     console.log('No passages found in response');
-                    passagesList.innerHTML = '<p style="color: #666; font-style: italic;">No passages available yet.</p>';
+                    if (!currentUser) {
+                        passagesList.innerHTML = '<p style="color: #666; font-style: italic;">Log in to access all passages.</p>';
+                    } else {
+                        passagesList.innerHTML = '<p style="color: #666; font-style: italic;">No passages available yet.</p>';
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load passages:', error);
