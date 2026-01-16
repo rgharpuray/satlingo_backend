@@ -2068,7 +2068,8 @@
         function isIntroLesson(lessonTitle) {
             if (!lessonTitle) return false;
             const titleLower = lessonTitle.toLowerCase().trim();
-            return INTRO_LESSON_TITLES.some(intro => titleLower === intro.toLowerCase());
+            // Use includes to match partial titles (e.g., "Waves: Introduction" matches "waves")
+            return INTRO_LESSON_TITLES.some(intro => titleLower.includes(intro.toLowerCase()));
         }
         
         // Show login required modal
