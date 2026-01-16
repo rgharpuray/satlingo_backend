@@ -5184,13 +5184,20 @@
             const leftColumn = questionsContainer.querySelector('.question-column-left');
             const rightColumn = questionsContainer.querySelector('.question-column-right');
             
+            // Sort questions by order field to ensure correct display order
+            const sortedWritingQuestions = [...(questions.questions || [])].sort((a, b) => {
+                const orderA = a.order !== undefined ? a.order : 999;
+                const orderB = b.order !== undefined ? b.order : 999;
+                return orderA - orderB;
+            });
+            
             // Store questions in map for explanation access
             currentQuestionsMap = {};
-            (questions.questions || []).forEach(question => {
+            sortedWritingQuestions.forEach(question => {
                 currentQuestionsMap[question.id] = question;
             });
             
-            (questions.questions || []).forEach((question, index) => {
+            sortedWritingQuestions.forEach((question, index) => {
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
                 const questionCard = document.createElement('div');
                 questionCard.className = 'question-card';
@@ -5345,13 +5352,20 @@
             // Debug: log questions to see what we're getting
             console.log('Questions received:', questions.questions);
             
+            // Sort questions by order field to ensure correct display order
+            const sortedQuestions = [...(questions.questions || [])].sort((a, b) => {
+                const orderA = a.order !== undefined ? a.order : 999;
+                const orderB = b.order !== undefined ? b.order : 999;
+                return orderA - orderB;
+            });
+            
             // Store questions in map for explanation access
             currentQuestionsMap = {};
-            questions.questions.forEach(question => {
+            sortedQuestions.forEach(question => {
                 currentQuestionsMap[question.id] = question;
             });
             
-            questions.questions.forEach((question, index) => {
+            sortedQuestions.forEach((question, index) => {
                 // Use question.order if available, otherwise use index + 1
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
                 const questionCard = document.createElement('div');
@@ -5473,13 +5487,20 @@
             
             const questionsList = questions.results || questions.questions || [];
             
+            // Sort questions by order field to ensure correct display order
+            const sortedMathQuestions = [...questionsList].sort((a, b) => {
+                const orderA = a.order !== undefined ? a.order : 999;
+                const orderB = b.order !== undefined ? b.order : 999;
+                return orderA - orderB;
+            });
+            
             // Store questions in map for explanation access
             currentQuestionsMap = {};
-            questionsList.forEach(question => {
+            sortedMathQuestions.forEach(question => {
                 currentQuestionsMap[question.id] = question;
             });
             
-            questionsList.forEach((question, index) => {
+            sortedMathQuestions.forEach((question, index) => {
                 const questionNumber = question.order !== undefined ? question.order : (index + 1);
                 const questionCard = document.createElement('div');
                 questionCard.className = 'question-card';
@@ -5898,7 +5919,14 @@
                 return;
             }
             
-            questions.forEach((question, index) => {
+            // Sort questions by order field to ensure correct display order
+            const sortedResultQuestions = [...questions].sort((a, b) => {
+                const orderA = a.order !== undefined ? a.order : 999;
+                const orderB = b.order !== undefined ? b.order : 999;
+                return orderA - orderB;
+            });
+            
+            sortedResultQuestions.forEach((question, index) => {
                 // Ensure question ID is a string for comparison
                 const questionIdStr = String(question.id);
                 const userAnswer = userAnswers[questionIdStr] !== undefined ? userAnswers[questionIdStr] : userAnswers[question.id];
@@ -6177,14 +6205,21 @@
             resultsSection.style.display = 'block';
             document.getElementById('submitSection').style.display = 'none';
             
+            // Sort questions by order field to ensure correct display order
+            const sortedQuestions = [...(passageData.questions || [])].sort((a, b) => {
+                const orderA = a.order !== undefined ? a.order : 999;
+                const orderB = b.order !== undefined ? b.order : 999;
+                return orderA - orderB;
+            });
+            
             let correctCount = 0;
-            passageData.questions.forEach(q => {
+            sortedQuestions.forEach(q => {
                 if (userAnswers[q.id] === q.correct_answer_index) {
                     correctCount++;
                 }
             });
             
-            const totalQuestions = passageData.questions.length;
+            const totalQuestions = sortedQuestions.length;
             const percentage = Math.round((correctCount / totalQuestions) * 100);
             
             let resultsHTML = `
@@ -6194,7 +6229,7 @@
                 </div>
             `;
             
-            passageData.questions.forEach((question, index) => {
+            sortedQuestions.forEach((question, index) => {
                 const userAnswer = userAnswers[question.id];
                 const isCorrect = userAnswer === question.correct_answer_index;
                 
@@ -6571,7 +6606,15 @@
                 // Match attempt answers with section questions
                 // For math sections, questions might be in results array
                 const questions = sectionData.questions || sectionData.results || [];
-                questions.forEach((question, index) => {
+                
+                // Sort questions by order field to ensure correct display order
+                const sortedAttemptQuestions = [...questions].sort((a, b) => {
+                    const orderA = a.order !== undefined ? a.order : 999;
+                    const orderB = b.order !== undefined ? b.order : 999;
+                    return orderA - orderB;
+                });
+                
+                sortedAttemptQuestions.forEach((question, index) => {
                     const attemptAnswer = attempt.answers.find(a => a.question_id === question.id);
                     if (!attemptAnswer) return;
                     
