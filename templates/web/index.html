@@ -677,9 +677,17 @@
             gap: 20px;
         }
         
+        /* Ensure questions flow in reading order (left-to-right, top-to-bottom) */
+        .questions-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        
         @media (max-width: 1024px) {
             .passage-columns,
-            .questions-columns {
+            .questions-columns,
+            .questions-grid {
                 grid-template-columns: 1fr;
                 gap: 0;
             }
@@ -687,7 +695,8 @@
         
         @media (max-width: 768px) {
             .passage-columns,
-            .questions-columns {
+            .questions-columns,
+            .questions-grid {
                 gap: 0;
             }
         }
@@ -5177,12 +5186,11 @@
                 ${formattedContent}
             `;
             
-            // Display questions in two columns (similar to passages)
+            // Display questions in a grid (maintains order on mobile)
             const questionsContainer = document.getElementById('questionsContainer');
-            questionsContainer.innerHTML = '<div class="questions-columns"><div class="question-column-left"></div><div class="question-column-right"></div></div>';
+            questionsContainer.innerHTML = '<div class="questions-grid"></div>';
             
-            const leftColumn = questionsContainer.querySelector('.question-column-left');
-            const rightColumn = questionsContainer.querySelector('.question-column-right');
+            const questionsGrid = questionsContainer.querySelector('.questions-grid');
             
             // Sort questions by order field to ensure correct display order
             const sortedWritingQuestions = [...(questions.questions || [])].sort((a, b) => {
@@ -5236,12 +5244,8 @@
                     </div>
                 `;
                 
-                // Alternate between left and right columns
-                if (index % 2 === 0) {
-                    leftColumn.appendChild(questionCard);
-                } else {
-                    rightColumn.appendChild(questionCard);
-                }
+                // Append to grid - CSS handles the 2-column layout
+                questionsGrid.appendChild(questionCard);
             });
             
             // For now, hide submit section for writing sections (no backend endpoint yet)
@@ -5333,21 +5337,15 @@
             // Adjust font size after content is loaded
             setTimeout(adjustReaderFont, 100);
             
-            // Display questions in two columns
+            // Display questions in a grid (maintains order on mobile)
             const questionsContainer = document.getElementById('questionsContainer');
             if (!questionsContainer) {
                 console.error('questionsContainer element not found!');
                 return;
             }
-            questionsContainer.innerHTML = '<div class="questions-columns"><div class="question-column-left"></div><div class="question-column-right"></div></div>';
+            questionsContainer.innerHTML = '<div class="questions-grid"></div>';
             
-            const leftColumn = questionsContainer.querySelector('.question-column-left');
-            const rightColumn = questionsContainer.querySelector('.question-column-right');
-            
-            if (!leftColumn || !rightColumn) {
-                console.error('Question columns not found!');
-                return;
-            }
+            const questionsGrid = questionsContainer.querySelector('.questions-grid');
             
             // Debug: log questions to see what we're getting
             console.log('Questions received:', questions.questions);
@@ -5385,12 +5383,8 @@
                     </div>
                 `;
                 
-                // Alternate between left and right columns
-                if (index % 2 === 0) {
-                    leftColumn.appendChild(questionCard);
-                } else {
-                    rightColumn.appendChild(questionCard);
-                }
+                // Append to grid - CSS handles the 2-column layout
+                questionsGrid.appendChild(questionCard);
             });
             
             // Show submit button, hide results
@@ -5475,15 +5469,9 @@
                 console.error('questionsContainer element not found!');
                 return;
             }
-            questionsContainer.innerHTML = '<div class="questions-columns"><div class="question-column-left"></div><div class="question-column-right"></div></div>';
+            questionsContainer.innerHTML = '<div class="questions-grid"></div>';
             
-            const leftColumn = questionsContainer.querySelector('.question-column-left');
-            const rightColumn = questionsContainer.querySelector('.question-column-right');
-            
-            if (!leftColumn || !rightColumn) {
-                console.error('Question columns not found!');
-                return;
-            }
+            const questionsGrid = questionsContainer.querySelector('.questions-grid');
             
             const questionsList = questions.results || questions.questions || [];
             
@@ -5563,12 +5551,8 @@
                     </div>
                 `;
                 
-                // Alternate between left and right columns
-                if (index % 2 === 0) {
-                    leftColumn.appendChild(questionCard);
-                } else {
-                    rightColumn.appendChild(questionCard);
-                }
+                // Append to grid - CSS handles the 2-column layout
+                questionsGrid.appendChild(questionCard);
             });
             
             // Show submit section
