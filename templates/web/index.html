@@ -2065,11 +2065,22 @@
         const INTRO_LESSON_TITLES = ['intro', 'waves', 'guided tour'];
         
         // Check if a lesson is an intro lesson (accessible without login)
+        // Must be exact match or start with the intro title (e.g., "The Waves" matches, but "Introductions..." doesn't match "intro")
         function isIntroLesson(lessonTitle) {
             if (!lessonTitle) return false;
             const titleLower = lessonTitle.toLowerCase().trim();
-            // Use includes to match partial titles (e.g., "Waves: Introduction" matches "waves")
-            return INTRO_LESSON_TITLES.some(intro => titleLower.includes(intro.toLowerCase()));
+            
+            // Check for specific intro lessons:
+            // - "Intro" or starts with "Intro " (Math intro)
+            // - Contains "Waves" as a word (Writing intro: "The Waves")
+            // - Contains "Guided Tour" (Reading intro: "A Guided Tour")
+            
+            // Exact matches or word boundary matches
+            if (titleLower === 'intro' || titleLower.startsWith('intro ') || titleLower.endsWith(' intro')) return true;
+            if (titleLower.includes('waves')) return true;
+            if (titleLower.includes('guided tour')) return true;
+            
+            return false;
         }
         
         // Show login required modal
