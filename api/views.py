@@ -18,7 +18,8 @@ from .models import (
     Lesson, LessonQuestion, LessonQuestionOption,
     WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption,
     WritingSectionAttempt,
-    MathSection, MathQuestion, MathQuestionOption, MathAsset, MathSectionAttempt
+    MathSection, MathQuestion, MathQuestionOption, MathAsset, MathSectionAttempt,
+    QuestionClassification
 )
 from .serializers import (
     PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
@@ -30,7 +31,8 @@ from .serializers import (
     WritingSectionListSerializer, WritingSectionDetailSerializer, WritingSectionQuestionSerializer,
     SubmitWritingSectionRequestSerializer, SubmitWritingSectionResponseSerializer,
     WritingSectionAttemptSerializer,
-    MathSectionListSerializer, MathSectionDetailSerializer, MathQuestionSerializer
+    MathSectionListSerializer, MathSectionDetailSerializer, MathQuestionSerializer,
+    QuestionClassificationSerializer, UserStrengthWeaknessSerializer
 )
 
 
@@ -1541,4 +1543,121 @@ Return ONLY valid JSON, no other text."""
             'synonyms': ['Articulate', 'Fluent', 'Expressive', 'Well-spoken'],
             'example_sentence': 'The eloquent speaker captivated the audience with her powerful words.'
         }
+
+
+class QuestionClassificationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for question classifications.
+    GET /classifications - List all classifications
+    GET /classifications/:id - Get classification detail
+    """
+    queryset = QuestionClassification.objects.all()
+    serializer_class = QuestionClassificationSerializer
+    
+    def get_queryset(self):
+        queryset = QuestionClassification.objects.all()
+        category = self.request.query_params.get('category', None)
+        if category:
+            queryset = queryset.filter(category=category)
+        return queryset
+
+
+class UserProfileView(APIView):
+    """
+    Get user profile with strengths and weaknesses analysis.
+    GET /profile - Get current user's profile with performance analysis
+    """
+    
+    def get(self, request):
+        user = get_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Get all classifications
+        classifications = QuestionClassification.objects.all()
+        
+        # Analyze performance by classification
+        performance_data = []
+        
+        for classification in classifications:
+            # Get passage questions with this classification
+            passage_question_ids = list(classification.passage_questions.values_list('id', flat=True))
+            
+            # Get lesson questions with this classification  
+            lesson_question_ids = list(classification.lesson_questions.values_list('id', flat=True))
+            
+            # Count answers from passage attempts (UserAnswer tracks these)
+            passage_answers = UserAnswer.objects.filter(
+                user=user,
+                question_id__in=passage_question_ids
+            )
+            passage_correct = passage_answers.filter(is_correct=True).count()
+            passage_total = passage_answers.count()
+            
+            # For lesson questions, we check WritingSectionAttempt and MathSectionAttempt answers_data
+            # These store answers as JSON: {question_id, selected_option_index, is_correct, etc.}
+            lesson_correct = 0
+            lesson_total = 0
+            
+            # Check writing section attempts
+            writing_attempts = WritingSectionAttempt.objects.filter(user=user)
+            for attempt in writing_attempts:
+                if attempt.answers_data:
+                    for answer in attempt.answers_data:
+                        q_id = answer.get('question_id')
+                        if q_id and str(q_id) in [str(lid) for lid in lesson_question_ids]:
+                            lesson_total += 1
+                            if answer.get('is_correct'):
+                                lesson_correct += 1
+            
+            # Check math section attempts
+            math_attempts = MathSectionAttempt.objects.filter(user=user)
+            for attempt in math_attempts:
+                if attempt.answers_data:
+                    for answer in attempt.answers_data:
+                        q_id = answer.get('question_id')
+                        if q_id and str(q_id) in [str(lid) for lid in lesson_question_ids]:
+                            lesson_total += 1
+                            if answer.get('is_correct'):
+                                lesson_correct += 1
+            
+            total_questions = passage_total + lesson_total
+            correct_answers = passage_correct + lesson_correct
+            
+            if total_questions > 0:
+                accuracy = (correct_answers / total_questions) * 100
+                
+                # Define strength (>= 80%) and weakness (<= 50%)
+                is_strength = accuracy >= 80 and total_questions >= 3
+                is_weakness = accuracy <= 50 and total_questions >= 3
+                
+                performance_data.append({
+                    'classification_id': str(classification.id),
+                    'classification_name': classification.name,
+                    'category': classification.category,
+                    'total_questions': total_questions,
+                    'correct_answers': correct_answers,
+                    'accuracy': round(accuracy, 1),
+                    'is_strength': is_strength,
+                    'is_weakness': is_weakness,
+                })
+        
+        # Sort by accuracy
+        performance_data.sort(key=lambda x: x['accuracy'], reverse=True)
+        
+        # Extract strengths and weaknesses
+        strengths = [p for p in performance_data if p['is_strength']]
+        weaknesses = [p for p in performance_data if p['is_weakness']]
+        
+        return Response({
+            'user': {
+                'id': str(user.id),
+                'email': user.email,
+                'is_premium': user.is_premium or user.has_active_subscription,
+            },
+            'performance': performance_data,
+            'strengths': strengths[:5],  # Top 5 strengths
+            'weaknesses': weaknesses[:5],  # Top 5 weaknesses (lowest accuracy)
+            'total_classifications_analyzed': len(performance_data),
+        })
 

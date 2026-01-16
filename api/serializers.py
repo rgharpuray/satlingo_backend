@@ -5,7 +5,7 @@ from .models import (
     Lesson, LessonQuestion, LessonQuestionOption, LessonAsset, LessonQuestionAsset,
     WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption,
     MathSection, MathQuestion, MathQuestionOption, MathAsset, MathQuestionAsset, MathSectionAttempt,
-    Header
+    Header, QuestionClassification
 )
 
 
@@ -535,4 +535,29 @@ class MathSectionDetailSerializer(serializers.ModelSerializer):
         """Return questions ordered by order field"""
         questions = obj.questions.all().order_by('order')
         return MathQuestionSerializer(questions, many=True).data
+
+
+class QuestionClassificationSerializer(serializers.ModelSerializer):
+    """Serializer for question classifications"""
+    question_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = QuestionClassification
+        fields = ['id', 'name', 'category', 'description', 'display_order', 'question_count']
+    
+    def get_question_count(self, obj):
+        """Total number of questions with this classification"""
+        return obj.passage_questions.count() + obj.lesson_questions.count()
+
+
+class UserStrengthWeaknessSerializer(serializers.Serializer):
+    """Serializer for user strengths and weaknesses analysis"""
+    classification_id = serializers.UUIDField()
+    classification_name = serializers.CharField()
+    category = serializers.CharField()
+    total_questions = serializers.IntegerField()
+    correct_answers = serializers.IntegerField()
+    accuracy = serializers.FloatField()
+    is_strength = serializers.BooleanField()
+    is_weakness = serializers.BooleanField()
 

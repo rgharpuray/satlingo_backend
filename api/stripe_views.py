@@ -282,9 +282,9 @@ def sync_subscription_from_stripe(request):
                 period_end_ts = get_subscription_field(sub, 'current_period_end')
                 if period_end_ts:
                     period_end = timezone.datetime.fromtimestamp(period_end_ts, tz=timezone.utc)
-                    if period_end > now:
-                        # Canceled but still within period - treat as active
-                        active_stripe_subs.append(sub)
+                if period_end > now:
+                    # Canceled but still within period - treat as active
+                    active_stripe_subs.append(sub)
         
         if active_stripe_subs:
             # Update with the most recent active subscription

@@ -11,7 +11,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription, QuestionClassification
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -319,28 +319,79 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
         js = ('admin/js/passage_admin.js', 'admin/js/annotation_helper.js',)
 
 
+@admin.register(QuestionClassification)
+class QuestionClassificationAdmin(admin.ModelAdmin):
+    """Admin interface for question classifications"""
+    list_display = ['name', 'category', 'description_short', 'display_order', 'question_count', 'lesson_question_count']
+    list_filter = ['category']
+    search_fields = ['name', 'description']
+    list_editable = ['display_order']
+    ordering = ['category', '-display_order', 'name']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Classification Information', {
+            'fields': ('name', 'category', 'description', 'display_order')
+        }),
+        ('Metadata', {
+            'fields': ('id', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def description_short(self, obj):
+        """Truncated description"""
+        if obj.description:
+            return obj.description[:80] + '...' if len(obj.description) > 80 else obj.description
+        return '-'
+    description_short.short_description = 'Description'
+    
+    def question_count(self, obj):
+        """Number of passage questions with this classification"""
+        return obj.passage_questions.count()
+    question_count.short_description = 'Passage Qs'
+    
+    def lesson_question_count(self, obj):
+        """Number of lesson questions with this classification"""
+        return obj.lesson_questions.count()
+    lesson_question_count.short_description = 'Lesson Qs'
+
+
 @admin.register(Question)
 class QuestionAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for individual questions"""
-    list_display = ['short_text', 'passage', 'order', 'correct_answer_index', 'option_count', 'has_explanation']
-    list_filter = ['passage', 'order', 'passage__difficulty', 'passage__tier']
+    list_display = ['short_text', 'passage', 'order', 'correct_answer_index', 'option_count', 'has_explanation', 'classification_list']
+    list_filter = ['passage', 'order', 'passage__difficulty', 'passage__tier', 'classifications']
     search_fields = ['text', 'passage__title']
     readonly_fields = ['id', 'created_at', 'updated_at']
     inlines = [QuestionOptionInline]
+    filter_horizontal = ['classifications']
     
     def get_queryset(self, request):
         """Optimize queryset for list view"""
-        return super().get_queryset(request).select_related('passage')
+        return super().get_queryset(request).select_related('passage').prefetch_related('classifications')
     
     fieldsets = (
         ('Question Information', {
             'fields': ('id', 'passage', 'order', 'text', 'correct_answer_index', 'explanation')
+        }),
+        ('Classifications', {
+            'fields': ('classifications',),
+            'description': 'Select classifications for this question to track user strengths/weaknesses'
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def classification_list(self, obj):
+        """Display classifications as comma-separated list"""
+        classifications = obj.classifications.all()
+        if classifications:
+            return ', '.join([c.name for c in classifications])
+        return '-'
+    classification_list.short_description = 'Classifications'
     
     def short_text(self, obj):
         """Display truncated question text"""
@@ -1521,15 +1572,24 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
 @admin.register(LessonQuestion)
 class LessonQuestionAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for lesson questions"""
-    list_display = ['text_short', 'lesson', 'order', 'correct_answer_index', 'edit_prompt_link', 'edit_explanation_link']
-    list_filter = ['lesson', 'created_at']
+    list_display = ['text_short', 'lesson', 'order', 'correct_answer_index', 'classification_list', 'edit_prompt_link', 'edit_explanation_link']
+    list_filter = ['lesson', 'created_at', 'classifications']
     search_fields = ['lesson__title', 'lesson__lesson_id']
     inlines = []
     readonly_fields = ['edit_prompt_button', 'edit_explanation_button']
+    filter_horizontal = ['classifications']
+    
+    def get_queryset(self, request):
+        """Optimize queryset for list view"""
+        return super().get_queryset(request).select_related('lesson').prefetch_related('classifications')
     
     fieldsets = (
         ('Question Information', {
             'fields': ('lesson', 'order', 'correct_answer_index', 'chunk_index')
+        }),
+        ('Classifications', {
+            'fields': ('classifications',),
+            'description': 'Select classifications for this question to track user strengths/weaknesses'
         }),
         ('Prompt', {
             'fields': ('edit_prompt_button', 'text'),
@@ -1540,6 +1600,14 @@ class LessonQuestionAdmin(nested_admin.NestedModelAdmin):
             'description': 'Click the button below to edit the explanation using the visual editor, or edit the JSON directly in the field below.'
         }),
     )
+    
+    def classification_list(self, obj):
+        """Display classifications as comma-separated list"""
+        classifications = obj.classifications.all()
+        if classifications:
+            return ', '.join([c.name for c in classifications])
+        return '-'
+    classification_list.short_description = 'Classifications'
     
     def text_short(self, obj):
         # Handle both JSON array and plain text (for backwards compatibility)

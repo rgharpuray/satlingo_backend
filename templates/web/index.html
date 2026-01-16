@@ -1928,6 +1928,9 @@
                                 🔄 Refresh Status
                             </button>
                         </div>
+                        <button class="btn btn-primary" onclick="showProfile()" style="margin-top: 15px; width: 100%;">
+                            📊 My Profile
+                        </button>
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
                             <strong style="color: var(--text-secondary); font-size: 12px;">Support:</strong><br>
                             <a href="mailto:admin@argosventures.pro" style="color: var(--accent-color); font-size: 12px; text-decoration: none;">admin@argosventures.pro</a>
@@ -1936,6 +1939,62 @@
                             Logout
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Profile View -->
+    <div class="profile-view" id="profileView" style="display: none;">
+        <div class="container">
+            <div class="view-toggle">
+                <button class="btn btn-secondary" onclick="showPassages()">← Back to Passages</button>
+            </div>
+            
+            <div class="profile-content" style="margin-top: 30px;">
+                <h1 style="color: var(--accent-color); margin-bottom: 30px;">📊 My Profile</h1>
+                
+                <div id="profileLoading" style="text-align: center; padding: 40px;">
+                    <p style="color: var(--text-secondary);">Loading your profile...</p>
+                </div>
+                
+                <div id="profileData" style="display: none;">
+                    <!-- User Info -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+                        <h2 style="color: var(--text-primary); margin-bottom: 15px;">👤 Account</h2>
+                        <p><strong>Email:</strong> <span id="profileEmail"></span></p>
+                        <p><strong>Status:</strong> <span id="profileStatus"></span></p>
+                    </div>
+                    
+                    <!-- Strengths -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+                        <h2 style="color: #27ae60; margin-bottom: 15px;">💪 Your Strengths</h2>
+                        <div id="strengthsList">
+                            <p style="color: var(--text-secondary); font-style: italic;">Complete more questions to identify your strengths!</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Weaknesses -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+                        <h2 style="color: #e74c3c; margin-bottom: 15px;">📚 Areas to Improve</h2>
+                        <div id="weaknessesList">
+                            <p style="color: var(--text-secondary); font-style: italic;">Complete more questions to identify areas for improvement!</p>
+                        </div>
+                    </div>
+                    
+                    <!-- All Performance -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 12px; padding: 25px;">
+                        <h2 style="color: var(--text-primary); margin-bottom: 15px;">📈 All Performance</h2>
+                        <div id="performanceList">
+                            <p style="color: var(--text-secondary); font-style: italic;">No performance data yet. Start practicing!</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="profileEmpty" style="display: none; text-align: center; padding: 40px;">
+                    <p style="color: var(--text-secondary); font-size: 18px;">No performance data yet.</p>
+                    <p style="color: var(--text-secondary);">Complete some passages and lessons to see your strengths and weaknesses!</p>
+                    <button class="btn btn-primary" onclick="showPassages()" style="margin-top: 20px;">Start Practicing</button>
                 </div>
             </div>
         </div>
@@ -7139,6 +7198,115 @@
             currentUser = null;
             updateUI();
             loadPassages();
+        }
+        
+        async function showProfile() {
+            if (!authToken) {
+                showLoginModal();
+                return;
+            }
+            
+            // Hide other views, show profile
+            document.getElementById('landingPage').style.display = 'none';
+            document.getElementById('passagesView').style.display = 'none';
+            document.getElementById('profileView').style.display = 'block';
+            
+            // Show loading state
+            document.getElementById('profileLoading').style.display = 'block';
+            document.getElementById('profileData').style.display = 'none';
+            document.getElementById('profileEmpty').style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load profile');
+                }
+                
+                const data = await response.json();
+                
+                // Hide loading
+                document.getElementById('profileLoading').style.display = 'none';
+                
+                // Populate user info
+                document.getElementById('profileEmail').textContent = data.user.email;
+                document.getElementById('profileStatus').textContent = data.user.is_premium ? '⭐ Premium' : 'Free';
+                
+                if (data.performance.length === 0) {
+                    // No data yet
+                    document.getElementById('profileEmpty').style.display = 'block';
+                } else {
+                    document.getElementById('profileData').style.display = 'block';
+                    
+                    // Populate strengths
+                    const strengthsList = document.getElementById('strengthsList');
+                    if (data.strengths.length > 0) {
+                        strengthsList.innerHTML = data.strengths.map(s => `
+                            <div style="background: rgba(39, 174, 96, 0.1); border-left: 4px solid #27ae60; padding: 12px 15px; margin-bottom: 10px; border-radius: 4px;">
+                                <strong style="color: #27ae60;">${escapeHtml(s.classification_name)}</strong>
+                                <span style="color: var(--text-secondary); font-size: 13px; margin-left: 10px;">(${s.category})</span>
+                                <div style="color: var(--text-secondary); font-size: 13px; margin-top: 5px;">
+                                    ${s.correct_answers}/${s.total_questions} correct (${s.accuracy}%)
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        strengthsList.innerHTML = '<p style="color: var(--text-secondary); font-style: italic;">Complete more questions to identify your strengths!</p>';
+                    }
+                    
+                    // Populate weaknesses
+                    const weaknessesList = document.getElementById('weaknessesList');
+                    if (data.weaknesses.length > 0) {
+                        weaknessesList.innerHTML = data.weaknesses.map(w => `
+                            <div style="background: rgba(231, 76, 60, 0.1); border-left: 4px solid #e74c3c; padding: 12px 15px; margin-bottom: 10px; border-radius: 4px;">
+                                <strong style="color: #e74c3c;">${escapeHtml(w.classification_name)}</strong>
+                                <span style="color: var(--text-secondary); font-size: 13px; margin-left: 10px;">(${w.category})</span>
+                                <div style="color: var(--text-secondary); font-size: 13px; margin-top: 5px;">
+                                    ${w.correct_answers}/${w.total_questions} correct (${w.accuracy}%)
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        weaknessesList.innerHTML = '<p style="color: var(--text-secondary); font-style: italic;">Complete more questions to identify areas for improvement!</p>';
+                    }
+                    
+                    // Populate all performance
+                    const performanceList = document.getElementById('performanceList');
+                    if (data.performance.length > 0) {
+                        performanceList.innerHTML = data.performance.map(p => {
+                            let bgColor = 'rgba(52, 152, 219, 0.1)';
+                            let borderColor = '#3498db';
+                            if (p.accuracy >= 80) {
+                                bgColor = 'rgba(39, 174, 96, 0.1)';
+                                borderColor = '#27ae60';
+                            } else if (p.accuracy <= 50) {
+                                bgColor = 'rgba(231, 76, 60, 0.1)';
+                                borderColor = '#e74c3c';
+                            }
+                            return `
+                                <div style="background: ${bgColor}; border-left: 4px solid ${borderColor}; padding: 12px 15px; margin-bottom: 10px; border-radius: 4px;">
+                                    <strong>${escapeHtml(p.classification_name)}</strong>
+                                    <span style="color: var(--text-secondary); font-size: 13px; margin-left: 10px;">(${p.category})</span>
+                                    <div style="color: var(--text-secondary); font-size: 13px; margin-top: 5px;">
+                                        ${p.correct_answers}/${p.total_questions} correct (${p.accuracy}%)
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    } else {
+                        performanceList.innerHTML = '<p style="color: var(--text-secondary); font-style: italic;">No performance data yet. Start practicing!</p>';
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Failed to load profile:', error);
+                document.getElementById('profileLoading').style.display = 'none';
+                document.getElementById('profileEmpty').style.display = 'block';
+            }
         }
         
         function showLoginModal() {

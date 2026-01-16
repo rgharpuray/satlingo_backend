@@ -98,6 +98,37 @@ class PassageAnnotation(models.Model):
         super().save(*args, **kwargs)
 
 
+class QuestionClassification(models.Model):
+    """
+    Classification/tag for questions to track user strengths and weaknesses.
+    Examples: "Grammar - Subject-Verb Agreement", "Reading - Main Idea", "Math - Algebra"
+    """
+    CATEGORY_CHOICES = [
+        ('reading', 'Reading'),
+        ('writing', 'Writing'),
+        ('math', 'Math'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True, help_text="Classification name (e.g., 'Subject-Verb Agreement')")
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, help_text="Which section this classification belongs to")
+    description = models.TextField(blank=True, help_text="Optional description of what this classification covers")
+    display_order = models.IntegerField(default=0, help_text="Order for display (higher numbers first)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'question_classifications'
+        indexes = [
+            models.Index(fields=['category']),
+            models.Index(fields=['display_order']),
+        ]
+        ordering = ['category', '-display_order', 'name']
+    
+    def __str__(self):
+        return f"{self.get_category_display()}: {self.name}"
+
+
 class Question(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     passage = models.ForeignKey(Passage, on_delete=models.CASCADE, related_name='questions')
@@ -105,6 +136,12 @@ class Question(models.Model):
     correct_answer_index = models.IntegerField(validators=[MinValueValidator(0)])
     explanation = models.TextField(null=True, blank=True)
     order = models.IntegerField()
+    classifications = models.ManyToManyField(
+        QuestionClassification, 
+        blank=True, 
+        related_name='passage_questions',
+        help_text="Classifications/tags for this question (for tracking user strengths/weaknesses)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -459,6 +496,12 @@ class LessonQuestion(models.Model):
     explanation = models.JSONField(default=list, null=True, blank=True, help_text="Array of explanation blocks")
     order = models.IntegerField(help_text="Order in the lesson (based on chunk position)")
     chunk_index = models.IntegerField(help_text="Index of the question chunk in the chunks array")
+    classifications = models.ManyToManyField(
+        QuestionClassification, 
+        blank=True, 
+        related_name='lesson_questions',
+        help_text="Classifications/tags for this question (for tracking user strengths/weaknesses)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
