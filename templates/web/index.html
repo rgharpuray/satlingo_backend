@@ -1831,9 +1831,9 @@
                 <div class="content-column">
                     <!-- Category Picker -->
                     <div class="category-picker">
-                        <button class="active" onclick="switchCategory('reading')" id="category-reading-btn">📚 Reading</button>
-                        <button onclick="switchCategory('writing')" id="category-writing-btn">✍️ Writing</button>
-                        <button onclick="switchCategory('math')" id="category-math-btn">🔢 Math</button>
+                        <button class="active" onclick="switchCategory('reading')" id="category-reading-btn">Reading</button>
+                        <button onclick="switchCategory('writing')" id="category-writing-btn">Writing</button>
+                        <button onclick="switchCategory('math')" id="category-math-btn">Math</button>
                     </div>
                     
                     <!-- Reading Category Content -->
@@ -1928,6 +1928,9 @@
                                 🔄 Refresh Status
                             </button>
                         </div>
+                        <button class="btn btn-primary" onclick="showProfile()" style="margin-top: 15px; width: 100%;">
+                            My Profile
+                        </button>
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
                             <strong style="color: var(--text-secondary); font-size: 12px;">Support:</strong><br>
                             <a href="mailto:admin@argosventures.pro" style="color: var(--accent-color); font-size: 12px; text-decoration: none;">admin@argosventures.pro</a>
@@ -1936,6 +1939,94 @@
                             Logout
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Profile View -->
+    <div class="profile-view" id="profileView" style="display: none;">
+        <div class="container">
+            <div class="view-toggle">
+                <button class="btn btn-secondary" onclick="showPassages()">← Back to Passages</button>
+            </div>
+            
+            <div class="profile-content" style="margin-top: 30px;">
+                <h1 style="color: var(--text-primary); margin-bottom: 24px; font-size: 24px; font-weight: 600;">My Profile</h1>
+                
+                <div id="profileLoading" style="text-align: center; padding: 40px;">
+                    <p style="color: var(--text-secondary);">Loading your profile...</p>
+                </div>
+                
+                <div id="profileData" style="display: none;">
+                    <!-- User Info -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 8px; padding: 24px; margin-bottom: 20px;">
+                        <h2 style="color: var(--text-primary); margin-bottom: 12px; font-size: 18px; font-weight: 600;">Account</h2>
+                        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 6px;"><span id="profileEmail"></span></p>
+                        <p style="color: var(--text-secondary); font-size: 14px;"><span id="profileStatus"></span></p>
+                    </div>
+                    
+                    <!-- Study Plan Section -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 8px; padding: 24px; margin-bottom: 20px;">
+                        <h2 style="color: var(--text-primary); margin-bottom: 20px; font-size: 18px; font-weight: 600;">Diagnostic Progress</h2>
+                        
+                        <!-- Diagnostic Status Cards -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                            <!-- Reading Diagnostic -->
+                            <div id="readingDiagnosticCard" class="diagnostic-card" style="background: var(--bg-primary); border-radius: 6px; padding: 16px; border: 1px solid var(--border-color);">
+                                <h3 style="color: var(--text-primary); margin-bottom: 8px; font-size: 14px; font-weight: 600;">Reading</h3>
+                                <div id="readingDiagnosticStatus"></div>
+                            </div>
+                            
+                            <!-- Writing Diagnostic -->
+                            <div id="writingDiagnosticCard" class="diagnostic-card" style="background: var(--bg-primary); border-radius: 6px; padding: 16px; border: 1px solid var(--border-color);">
+                                <h3 style="color: var(--text-primary); margin-bottom: 8px; font-size: 14px; font-weight: 600;">Writing</h3>
+                                <div id="writingDiagnosticStatus"></div>
+                            </div>
+                            
+                            <!-- Math Diagnostic -->
+                            <div id="mathDiagnosticCard" class="diagnostic-card" style="background: var(--bg-primary); border-radius: 6px; padding: 16px; border: 1px solid var(--border-color);">
+                                <h3 style="color: var(--text-primary); margin-bottom: 8px; font-size: 14px; font-weight: 600;">Math</h3>
+                                <div id="mathDiagnosticStatus"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Recommended Lessons -->
+                        <div id="recommendedLessons" style="display: none;">
+                            <h3 style="color: var(--text-primary); margin-bottom: 12px; font-size: 14px; font-weight: 600;">Recommended</h3>
+                            <div id="recommendedLessonsList" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Strengths -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 8px; padding: 24px; margin-bottom: 20px;">
+                        <h2 style="color: var(--text-primary); margin-bottom: 16px; font-size: 18px; font-weight: 600;">Strengths</h2>
+                        <div id="strengthsList">
+                            <p style="color: var(--text-secondary); font-size: 14px;">Complete a diagnostic to see your strengths.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Weaknesses -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 8px; padding: 24px; margin-bottom: 20px;">
+                        <h2 style="color: var(--text-primary); margin-bottom: 16px; font-size: 18px; font-weight: 600;">Areas to Improve</h2>
+                        <div id="weaknessesList">
+                            <p style="color: var(--text-secondary); font-size: 14px;">Complete a diagnostic to see areas for improvement.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- All Performance -->
+                    <div class="profile-section" style="background: var(--bg-secondary); border-radius: 8px; padding: 24px;">
+                        <h2 style="color: var(--text-primary); margin-bottom: 16px; font-size: 18px; font-weight: 600;">Performance Summary</h2>
+                        <div id="performanceList">
+                            <p style="color: var(--text-secondary); font-size: 14px;">No performance data yet.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="profileEmpty" style="display: none; text-align: center; padding: 40px;">
+                    <p style="color: var(--text-secondary); font-size: 18px;">No performance data yet.</p>
+                    <p style="color: var(--text-secondary);">Complete some passages and lessons to see your strengths and weaknesses!</p>
+                    <button class="btn btn-primary" onclick="showPassages()" style="margin-top: 20px;">Start Practicing</button>
                 </div>
             </div>
         </div>
@@ -3753,7 +3844,7 @@
                 } else if (chunkType === 'example_correct') {
                     let processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
                     processedText = replaceUnderlineSentinels(processedText);
-                    contentHTML += `<div style="background: #f0fff0; border-left: 4px solid #28a745; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">✓ ${processedText}</div>`;
+                    contentHTML += `<div style="background: #f0fff0; border-left: 4px solid #28a745; padding: 10px 15px; margin: 15px 0; font-style: italic; color: #000;">${processedText}</div>`;
                 } else if (chunkType === 'example_incorrect') {
                     let processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
                     processedText = replaceUnderlineSentinels(processedText);
@@ -3908,7 +3999,7 @@
                     contentHTML += `<div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 10px 15px; margin: 15px 0; color: #000;">📝 Note: ${processedText}</div>`;
                 } else if (chunkType === 'warning') {
                     const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
-                    contentHTML += `<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; color: #000;">⚠️ Warning: ${processedText}</div>`;
+                    contentHTML += `<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; color: #000;"><strong>Note:</strong> ${processedText}</div>`;
                 } else if (chunkType === 'summary') {
                     const processedText = replaceDiagramSentinels(chunk.text || '', lesson.assets || [], lesson.lesson_id);
                     contentHTML += `<div style="background: #f0f0f0; border: 2px solid #666; padding: 15px; margin: 20px 0; border-radius: 8px; color: #000;"><strong>Summary:</strong> ${processedText}</div>`;
@@ -4411,11 +4502,29 @@
          */
         function replaceUnderlineSentinels(text) {
             if (!text) return text;
+            if (typeof text !== 'string') return String(text);
             // Replace *text* with <u>text</u> for underlines
             // Use non-greedy matching to handle multiple underlines in the same text
             // Match *word* but not **bold** (which uses double asterisks)
             // Pattern: *text* where text doesn't contain asterisks
             return text.replace(/\*([^*]+?)\*/g, '<u>$1</u>');
+        }
+        
+        function formatExplanation(explanation, assets, lessonId) {
+            // Handle both string and array explanations
+            if (!explanation) return '';
+            
+            if (typeof explanation === 'string') {
+                return replaceUnderlineSentinels(replaceDiagramSentinels(explanation, assets, lessonId));
+            }
+            
+            if (Array.isArray(explanation)) {
+                // Array of blocks - use formatMathExplanation which handles this
+                return formatMathExplanation(explanation, false);
+            }
+            
+            // Object or other - try to stringify
+            return escapeHtml(JSON.stringify(explanation));
         }
         
         function replaceBoldItalicSentinels(text) {
@@ -5303,7 +5412,7 @@
                         if (attempts.length > 0) {
                             attemptHistoryContainer.innerHTML = `
                                 <button class="btn btn-secondary" onclick="showWritingSectionAttemptHistory('${writingSection.id}')" style="font-size: 12px; padding: 6px 12px;">
-                                    📊 View Attempt History (${attempts.length})
+                                    View Attempts (${attempts.length})
                                 </button>
                             `;
                         } else {
@@ -5444,7 +5553,7 @@
                         if (attempts.length > 0) {
                             attemptHistoryContainer.innerHTML = `
                                 <button class="btn btn-secondary" onclick="showAttemptHistory('${passage.id}')" style="font-size: 12px; padding: 6px 12px;">
-                                    📊 View Attempt History (${attempts.length})
+                                    View Attempts (${attempts.length})
                                 </button>
                             `;
                         } else {
@@ -5581,7 +5690,7 @@
                         if (attempts.length > 0) {
                             attemptHistoryContainer.innerHTML = `
                                 <button class="btn btn-secondary" onclick="showMathSectionAttemptHistory('${mathSection.id}')" style="font-size: 12px; padding: 6px 12px;">
-                                    📊 View Attempt History (${attempts.length})
+                                    View Attempts (${attempts.length})
                                 </button>
                             `;
                         } else {
@@ -5816,9 +5925,13 @@
             // Check if we're on a passage, writing section, math section, or lesson
             if (!currentPassageId && !currentWritingSectionId && !currentMathSectionId && !currentLessonId) return;
             
-            // Handle lessons separately (client-side only for now)
+            // Handle lessons separately
             if (currentLessonId && currentLessonData) {
-                displayLessonResults(currentLessonData);
+                try {
+                    await displayLessonResults(currentLessonData);
+                } catch (error) {
+                    console.error('Error displaying lesson results:', error);
+                }
                 return;
             }
             
@@ -5972,7 +6085,7 @@
                     resultsHTML += `
                         <div style="margin: 20px 0; text-align: center;">
                             <button class="btn btn-secondary" onclick="setTimeout(() => showMathSectionAttemptHistory('${currentId}'), 500)" style="font-size: 14px; padding: 10px 20px;">
-                                📊 View All Attempts for This Math Section
+                                View All Attempts
                             </button>
                         </div>
                     `;
@@ -5980,7 +6093,7 @@
                     resultsHTML += `
                         <div style="margin: 20px 0; text-align: center;">
                             <button class="btn btn-secondary" onclick="setTimeout(() => showWritingSectionAttemptHistory('${currentId}'), 500)" style="font-size: 14px; padding: 10px 20px;">
-                                📊 View All Attempts for This Writing Section
+                                View All Attempts
                             </button>
                         </div>
                     `;
@@ -5988,7 +6101,7 @@
                     resultsHTML += `
                         <div style="margin: 20px 0; text-align: center;">
                             <button class="btn btn-secondary" onclick="setTimeout(() => showAttemptHistory('${currentId}'), 500)" style="font-size: 14px; padding: 10px 20px;">
-                                📊 View All Attempts for This Passage
+                                View All Attempts
                             </button>
                         </div>
                     `;
@@ -6179,18 +6292,30 @@
             resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
         
-        function displayLessonResults(lessonData) {
-            // Display results for lesson questions (client-side only)
+        async function displayLessonResults(lessonData) {
+            // Display results for lesson questions
             const resultsSection = document.getElementById('resultsSection');
+            const submitSection = document.getElementById('submitSection');
+            
+            console.log('displayLessonResults called', { lessonData, resultsSection, submitSection });
+            
+            if (!resultsSection) {
+                console.error('resultsSection element not found!');
+                return;
+            }
+            
             resultsSection.style.display = 'block';
-            document.getElementById('submitSection').style.display = 'none';
+            if (submitSection) submitSection.style.display = 'none';
             
             if (!lessonData.questions || lessonData.questions.length === 0) {
                 resultsSection.innerHTML = '<p>No questions in this lesson.</p>';
                 return;
             }
             
-            // Get current page index and find questions on current page only
+            // For diagnostic lessons, we want ALL questions, not just current page
+            const isDiagnostic = lessonData.is_diagnostic || false;
+            
+            // Get current page index and find questions on current page only (for non-diagnostics)
             const currentPageIndex = lessonData.currentPageIndex || 0;
             const pages = lessonData.pages || [];
             
@@ -6204,10 +6329,16 @@
             }
             
             // Filter questions to only those on current page (match by chunk_index)
-            const currentPageQuestions = lessonData.questions.filter(q => {
-                // Check if question's chunk_index is in the current page
-                return q.chunk_index !== undefined && currentPageChunkIndices.has(q.chunk_index);
-            });
+            // For diagnostics, use ALL questions
+            let currentPageQuestions;
+            if (isDiagnostic) {
+                currentPageQuestions = lessonData.questions;
+            } else {
+                currentPageQuestions = lessonData.questions.filter(q => {
+                    // Check if question's chunk_index is in the current page
+                    return q.chunk_index !== undefined && currentPageChunkIndices.has(q.chunk_index);
+                });
+            }
             
             if (currentPageQuestions.length === 0) {
                 resultsSection.innerHTML = '<p style="padding: 20px; color: #666;">No questions on this page. Navigate to a page with questions to submit answers.</p>';
@@ -6217,22 +6348,86 @@
             let correctCount = 0;
             const totalQuestions = currentPageQuestions.length;
             
+            // Build answers array for backend submission
+            const answersForBackend = [];
+            
             // Calculate correct answers for current page questions only
             currentPageQuestions.forEach(question => {
                 const userAnswer = userAnswers[question.id];
-                if (userAnswer === question.correct_answer_index) {
+                const isCorrect = userAnswer === question.correct_answer_index;
+                if (isCorrect) {
                     correctCount++;
                 }
+                
+                // Track for backend
+                answersForBackend.push({
+                    question_id: question.id,
+                    selected_option_index: userAnswer !== undefined ? userAnswer : -1,
+                    is_correct: isCorrect
+                });
             });
             
             const percentage = Math.round((correctCount / totalQuestions) * 100);
             
-            let resultsHTML = `
-                <div class="results-summary">
-                    <h3>Your Results (Page ${currentPageIndex + 1})</h3>
-                    <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
-                </div>
-            `;
+            // Submit to backend for ALL lessons (logged in or not - track progress)
+            if (currentLessonId) {
+                try {
+                    const headers = {
+                        'Content-Type': 'application/json'
+                    };
+                    if (authToken) {
+                        headers['Authorization'] = `Bearer ${authToken}`;
+                    }
+                    
+                    const submitResponse = await fetch(`${API_BASE}/progress/lessons/${currentLessonId}/submit`, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({
+                            answers: answersForBackend,
+                            time_spent_seconds: null // Could track this with a timer
+                        })
+                    });
+                    
+                    if (submitResponse.ok) {
+                        const submitResult = await submitResponse.json();
+                        console.log('Lesson submitted successfully:', submitResult);
+                        
+                        // Update UI with backend score if available
+                        if (submitResult.score !== undefined) {
+                            correctCount = submitResult.correct_count;
+                        }
+                    } else {
+                        console.error('Failed to submit lesson:', await submitResponse.text());
+                    }
+                    
+                } catch (error) {
+                    console.error('Error submitting lesson answers:', error);
+                }
+            }
+            
+            // Build results header based on whether this is a diagnostic
+            let resultsHeader = '';
+            if (isDiagnostic) {
+                resultsHeader = `
+                    <div class="results-summary" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 24px; border-radius: 8px; text-align: center;">
+                        <h3 style="margin-bottom: 8px; color: var(--text-primary); font-size: 18px; font-weight: 600;">Diagnostic Complete</h3>
+                        <div class="score" style="font-size: 28px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                        <p style="color: var(--text-secondary); font-size: 14px;">Your study plan has been updated.</p>
+                        <button class="btn btn-primary" onclick="showProfile()" style="margin-top: 16px; padding: 10px 20px; font-size: 14px;">
+                            View Study Plan
+                        </button>
+                    </div>
+                `;
+            } else {
+                resultsHeader = `
+                    <div class="results-summary">
+                        <h3>Your Results (Page ${currentPageIndex + 1})</h3>
+                        <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                    </div>
+                `;
+            }
+            
+            let resultsHTML = resultsHeader;
             
             // Show each question from current page with correct answer and explanation
             currentPageQuestions.forEach((question, index) => {
@@ -6289,20 +6484,21 @@
                                 
                                 let optionText = typeof option === 'string' ? option : (option.text || option);
                                 // If optionText contains HTML (from diagram processing), don't escape it
+                                let displayText = optionText;
                                 if (typeof optionText === 'string' && (optionText.includes('<img') || optionText.includes('[[Diagram'))) {
                                     // Already processed with diagrams, use as-is (or process if still has sentinel)
                                     if (optionText.includes('[[Diagram')) {
-                                        optionText = replaceDiagramSentinels(optionText, lessonAssets, lessonId);
+                                        displayText = replaceDiagramSentinels(optionText, lessonAssets, lessonId);
                                     }
-                                } else {
-                                    optionText = escapeHtml(optionText);
+                                } else if (typeof optionText === 'string') {
+                                    displayText = escapeHtml(optionText);
                                 }
                                 
                                 return `
                                     <div class="${optionClass}">
                                         <input type="radio" disabled ${optIndex === userAnswer ? 'checked' : ''}>
                                         <label class="option-label">
-                                            ${String.fromCharCode(65 + optIndex)}. ${escapeHtml(optionText)}
+                                            ${String.fromCharCode(65 + optIndex)}. ${displayText}
                                             ${optIndex === question.correct_answer_index ? ' (Correct)' : ''}
                                             ${optIndex === userAnswer && !isCorrect ? ' (Your Answer)' : ''}
                                         </label>
@@ -6312,13 +6508,14 @@
                         </div>
                         ${question.explanation ? `
                             <div class="explanation" style="margin-top: 15px; padding: 12px; border-left: 4px solid var(--accent-color); border-radius: 4px;">
-                                <strong>Explanation:</strong> ${replaceUnderlineSentinels(replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id))}
+                                <strong>Explanation:</strong> ${formatExplanation(question.explanation, lessonData.assets || [], lessonData.lesson_id)}
                             </div>
                         ` : ''}
                     </div>
                 `;
             });
             
+            console.log('Setting resultsSection innerHTML, length:', resultsHTML.length);
             resultsSection.innerHTML = resultsHTML;
             
             // Scroll to results
@@ -6400,7 +6597,7 @@
                         </div>
                         ${question.explanation ? `
                             <div class="explanation">
-                                <strong>Explanation:</strong> ${replaceUnderlineSentinels(replaceDiagramSentinels(question.explanation, lessonData.assets || [], lessonData.lesson_id))}
+                                <strong>Explanation:</strong> ${formatExplanation(question.explanation, lessonData.assets || [], lessonData.lesson_id)}
                             </div>
                         ` : ''}
                     </div>
@@ -7139,6 +7336,256 @@
             currentUser = null;
             updateUI();
             loadPassages();
+        }
+        
+        // Study Plan Helper Functions
+        function hasStudyPlanData(studyPlan) {
+            if (!studyPlan) return false;
+            return (studyPlan.reading && studyPlan.reading.diagnostic_completed) || 
+                   (studyPlan.writing && studyPlan.writing.diagnostic_completed) || 
+                   (studyPlan.math && studyPlan.math.diagnostic_completed);
+        }
+        
+        function hasDiagnosticsAvailable(studyPlan) {
+            if (!studyPlan) return false;
+            return (studyPlan.reading && studyPlan.reading.diagnostic_lesson_id) || 
+                   (studyPlan.writing && studyPlan.writing.diagnostic_lesson_id) || 
+                   (studyPlan.math && studyPlan.math.diagnostic_lesson_id);
+        }
+        
+        function getAllStrengths(data) {
+            const strengths = [...(data.strengths || [])];
+            if (data.study_plan) {
+                ['reading', 'writing', 'math'].forEach(cat => {
+                    const catData = data.study_plan[cat];
+                    if (catData && catData.strengths) {
+                        catData.strengths.forEach(s => {
+                            s.category = cat;
+                            strengths.push(s);
+                        });
+                    }
+                });
+            }
+            return strengths.slice(0, 10);
+        }
+        
+        function getAllWeaknesses(data) {
+            const weaknesses = [...(data.weaknesses || [])];
+            if (data.study_plan) {
+                ['reading', 'writing', 'math'].forEach(cat => {
+                    const catData = data.study_plan[cat];
+                    if (catData && catData.weaknesses) {
+                        catData.weaknesses.forEach(w => {
+                            w.category = cat;
+                            weaknesses.push(w);
+                        });
+                    }
+                });
+            }
+            return weaknesses.slice(0, 10);
+        }
+        
+        function populateStudyPlan(studyPlan) {
+            // Helper to render diagnostic status
+            function renderDiagnosticStatus(catData, elementId, lessonId) {
+                const el = document.getElementById(elementId);
+                if (catData && catData.diagnostic_completed) {
+                    const strengths = catData.strengths || [];
+                    const weaknesses = catData.weaknesses || [];
+                    el.innerHTML = `
+                        <div style="color: var(--text-primary); font-size: 13px; margin-bottom: 4px;">Complete</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">
+                            ${strengths.length} strong · ${weaknesses.length} needs work
+                        </div>
+                    `;
+                } else if (lessonId) {
+                    el.innerHTML = `
+                        <div style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">Not started</div>
+                        <button class="btn btn-secondary" onclick="startDiagnostic('${lessonId}')" style="font-size: 12px; padding: 6px 12px;">
+                            Start
+                        </button>
+                    `;
+                } else {
+                    el.innerHTML = `<div style="color: var(--text-secondary); font-size: 13px;">Not available</div>`;
+                }
+            }
+            
+            renderDiagnosticStatus(studyPlan.reading, 'readingDiagnosticStatus', studyPlan.reading?.diagnostic_lesson_id);
+            renderDiagnosticStatus(studyPlan.writing, 'writingDiagnosticStatus', studyPlan.writing?.diagnostic_lesson_id);
+            renderDiagnosticStatus(studyPlan.math, 'mathDiagnosticStatus', studyPlan.math?.diagnostic_lesson_id);
+            
+            // Recommended Lessons
+            const recommendedContainer = document.getElementById('recommendedLessons');
+            const recommendedList = document.getElementById('recommendedLessonsList');
+            if (studyPlan.recommended_lessons && studyPlan.recommended_lessons.length > 0) {
+                recommendedContainer.style.display = 'block';
+                recommendedList.innerHTML = studyPlan.recommended_lessons.map(lesson => {
+                    const typeColors = {
+                        'reading': '#3498db',
+                        'writing': '#9b59b6',
+                        'math': '#e67e22'
+                    };
+                    const color = typeColors[lesson.lesson_type] || '#3498db';
+                    return `
+                        <button onclick="goToLesson('${lesson.id}')" style="background: ${color}; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                            ${escapeHtml(lesson.title)}
+                        </button>
+                    `;
+                }).join('');
+            } else {
+                recommendedContainer.style.display = 'none';
+            }
+        }
+        
+        function startDiagnostic(lessonId) {
+            // Navigate to the diagnostic lesson
+            window.location.hash = `#lesson/${lessonId}`;
+        }
+        
+        function goToLesson(lessonId) {
+            window.location.hash = `#lesson/${lessonId}`;
+        }
+        
+        function populateDefaultStudyPlan() {
+            // Show default "not started" state for all diagnostics
+            const readingStatus = document.getElementById('readingDiagnosticStatus');
+            const writingStatus = document.getElementById('writingDiagnosticStatus');
+            const mathStatus = document.getElementById('mathDiagnosticStatus');
+            
+            readingStatus.innerHTML = `
+                <div style="color: var(--text-secondary);">No diagnostic set up yet</div>
+            `;
+            writingStatus.innerHTML = `
+                <div style="color: var(--text-secondary);">No diagnostic set up yet</div>
+            `;
+            mathStatus.innerHTML = `
+                <div style="color: var(--text-secondary);">No diagnostic set up yet</div>
+            `;
+            
+            document.getElementById('recommendedLessons').style.display = 'none';
+        }
+        
+        async function showProfile() {
+            if (!authToken) {
+                showLoginModal();
+                return;
+            }
+            
+            // Hide other views, show profile
+            document.getElementById('landingPage').style.display = 'none';
+            document.getElementById('passagesView').style.display = 'none';
+            document.getElementById('profileView').style.display = 'block';
+            
+            // Show loading state
+            document.getElementById('profileLoading').style.display = 'block';
+            document.getElementById('profileData').style.display = 'none';
+            document.getElementById('profileEmpty').style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load profile');
+                }
+                
+                const data = await response.json();
+                
+                // Hide loading
+                document.getElementById('profileLoading').style.display = 'none';
+                
+                // Populate user info
+                document.getElementById('profileEmail').textContent = data.user.email;
+                document.getElementById('profileStatus').textContent = data.user.is_premium ? 'Premium' : 'Free';
+                
+                // Always show profile data section - study plan should always be visible
+                document.getElementById('profileData').style.display = 'block';
+                document.getElementById('profileEmpty').style.display = 'none';
+                
+                // Populate Study Plan (always show, even if diagnostics not complete)
+                if (data.study_plan) {
+                    populateStudyPlan(data.study_plan);
+                } else {
+                    // No study plan from API - show default diagnostic prompts
+                    populateDefaultStudyPlan();
+                }
+                
+                if (data.performance.length > 0 || hasStudyPlanData(data.study_plan)) {
+                    // Populate strengths (combine from performance and study plan)
+                    const strengthsList = document.getElementById('strengthsList');
+                    const allStrengths = getAllStrengths(data);
+                    if (allStrengths.length > 0) {
+                        strengthsList.innerHTML = allStrengths.map(s => {
+                            const correct = s.correct !== undefined ? s.correct : s.correct_answers;
+                            const total = s.total !== undefined ? s.total : s.total_questions;
+                            const pct = s.percentage !== undefined ? s.percentage : s.accuracy;
+                            return `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                                <div>
+                                    <span style="color: var(--text-primary); font-size: 14px;">${escapeHtml(s.name || s.classification_name || 'Unknown')}</span>
+                                    <span style="color: var(--text-secondary); font-size: 12px; margin-left: 8px;">${s.category || ''}</span>
+                                </div>
+                                <div style="color: var(--text-secondary); font-size: 13px;">
+                                    ${correct}/${total} · ${pct}%
+                                </div>
+                            </div>
+                        `}).join('');
+                    } else {
+                        strengthsList.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">Complete a diagnostic to see your strengths.</p>';
+                    }
+                    
+                    // Populate weaknesses (combine from performance and study plan)
+                    const weaknessesList = document.getElementById('weaknessesList');
+                    const allWeaknesses = getAllWeaknesses(data);
+                    if (allWeaknesses.length > 0) {
+                        weaknessesList.innerHTML = allWeaknesses.map(w => {
+                            const correct = w.correct !== undefined ? w.correct : w.correct_answers;
+                            const total = w.total !== undefined ? w.total : w.total_questions;
+                            const pct = w.percentage !== undefined ? w.percentage : w.accuracy;
+                            return `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                                <div>
+                                    <span style="color: var(--text-primary); font-size: 14px;">${escapeHtml(w.name || w.classification_name || 'Unknown')}</span>
+                                    <span style="color: var(--text-secondary); font-size: 12px; margin-left: 8px;">${w.category || ''}</span>
+                                </div>
+                                <div style="color: var(--text-secondary); font-size: 13px;">
+                                    ${correct}/${total} · ${pct}%
+                                </div>
+                            </div>
+                        `}).join('');
+                    } else {
+                        weaknessesList.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">Complete a diagnostic to see areas for improvement.</p>';
+                    }
+                    
+                    // Populate all performance
+                    const performanceList = document.getElementById('performanceList');
+                    if (data.performance.length > 0) {
+                        performanceList.innerHTML = data.performance.map(p => {
+                            return `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                                    <div>
+                                        <span style="color: var(--text-primary); font-size: 14px;">${escapeHtml(p.classification_name)}</span>
+                                        <span style="color: var(--text-secondary); font-size: 12px; margin-left: 8px;">${p.category}</span>
+                                    </div>
+                                    <div style="color: var(--text-secondary); font-size: 13px;">
+                                        ${p.correct_answers}/${p.total_questions} · ${p.accuracy}%
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    } else {
+                        performanceList.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">No performance data yet.</p>';
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Failed to load profile:', error);
+                document.getElementById('profileLoading').style.display = 'none';
+                document.getElementById('profileEmpty').style.display = 'block';
+            }
         }
         
         function showLoginModal() {

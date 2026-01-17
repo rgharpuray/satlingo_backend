@@ -7,7 +7,9 @@ from .views import (
     ReviewPassageView, AnswerView, AdminPassageView, WordOfTheDayView,
     PassageAttemptsView, LessonViewSet, WritingSectionViewSet,
     SubmitWritingSectionView, ReviewWritingSectionView, WritingSectionAttemptsView,
-    MathSectionViewSet, SubmitMathSectionView, ReviewMathSectionView, MathSectionAttemptsView
+    MathSectionViewSet, SubmitMathSectionView, ReviewMathSectionView, MathSectionAttemptsView,
+    QuestionClassificationViewSet, UserProfileView, DiagnosticSubmitView,
+    SubmitLessonView, ReviewLessonView, LessonAttemptsView
 )
 from .auth_views import register, login, me, google_oauth_url, google_oauth_callback
 from .stripe_views import (
@@ -21,6 +23,7 @@ router.register(r'questions', QuestionViewSet, basename='question')
 router.register(r'lessons', LessonViewSet, basename='lesson')
 router.register(r'writing-sections', WritingSectionViewSet, basename='writing-section')
 router.register(r'math-sections', MathSectionViewSet, basename='math-section')
+router.register(r'classifications', QuestionClassificationViewSet, basename='classification')
 
 urlpatterns = [
     # Passages and Questions (handled by router)
@@ -69,5 +72,16 @@ urlpatterns = [
     
     # Word of the Day
     path('word-of-the-day', WordOfTheDayView.as_view(), name='word-of-the-day'),
+    
+    # User Profile (strengths/weaknesses)
+    path('profile', UserProfileView.as_view(), name='user-profile'),
+    
+    # Diagnostic test submission
+    path('diagnostic/submit', DiagnosticSubmitView.as_view(), name='diagnostic-submit'),
+    
+    # Lesson progress endpoints
+    path('progress/lessons/<str:lesson_id>/submit', SubmitLessonView.as_view(), name='progress-lesson-submit'),
+    path('progress/lessons/<str:lesson_id>/review', ReviewLessonView.as_view(), name='progress-lesson-review'),
+    path('progress/lessons/<str:lesson_id>/attempts', LessonAttemptsView.as_view(), name='progress-lesson-attempts'),
 ]
 

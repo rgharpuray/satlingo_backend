@@ -98,6 +98,37 @@ class PassageAnnotation(models.Model):
         super().save(*args, **kwargs)
 
 
+class QuestionClassification(models.Model):
+    """
+    Classification/tag for questions to track user strengths and weaknesses.
+    Examples: "Grammar - Subject-Verb Agreement", "Reading - Main Idea", "Math - Algebra"
+    """
+    CATEGORY_CHOICES = [
+        ('reading', 'Reading'),
+        ('writing', 'Writing'),
+        ('math', 'Math'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True, help_text="Classification name (e.g., 'Subject-Verb Agreement')")
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, help_text="Which section this classification belongs to")
+    description = models.TextField(blank=True, help_text="Optional description of what this classification covers")
+    display_order = models.IntegerField(default=0, help_text="Order for display (higher numbers first)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'question_classifications'
+        indexes = [
+            models.Index(fields=['category']),
+            models.Index(fields=['display_order']),
+        ]
+        ordering = ['category', '-display_order', 'name']
+    
+    def __str__(self):
+        return f"{self.get_category_display()}: {self.name}"
+
+
 class Question(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     passage = models.ForeignKey(Passage, on_delete=models.CASCADE, related_name='questions')
@@ -105,6 +136,12 @@ class Question(models.Model):
     correct_answer_index = models.IntegerField(validators=[MinValueValidator(0)])
     explanation = models.TextField(null=True, blank=True)
     order = models.IntegerField()
+    classifications = models.ManyToManyField(
+        QuestionClassification, 
+        blank=True, 
+        related_name='passage_questions',
+        help_text="Classifications/tags for this question (for tracking user strengths/weaknesses)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -371,6 +408,7 @@ class Lesson(models.Model):
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='Medium')
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
     lesson_type = models.CharField(max_length=20, choices=LESSON_TYPE_CHOICES, default='reading', help_text="Category: reading, writing, or math")
+    is_diagnostic = models.BooleanField(default=False, help_text="If true, this lesson is the diagnostic test for its lesson_type (only one per type)")
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='lessons', help_text="Header/section this lesson belongs to")
     order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
@@ -459,6 +497,12 @@ class LessonQuestion(models.Model):
     explanation = models.JSONField(default=list, null=True, blank=True, help_text="Array of explanation blocks")
     order = models.IntegerField(help_text="Order in the lesson (based on chunk position)")
     chunk_index = models.IntegerField(help_text="Index of the question chunk in the chunks array")
+    classifications = models.ManyToManyField(
+        QuestionClassification, 
+        blank=True, 
+        related_name='lesson_questions',
+        help_text="Classifications/tags for this question (for tracking user strengths/weaknesses)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -537,6 +581,38 @@ class LessonQuestionAsset(models.Model):
     
     def __str__(self):
         return f"{self.question} - {self.asset.asset_id}"
+
+
+class LessonAttempt(models.Model):
+    """Store individual attempts at lessons with full answer details"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='lesson_attempts', null=True, blank=True)
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='attempts')
+    score = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)])
+    correct_count = models.IntegerField()
+    total_questions = models.IntegerField()
+    time_spent_seconds = models.IntegerField(null=True, blank=True)
+    completed_at = models.DateTimeField(auto_now_add=True)
+    # Store answers as JSON for full history
+    # Format: [{question_id, selected_option_index, is_correct}, ...]
+    answers_data = models.JSONField(default=list)
+    # Track if this was a diagnostic attempt
+    is_diagnostic_attempt = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'lesson_attempts'
+        indexes = [
+            models.Index(fields=['user', 'lesson']),
+            models.Index(fields=['user']),
+            models.Index(fields=['lesson']),
+            models.Index(fields=['completed_at']),
+            models.Index(fields=['is_diagnostic_attempt']),
+        ]
+        ordering = ['-completed_at']
+    
+    def __str__(self):
+        return f"{self.user.email if self.user else 'Anonymous'} - {self.lesson.title} - {self.score}% ({self.completed_at})"
 
 
 class LessonIngestion(models.Model):
@@ -1033,4 +1109,87 @@ class MathSectionAttempt(models.Model):
     
     def __str__(self):
         return f"{self.user.email if self.user else 'Anonymous'} - {self.math_section.title} - {self.score}% ({self.completed_at})"
+
+
+class StudyPlan(models.Model):
+    """
+    User's study plan generated from diagnostic test results.
+    Tracks strengths and weaknesses by classification.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='study_plan')
+    
+    # Store performance data by classification as JSON
+    # Format: {classification_id: {correct: X, total: Y, percentage: Z}}
+    reading_performance = models.JSONField(default=dict, blank=True, help_text="Reading classification performance")
+    writing_performance = models.JSONField(default=dict, blank=True, help_text="Writing classification performance")
+    math_performance = models.JSONField(default=dict, blank=True, help_text="Math classification performance")
+    
+    # Track which diagnostics have been completed
+    reading_diagnostic_completed = models.BooleanField(default=False)
+    writing_diagnostic_completed = models.BooleanField(default=False)
+    math_diagnostic_completed = models.BooleanField(default=False)
+    
+    # Store the diagnostic lesson references
+    reading_diagnostic = models.ForeignKey('Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='reading_study_plans')
+    writing_diagnostic = models.ForeignKey('Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='writing_study_plans')
+    math_diagnostic = models.ForeignKey('Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='math_study_plans')
+    
+    # Recommended lessons based on weaknesses
+    recommended_lessons = models.ManyToManyField('Lesson', blank=True, related_name='recommended_for_users')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'study_plans'
+    
+    def __str__(self):
+        return f"Study Plan for {self.user.email}"
+    
+    def get_strengths(self, category):
+        """Get classifications where user scores >= 80%"""
+        perf = getattr(self, f'{category}_performance', {})
+        strengths = []
+        for class_id, data in perf.items():
+            if data.get('percentage', 0) >= 80:
+                strengths.append({
+                    'classification_id': class_id,
+                    'name': data.get('name', ''),
+                    'percentage': data.get('percentage', 0),
+                    'correct': data.get('correct', 0),
+                    'total': data.get('total', 0),
+                })
+        return sorted(strengths, key=lambda x: x['percentage'], reverse=True)
+    
+    def get_weaknesses(self, category):
+        """Get classifications where user scores < 60%"""
+        perf = getattr(self, f'{category}_performance', {})
+        weaknesses = []
+        for class_id, data in perf.items():
+            if data.get('percentage', 0) < 60:
+                weaknesses.append({
+                    'classification_id': class_id,
+                    'name': data.get('name', ''),
+                    'percentage': data.get('percentage', 0),
+                    'correct': data.get('correct', 0),
+                    'total': data.get('total', 0),
+                })
+        return sorted(weaknesses, key=lambda x: x['percentage'])
+    
+    def get_improving(self, category):
+        """Get classifications where user scores 60-79%"""
+        perf = getattr(self, f'{category}_performance', {})
+        improving = []
+        for class_id, data in perf.items():
+            pct = data.get('percentage', 0)
+            if 60 <= pct < 80:
+                improving.append({
+                    'classification_id': class_id,
+                    'name': data.get('name', ''),
+                    'percentage': pct,
+                    'correct': data.get('correct', 0),
+                    'total': data.get('total', 0),
+                })
+        return sorted(improving, key=lambda x: x['percentage'], reverse=True)
 

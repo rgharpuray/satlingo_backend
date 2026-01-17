@@ -11,7 +11,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, LessonAttempt, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription, QuestionClassification, StudyPlan
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -319,28 +319,139 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
         js = ('admin/js/passage_admin.js', 'admin/js/annotation_helper.js',)
 
 
+class BulkClassificationImportForm(forms.Form):
+    """Form for bulk importing classifications"""
+    category = forms.ChoiceField(choices=QuestionClassification.CATEGORY_CHOICES)
+    classifications_text = forms.CharField(
+        widget=forms.Textarea(attrs={'rows': 15, 'cols': 80}),
+        help_text="Enter one classification name per line"
+    )
+
+
+@admin.register(QuestionClassification)
+class QuestionClassificationAdmin(admin.ModelAdmin):
+    """Admin interface for question classifications"""
+    list_display = ['name', 'category', 'description_short', 'display_order', 'question_count', 'lesson_question_count']
+    list_filter = ['category']
+    search_fields = ['name', 'description']
+    list_editable = ['display_order']
+    ordering = ['category', '-display_order', 'name']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    change_list_template = 'admin/api/questionclassification/change_list.html'
+    
+    fieldsets = (
+        ('Classification Information', {
+            'fields': ('name', 'category', 'description', 'display_order')
+        }),
+        ('Metadata', {
+            'fields': ('id', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path('bulk-import/', self.admin_site.admin_view(self.bulk_import_view), name='questionclassification_bulk_import'),
+        ]
+        return custom_urls + urls
+    
+    def bulk_import_view(self, request):
+        from django.shortcuts import render, redirect
+        from django.contrib import messages
+        
+        if request.method == 'POST':
+            form = BulkClassificationImportForm(request.POST)
+            if form.is_valid():
+                category = form.cleaned_data['category']
+                text = form.cleaned_data['classifications_text']
+                lines = [line.strip() for line in text.strip().split('\n') if line.strip()]
+                
+                created_count = 0
+                existing_count = 0
+                
+                for name in lines:
+                    # Clean up the name (remove leading dashes, etc.)
+                    name = name.lstrip('-').strip()
+                    if not name:
+                        continue
+                    
+                    obj, created = QuestionClassification.objects.get_or_create(
+                        name=name,
+                        defaults={'category': category}
+                    )
+                    if created:
+                        created_count += 1
+                    else:
+                        existing_count += 1
+                
+                messages.success(request, f"Created {created_count} new classifications, {existing_count} already existed.")
+                return redirect('admin:api_questionclassification_changelist')
+        else:
+            form = BulkClassificationImportForm()
+        
+        context = {
+            **self.admin_site.each_context(request),
+            'form': form,
+            'title': 'Bulk Import Classifications',
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/api/questionclassification/bulk_import.html', context)
+    
+    def description_short(self, obj):
+        """Truncated description"""
+        if obj.description:
+            return obj.description[:80] + '...' if len(obj.description) > 80 else obj.description
+        return '-'
+    description_short.short_description = 'Description'
+    
+    def question_count(self, obj):
+        """Number of passage questions with this classification"""
+        return obj.passage_questions.count()
+    question_count.short_description = 'Passage Qs'
+    
+    def lesson_question_count(self, obj):
+        """Number of lesson questions with this classification"""
+        return obj.lesson_questions.count()
+    lesson_question_count.short_description = 'Lesson Qs'
+
+
 @admin.register(Question)
 class QuestionAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for individual questions"""
-    list_display = ['short_text', 'passage', 'order', 'correct_answer_index', 'option_count', 'has_explanation']
-    list_filter = ['passage', 'order', 'passage__difficulty', 'passage__tier']
+    list_display = ['short_text', 'passage', 'order', 'correct_answer_index', 'option_count', 'has_explanation', 'classification_list']
+    list_filter = ['passage', 'order', 'passage__difficulty', 'passage__tier', 'classifications']
     search_fields = ['text', 'passage__title']
     readonly_fields = ['id', 'created_at', 'updated_at']
     inlines = [QuestionOptionInline]
+    filter_horizontal = ['classifications']
     
     def get_queryset(self, request):
         """Optimize queryset for list view"""
-        return super().get_queryset(request).select_related('passage')
+        return super().get_queryset(request).select_related('passage').prefetch_related('classifications')
     
     fieldsets = (
         ('Question Information', {
             'fields': ('id', 'passage', 'order', 'text', 'correct_answer_index', 'explanation')
+        }),
+        ('Classifications', {
+            'fields': ('classifications',),
+            'description': 'Select classifications for this question to track user strengths/weaknesses'
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def classification_list(self, obj):
+        """Display classifications as comma-separated list"""
+        classifications = obj.classifications.all()
+        if classifications:
+            return ', '.join([c.name for c in classifications])
+        return '-'
+    classification_list.short_description = 'Classifications'
     
     def short_text(self, obj):
         """Display truncated question text"""
@@ -1344,8 +1455,8 @@ class LessonAssetInline(nested_admin.NestedTabularInline):
 @admin.register(Lesson)
 class LessonAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for lessons"""
-    list_display = ['title', 'lesson_id', 'lesson_type', 'header', 'order_within_header', 'difficulty', 'tier', 'question_count', 'created_at']
-    list_filter = ['lesson_type', 'header', 'difficulty', 'tier', 'created_at']
+    list_display = ['title', 'lesson_id', 'lesson_type', 'is_diagnostic', 'header', 'order_within_header', 'difficulty', 'tier', 'question_count', 'created_at']
+    list_filter = ['lesson_type', 'is_diagnostic', 'header', 'difficulty', 'tier', 'created_at']
     search_fields = ['title', 'lesson_id', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'edit_chunks_link']
     inlines = [LessonAssetInline]
@@ -1372,7 +1483,7 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'lesson_id', 'title', 'lesson_type', 'difficulty', 'tier')
+            'fields': ('id', 'lesson_id', 'title', 'lesson_type', 'is_diagnostic', 'difficulty', 'tier')
         }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
@@ -1387,6 +1498,16 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def save_model(self, request, obj, form, change):
+        """Ensure only one diagnostic per lesson_type"""
+        if obj.is_diagnostic:
+            # Unset any other diagnostic lessons of the same type
+            Lesson.objects.filter(
+                lesson_type=obj.lesson_type, 
+                is_diagnostic=True
+            ).exclude(pk=obj.pk).update(is_diagnostic=False)
+        super().save_model(request, obj, form, change)
     
     def move_up(self, request, queryset):
         """Move selected items up (increase display_order)"""
@@ -1521,15 +1642,24 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
 @admin.register(LessonQuestion)
 class LessonQuestionAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for lesson questions"""
-    list_display = ['text_short', 'lesson', 'order', 'correct_answer_index', 'edit_prompt_link', 'edit_explanation_link']
-    list_filter = ['lesson', 'created_at']
+    list_display = ['text_short', 'lesson', 'order', 'correct_answer_index', 'classification_list', 'edit_prompt_link', 'edit_explanation_link']
+    list_filter = ['lesson', 'created_at', 'classifications']
     search_fields = ['lesson__title', 'lesson__lesson_id']
     inlines = []
     readonly_fields = ['edit_prompt_button', 'edit_explanation_button']
+    filter_horizontal = ['classifications']
+    
+    def get_queryset(self, request):
+        """Optimize queryset for list view"""
+        return super().get_queryset(request).select_related('lesson').prefetch_related('classifications')
     
     fieldsets = (
         ('Question Information', {
             'fields': ('lesson', 'order', 'correct_answer_index', 'chunk_index')
+        }),
+        ('Classifications', {
+            'fields': ('classifications',),
+            'description': 'Select classifications for this question to track user strengths/weaknesses'
         }),
         ('Prompt', {
             'fields': ('edit_prompt_button', 'text'),
@@ -1540,6 +1670,14 @@ class LessonQuestionAdmin(nested_admin.NestedModelAdmin):
             'description': 'Click the button below to edit the explanation using the visual editor, or edit the JSON directly in the field below.'
         }),
     )
+    
+    def classification_list(self, obj):
+        """Display classifications as comma-separated list"""
+        classifications = obj.classifications.all()
+        if classifications:
+            return ', '.join([c.name for c in classifications])
+        return '-'
+    classification_list.short_description = 'Classifications'
     
     def text_short(self, obj):
         # Handle both JSON array and plain text (for backwards compatibility)
@@ -2913,4 +3051,118 @@ class HeaderAdmin(admin.ModelAdmin):
             return f"{count} math section{'s' if count != 1 else ''}"
         return "Save header to see math section count"
     math_section_count_display.short_description = 'Math Section Count'
+
+
+@admin.register(StudyPlan)
+class StudyPlanAdmin(admin.ModelAdmin):
+    """Admin interface for user study plans"""
+    list_display = ['user', 'reading_status', 'writing_status', 'math_status', 'created_at', 'updated_at']
+    list_filter = ['reading_diagnostic_completed', 'writing_diagnostic_completed', 'math_diagnostic_completed']
+    search_fields = ['user__email', 'user__first_name', 'user__last_name']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'reading_summary', 'writing_summary', 'math_summary']
+    raw_id_fields = ['user', 'reading_diagnostic', 'writing_diagnostic', 'math_diagnostic']
+    filter_horizontal = ['recommended_lessons']
+    
+    fieldsets = (
+        ('User', {
+            'fields': ('id', 'user')
+        }),
+        ('Reading', {
+            'fields': ('reading_diagnostic_completed', 'reading_diagnostic', 'reading_performance', 'reading_summary'),
+            'classes': ('collapse',)
+        }),
+        ('Writing', {
+            'fields': ('writing_diagnostic_completed', 'writing_diagnostic', 'writing_performance', 'writing_summary'),
+            'classes': ('collapse',)
+        }),
+        ('Math', {
+            'fields': ('math_diagnostic_completed', 'math_diagnostic', 'math_performance', 'math_summary'),
+            'classes': ('collapse',)
+        }),
+        ('Recommendations', {
+            'fields': ('recommended_lessons',),
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def reading_status(self, obj):
+        if obj.reading_diagnostic_completed:
+            strengths = len(obj.get_strengths('reading'))
+            weaknesses = len(obj.get_weaknesses('reading'))
+            return format_html('<span style="color: green;">✓</span> {} strengths, {} weaknesses', strengths, weaknesses)
+        return format_html('<span style="color: gray;">Not started</span>')
+    reading_status.short_description = 'Reading'
+    
+    def writing_status(self, obj):
+        if obj.writing_diagnostic_completed:
+            strengths = len(obj.get_strengths('writing'))
+            weaknesses = len(obj.get_weaknesses('writing'))
+            return format_html('<span style="color: green;">✓</span> {} strengths, {} weaknesses', strengths, weaknesses)
+        return format_html('<span style="color: gray;">Not started</span>')
+    writing_status.short_description = 'Writing'
+    
+    def math_status(self, obj):
+        if obj.math_diagnostic_completed:
+            strengths = len(obj.get_strengths('math'))
+            weaknesses = len(obj.get_weaknesses('math'))
+            return format_html('<span style="color: green;">✓</span> {} strengths, {} weaknesses', strengths, weaknesses)
+        return format_html('<span style="color: gray;">Not started</span>')
+    math_status.short_description = 'Math'
+    
+    def reading_summary(self, obj):
+        return self._format_summary(obj, 'reading')
+    reading_summary.short_description = 'Reading Analysis'
+    
+    def writing_summary(self, obj):
+        return self._format_summary(obj, 'writing')
+    writing_summary.short_description = 'Writing Analysis'
+    
+    def math_summary(self, obj):
+        return self._format_summary(obj, 'math')
+    math_summary.short_description = 'Math Analysis'
+    
+    def _format_summary(self, obj, category):
+        if not getattr(obj, f'{category}_diagnostic_completed'):
+            return 'Diagnostic not completed'
+        
+        strengths = obj.get_strengths(category)
+        weaknesses = obj.get_weaknesses(category)
+        improving = obj.get_improving(category)
+        
+        html = '<div style="font-family: monospace;">'
+        
+        if strengths:
+            html += '<strong style="color: green;">Strengths (≥80%):</strong><br>'
+            for s in strengths:
+                html += f'&nbsp;&nbsp;• {s["name"]}: {s["percentage"]}% ({s["correct"]}/{s["total"]})<br>'
+        
+        if improving:
+            html += '<strong style="color: orange;">Improving (60-79%):</strong><br>'
+            for i in improving:
+                html += f'&nbsp;&nbsp;• {i["name"]}: {i["percentage"]}% ({i["correct"]}/{i["total"]})<br>'
+        
+        if weaknesses:
+            html += '<strong style="color: red;">Weaknesses (<60%):</strong><br>'
+            for w in weaknesses:
+                html += f'&nbsp;&nbsp;• {w["name"]}: {w["percentage"]}% ({w["correct"]}/{w["total"]})<br>'
+        
+        html += '</div>'
+        return format_html(html)
+
+
+@admin.register(LessonAttempt)
+class LessonAttemptAdmin(admin.ModelAdmin):
+    """Admin interface for lesson attempts"""
+    list_display = ['user_display', 'lesson', 'score', 'correct_count', 'total_questions', 'is_diagnostic_attempt', 'completed_at']
+    list_filter = ['is_diagnostic_attempt', 'lesson__lesson_type', 'completed_at']
+    search_fields = ['user__email', 'lesson__title']
+    readonly_fields = ['id', 'user', 'lesson', 'score', 'correct_count', 'total_questions', 'time_spent_seconds', 'answers_data', 'is_diagnostic_attempt', 'completed_at', 'created_at']
+    ordering = ['-completed_at']
+    
+    def user_display(self, obj):
+        return obj.user.email if obj.user else 'Anonymous'
+    user_display.short_description = 'User'
 
