@@ -8,7 +8,8 @@ from .views import (
     PassageAttemptsView, LessonViewSet, WritingSectionViewSet,
     SubmitWritingSectionView, ReviewWritingSectionView, WritingSectionAttemptsView,
     MathSectionViewSet, SubmitMathSectionView, ReviewMathSectionView, MathSectionAttemptsView,
-    QuestionClassificationViewSet, UserProfileView
+    QuestionClassificationViewSet, UserProfileView, DiagnosticSubmitView,
+    SubmitLessonView, ReviewLessonView, LessonAttemptsView
 )
 from .auth_views import register, login, me, google_oauth_url, google_oauth_callback
 from .stripe_views import (
@@ -74,5 +75,13 @@ urlpatterns = [
     
     # User Profile (strengths/weaknesses)
     path('profile', UserProfileView.as_view(), name='user-profile'),
+    
+    # Diagnostic test submission
+    path('diagnostic/submit', DiagnosticSubmitView.as_view(), name='diagnostic-submit'),
+    
+    # Lesson progress endpoints
+    path('progress/lessons/<str:lesson_id>/submit', SubmitLessonView.as_view(), name='progress-lesson-submit'),
+    path('progress/lessons/<str:lesson_id>/review', ReviewLessonView.as_view(), name='progress-lesson-review'),
+    path('progress/lessons/<str:lesson_id>/attempts', LessonAttemptsView.as_view(), name='progress-lesson-attempts'),
 ]
 

@@ -15,11 +15,11 @@ from django.conf import settings
 from .models import (
     Passage, Question, QuestionOption, User, UserSession,
     UserProgress, UserAnswer, WordOfTheDay, PassageAttempt,
-    Lesson, LessonQuestion, LessonQuestionOption,
+    Lesson, LessonQuestion, LessonQuestionOption, LessonAttempt,
     WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption,
     WritingSectionAttempt,
     MathSection, MathQuestion, MathQuestionOption, MathAsset, MathSectionAttempt,
-    QuestionClassification
+    QuestionClassification, StudyPlan
 )
 from .serializers import (
     PassageListSerializer, PassageDetailSerializer, QuestionListSerializer,
@@ -1649,6 +1649,14 @@ class UserProfileView(APIView):
         strengths = [p for p in performance_data if p['is_strength']]
         weaknesses = [p for p in performance_data if p['is_weakness']]
         
+        # Get or create study plan
+        study_plan, _ = StudyPlan.objects.get_or_create(user=user)
+        
+        # Get diagnostic lessons
+        reading_diagnostic = Lesson.objects.filter(lesson_type='reading', is_diagnostic=True).first()
+        writing_diagnostic = Lesson.objects.filter(lesson_type='writing', is_diagnostic=True).first()
+        math_diagnostic = Lesson.objects.filter(lesson_type='math', is_diagnostic=True).first()
+        
         return Response({
             'user': {
                 'id': str(user.id),
@@ -1659,5 +1667,364 @@ class UserProfileView(APIView):
             'strengths': strengths[:5],  # Top 5 strengths
             'weaknesses': weaknesses[:5],  # Top 5 weaknesses (lowest accuracy)
             'total_classifications_analyzed': len(performance_data),
+            'study_plan': {
+                'reading': {
+                    'diagnostic_completed': study_plan.reading_diagnostic_completed,
+                    'diagnostic_lesson_id': str(reading_diagnostic.id) if reading_diagnostic else None,
+                    'diagnostic_lesson_title': reading_diagnostic.title if reading_diagnostic else None,
+                    'strengths': study_plan.get_strengths('reading'),
+                    'weaknesses': study_plan.get_weaknesses('reading'),
+                    'improving': study_plan.get_improving('reading'),
+                },
+                'writing': {
+                    'diagnostic_completed': study_plan.writing_diagnostic_completed,
+                    'diagnostic_lesson_id': str(writing_diagnostic.id) if writing_diagnostic else None,
+                    'diagnostic_lesson_title': writing_diagnostic.title if writing_diagnostic else None,
+                    'strengths': study_plan.get_strengths('writing'),
+                    'weaknesses': study_plan.get_weaknesses('writing'),
+                    'improving': study_plan.get_improving('writing'),
+                },
+                'math': {
+                    'diagnostic_completed': study_plan.math_diagnostic_completed,
+                    'diagnostic_lesson_id': str(math_diagnostic.id) if math_diagnostic else None,
+                    'diagnostic_lesson_title': math_diagnostic.title if math_diagnostic else None,
+                    'strengths': study_plan.get_strengths('math'),
+                    'weaknesses': study_plan.get_weaknesses('math'),
+                    'improving': study_plan.get_improving('math'),
+                },
+                'recommended_lessons': [
+                    {'id': str(l.id), 'title': l.title, 'lesson_type': l.lesson_type}
+                    for l in study_plan.recommended_lessons.all()[:10]
+                ],
+            },
+        })
+
+
+class DiagnosticSubmitView(APIView):
+    """
+    Submit diagnostic test results and generate study plan.
+    POST /diagnostic/submit - Submit diagnostic answers and generate study plan
+    """
+    
+    def post(self, request):
+        user = get_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        lesson_id = request.data.get('lesson_id')
+        answers = request.data.get('answers', [])  # [{question_id, selected_option_index, is_correct}, ...]
+        
+        if not lesson_id:
+            return Response({'error': 'lesson_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            lesson = Lesson.objects.get(id=lesson_id)
+        except Lesson.DoesNotExist:
+            return Response({'error': 'Lesson not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not lesson.is_diagnostic:
+            return Response({'error': 'This lesson is not a diagnostic test'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get or create study plan
+        study_plan, _ = StudyPlan.objects.get_or_create(user=user)
+        
+        # Calculate performance by classification
+        performance = {}
+        
+        for answer in answers:
+            question_id = answer.get('question_id')
+            is_correct = answer.get('is_correct', False)
+            
+            try:
+                question = LessonQuestion.objects.get(id=question_id)
+            except LessonQuestion.DoesNotExist:
+                continue
+            
+            # Get classifications for this question
+            for classification in question.classifications.all():
+                class_id = str(classification.id)
+                
+                if class_id not in performance:
+                    performance[class_id] = {
+                        'name': classification.name,
+                        'correct': 0,
+                        'total': 0,
+                        'percentage': 0,
+                    }
+                
+                performance[class_id]['total'] += 1
+                if is_correct:
+                    performance[class_id]['correct'] += 1
+        
+        # Calculate percentages
+        for class_id, data in performance.items():
+            if data['total'] > 0:
+                data['percentage'] = round((data['correct'] / data['total']) * 100, 1)
+        
+        # Update study plan based on lesson type
+        category = lesson.lesson_type
+        if category == 'reading':
+            study_plan.reading_performance = performance
+            study_plan.reading_diagnostic_completed = True
+            study_plan.reading_diagnostic = lesson
+        elif category == 'writing':
+            study_plan.writing_performance = performance
+            study_plan.writing_diagnostic_completed = True
+            study_plan.writing_diagnostic = lesson
+        elif category == 'math':
+            study_plan.math_performance = performance
+            study_plan.math_diagnostic_completed = True
+            study_plan.math_diagnostic = lesson
+        
+        # Find recommended lessons based on weaknesses
+        weaknesses = study_plan.get_weaknesses(category)
+        weakness_classifications = [w['classification_id'] for w in weaknesses]
+        
+        if weakness_classifications:
+            # Find lessons that cover these classifications
+            # (This is a simplified approach - you may want more sophisticated matching)
+            recommended = Lesson.objects.filter(
+                lesson_type=category,
+                is_diagnostic=False,
+            ).exclude(id=lesson.id)[:5]
+            
+            for rec_lesson in recommended:
+                study_plan.recommended_lessons.add(rec_lesson)
+        
+        study_plan.save()
+        
+        return Response({
+            'status': 'success',
+            'category': category,
+            'performance': performance,
+            'strengths': study_plan.get_strengths(category),
+            'weaknesses': study_plan.get_weaknesses(category),
+            'improving': study_plan.get_improving(category),
+        })
+
+
+class SubmitLessonView(APIView):
+    """
+    Submit lesson answers and track progress.
+    POST /progress/lessons/<lesson_id>/submit
+    """
+    
+    def post(self, request, lesson_id):
+        user = get_user_from_request(request)
+        
+        try:
+            lesson = Lesson.objects.get(id=lesson_id)
+        except Lesson.DoesNotExist:
+            return Response({'error': 'Lesson not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        answers = request.data.get('answers', [])
+        time_spent = request.data.get('time_spent_seconds')
+        
+        if not answers:
+            return Response({'error': 'No answers provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calculate score
+        correct_count = 0
+        total_questions = len(answers)
+        
+        processed_answers = []
+        for answer in answers:
+            question_id = answer.get('question_id')
+            selected_index = answer.get('selected_option_index', -1)
+            
+            try:
+                question = LessonQuestion.objects.get(id=question_id)
+                is_correct = selected_index == question.correct_answer_index
+                if is_correct:
+                    correct_count += 1
+                    
+                processed_answers.append({
+                    'question_id': str(question_id),
+                    'selected_option_index': selected_index,
+                    'correct_answer_index': question.correct_answer_index,
+                    'is_correct': is_correct,
+                })
+            except LessonQuestion.DoesNotExist:
+                processed_answers.append({
+                    'question_id': str(question_id),
+                    'selected_option_index': selected_index,
+                    'is_correct': False,
+                    'error': 'Question not found'
+                })
+        
+        score = round((correct_count / total_questions) * 100) if total_questions > 0 else 0
+        
+        # Create attempt record
+        attempt = LessonAttempt.objects.create(
+            user=user,
+            lesson=lesson,
+            score=score,
+            correct_count=correct_count,
+            total_questions=total_questions,
+            time_spent_seconds=time_spent,
+            answers_data=processed_answers,
+            is_diagnostic_attempt=lesson.is_diagnostic,
+        )
+        
+        # If this is a diagnostic, also update the study plan
+        if lesson.is_diagnostic and user:
+            self._update_study_plan(user, lesson, processed_answers)
+        
+        return Response({
+            'status': 'success',
+            'attempt_id': str(attempt.id),
+            'score': score,
+            'correct_count': correct_count,
+            'total_questions': total_questions,
+            'is_diagnostic': lesson.is_diagnostic,
+            'answers': processed_answers,
+        })
+    
+    def _update_study_plan(self, user, lesson, answers):
+        """Update study plan with diagnostic results"""
+        study_plan, _ = StudyPlan.objects.get_or_create(user=user)
+        
+        # Calculate performance by classification
+        performance = {}
+        
+        for answer in answers:
+            question_id = answer.get('question_id')
+            is_correct = answer.get('is_correct', False)
+            
+            try:
+                question = LessonQuestion.objects.get(id=question_id)
+            except LessonQuestion.DoesNotExist:
+                continue
+            
+            # Get classifications for this question
+            for classification in question.classifications.all():
+                class_id = str(classification.id)
+                
+                if class_id not in performance:
+                    performance[class_id] = {
+                        'name': classification.name,
+                        'correct': 0,
+                        'total': 0,
+                        'percentage': 0,
+                    }
+                
+                performance[class_id]['total'] += 1
+                if is_correct:
+                    performance[class_id]['correct'] += 1
+        
+        # Calculate percentages
+        for class_id, data in performance.items():
+            if data['total'] > 0:
+                data['percentage'] = round((data['correct'] / data['total']) * 100, 1)
+        
+        # Update study plan based on lesson type
+        category = lesson.lesson_type
+        if category == 'reading':
+            study_plan.reading_performance = performance
+            study_plan.reading_diagnostic_completed = True
+            study_plan.reading_diagnostic = lesson
+        elif category == 'writing':
+            study_plan.writing_performance = performance
+            study_plan.writing_diagnostic_completed = True
+            study_plan.writing_diagnostic = lesson
+        elif category == 'math':
+            study_plan.math_performance = performance
+            study_plan.math_diagnostic_completed = True
+            study_plan.math_diagnostic = lesson
+        
+        study_plan.save()
+
+
+class ReviewLessonView(APIView):
+    """
+    Review lesson attempt results.
+    GET /progress/lessons/<lesson_id>/review
+    """
+    
+    def get(self, request, lesson_id):
+        user = get_user_from_request(request)
+        
+        try:
+            lesson = Lesson.objects.get(id=lesson_id)
+        except Lesson.DoesNotExist:
+            return Response({'error': 'Lesson not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get latest attempt for this user
+        attempt = LessonAttempt.objects.filter(
+            user=user,
+            lesson=lesson
+        ).order_by('-completed_at').first()
+        
+        if not attempt:
+            return Response({'error': 'No attempts found for this lesson'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get lesson questions with correct answers
+        questions = []
+        for q in lesson.questions.all().order_by('order'):
+            options = [{'text': opt.text, 'order': opt.order} for opt in q.options.all().order_by('order')]
+            
+            # Find user's answer for this question
+            user_answer = None
+            for ans in attempt.answers_data:
+                if str(ans.get('question_id')) == str(q.id):
+                    user_answer = ans
+                    break
+            
+            questions.append({
+                'id': str(q.id),
+                'text': q.text,
+                'options': options,
+                'correct_answer_index': q.correct_answer_index,
+                'explanation': q.explanation,
+                'user_answer_index': user_answer.get('selected_option_index') if user_answer else None,
+                'is_correct': user_answer.get('is_correct') if user_answer else False,
+            })
+        
+        return Response({
+            'lesson_id': str(lesson.id),
+            'lesson_title': lesson.title,
+            'score': attempt.score,
+            'correct_count': attempt.correct_count,
+            'total_questions': attempt.total_questions,
+            'completed_at': attempt.completed_at.isoformat(),
+            'questions': questions,
+        })
+
+
+class LessonAttemptsView(APIView):
+    """
+    Get attempt history for a lesson.
+    GET /progress/lessons/<lesson_id>/attempts
+    """
+    
+    def get(self, request, lesson_id):
+        user = get_user_from_request(request)
+        if not user:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            lesson = Lesson.objects.get(id=lesson_id)
+        except Lesson.DoesNotExist:
+            return Response({'error': 'Lesson not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        attempts = LessonAttempt.objects.filter(
+            user=user,
+            lesson=lesson
+        ).order_by('-completed_at')[:10]
+        
+        return Response({
+            'lesson_id': str(lesson.id),
+            'lesson_title': lesson.title,
+            'attempts': [
+                {
+                    'id': str(a.id),
+                    'score': a.score,
+                    'correct_count': a.correct_count,
+                    'total_questions': a.total_questions,
+                    'completed_at': a.completed_at.isoformat(),
+                    'is_diagnostic_attempt': a.is_diagnostic_attempt,
+                }
+                for a in attempts
+            ]
         })
 

@@ -1,0 +1,50 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block content %}
+<h1>Bulk Import Question Classifications</h1>
+
+<p>Enter classification names, one per line. Lines starting with "--" or "-" will be cleaned automatically.</p>
+
+<form method="post">
+    {% csrf_token %}
+    
+    <fieldset class="module aligned">
+        <h2>Import Settings</h2>
+        
+        <div class="form-row">
+            <div>
+                <label for="id_category">Category:</label>
+                {{ form.category }}
+                <p class="help">Select which category these classifications belong to.</p>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div>
+                <label for="id_classifications_text">Classifications:</label>
+                {{ form.classifications_text }}
+                <p class="help">{{ form.classifications_text.help_text }}</p>
+            </div>
+        </div>
+    </fieldset>
+    
+    <div class="submit-row">
+        <input type="submit" value="Import Classifications" class="default">
+        <a href="{% url 'admin:api_questionclassification_changelist' %}" class="button cancel-link">Cancel</a>
+    </div>
+</form>
+
+<h2>Example Format</h2>
+<pre style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
+-- Commas
+-- Colons
+-- Semicolons
+-- Dashes and Parentheses
+Apostrophes
+Pronouns
+Who vs. Whom
+</pre>
+<p>Both formats work - with or without leading dashes.</p>
+
+{% endblock %}

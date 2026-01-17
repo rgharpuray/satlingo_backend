@@ -308,7 +308,7 @@ class LessonListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Lesson
-        fields = ['id', 'lesson_id', 'title', 'difficulty', 'tier', 'question_count', 'header', 'order_within_header', 'created_at']
+        fields = ['id', 'lesson_id', 'title', 'difficulty', 'tier', 'lesson_type', 'is_diagnostic', 'question_count', 'header', 'order_within_header', 'created_at']
     
     def get_question_count(self, obj):
         return obj.questions.count()
@@ -320,7 +320,7 @@ class LessonDetailSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Lesson
-        fields = ['id', 'lesson_id', 'title', 'chunks', 'content', 'difficulty', 'tier', 'questions', 'assets', 'created_at', 'updated_at']
+        fields = ['id', 'lesson_id', 'title', 'chunks', 'content', 'difficulty', 'tier', 'lesson_type', 'is_diagnostic', 'questions', 'assets', 'created_at', 'updated_at']
 
 
 # Writing Section Serializers
