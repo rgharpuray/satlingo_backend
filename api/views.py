@@ -1652,8 +1652,8 @@ class UserProfileView(APIView):
         # Get or create study plan
         study_plan, _ = StudyPlan.objects.get_or_create(user=user)
         
-        # Get diagnostic lessons
-        reading_diagnostic = Lesson.objects.filter(lesson_type='reading', is_diagnostic=True).first()
+        # Get diagnostic tests (reading is a passage, writing/math are lessons)
+        reading_diagnostic = Passage.objects.filter(is_diagnostic=True).first()
         writing_diagnostic = Lesson.objects.filter(lesson_type='writing', is_diagnostic=True).first()
         math_diagnostic = Lesson.objects.filter(lesson_type='math', is_diagnostic=True).first()
         
@@ -1670,8 +1670,9 @@ class UserProfileView(APIView):
             'study_plan': {
                 'reading': {
                     'diagnostic_completed': study_plan.reading_diagnostic_completed,
-                    'diagnostic_lesson_id': str(reading_diagnostic.id) if reading_diagnostic else None,
-                    'diagnostic_lesson_title': reading_diagnostic.title if reading_diagnostic else None,
+                    'diagnostic_passage_id': str(reading_diagnostic.id) if reading_diagnostic else None,
+                    'diagnostic_passage_title': reading_diagnostic.title if reading_diagnostic else None,
+                    'diagnostic_type': 'passage',
                     'strengths': study_plan.get_strengths('reading'),
                     'weaknesses': study_plan.get_weaknesses('reading'),
                     'improving': study_plan.get_improving('reading'),
@@ -1680,6 +1681,7 @@ class UserProfileView(APIView):
                     'diagnostic_completed': study_plan.writing_diagnostic_completed,
                     'diagnostic_lesson_id': str(writing_diagnostic.id) if writing_diagnostic else None,
                     'diagnostic_lesson_title': writing_diagnostic.title if writing_diagnostic else None,
+                    'diagnostic_type': 'lesson',
                     'strengths': study_plan.get_strengths('writing'),
                     'weaknesses': study_plan.get_weaknesses('writing'),
                     'improving': study_plan.get_improving('writing'),
@@ -1688,6 +1690,7 @@ class UserProfileView(APIView):
                     'diagnostic_completed': study_plan.math_diagnostic_completed,
                     'diagnostic_lesson_id': str(math_diagnostic.id) if math_diagnostic else None,
                     'diagnostic_lesson_title': math_diagnostic.title if math_diagnostic else None,
+                    'diagnostic_type': 'lesson',
                     'strengths': study_plan.get_strengths('math'),
                     'weaknesses': study_plan.get_weaknesses('math'),
                     'improving': study_plan.get_improving('math'),
@@ -1704,6 +1707,9 @@ class DiagnosticSubmitView(APIView):
     """
     Submit diagnostic test results and generate study plan.
     POST /diagnostic/submit - Submit diagnostic answers and generate study plan
+    
+    For reading: expects passage_id (uses Question model)
+    For writing/math: expects lesson_id (uses LessonQuestion model)
     """
     
     def post(self, request):
@@ -1712,10 +1718,73 @@ class DiagnosticSubmitView(APIView):
             return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
         
         lesson_id = request.data.get('lesson_id')
+        passage_id = request.data.get('passage_id')
         answers = request.data.get('answers', [])  # [{question_id, selected_option_index, is_correct}, ...]
         
+        # Get or create study plan
+        study_plan, _ = StudyPlan.objects.get_or_create(user=user)
+        
+        # Handle reading diagnostic (passage-based)
+        if passage_id:
+            try:
+                passage = Passage.objects.get(id=passage_id)
+            except Passage.DoesNotExist:
+                return Response({'error': 'Passage not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            if not passage.is_diagnostic:
+                return Response({'error': 'This passage is not a diagnostic test'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Calculate performance by classification using Question model
+            performance = {}
+            
+            for answer in answers:
+                question_id = answer.get('question_id')
+                is_correct = answer.get('is_correct', False)
+                
+                try:
+                    question = Question.objects.get(id=question_id)
+                except Question.DoesNotExist:
+                    continue
+                
+                # Get classifications for this question
+                for classification in question.classifications.all():
+                    class_id = str(classification.id)
+                    
+                    if class_id not in performance:
+                        performance[class_id] = {
+                            'name': classification.name,
+                            'correct': 0,
+                            'total': 0,
+                            'percentage': 0,
+                        }
+                    
+                    performance[class_id]['total'] += 1
+                    if is_correct:
+                        performance[class_id]['correct'] += 1
+            
+            # Calculate percentages
+            for class_id, data in performance.items():
+                if data['total'] > 0:
+                    data['percentage'] = round((data['correct'] / data['total']) * 100, 1)
+            
+            # Update study plan for reading
+            study_plan.reading_performance = performance
+            study_plan.reading_diagnostic_completed = True
+            study_plan.reading_diagnostic_passage = passage
+            study_plan.save()
+            
+            return Response({
+                'status': 'success',
+                'category': 'reading',
+                'performance': performance,
+                'strengths': study_plan.get_strengths('reading'),
+                'weaknesses': study_plan.get_weaknesses('reading'),
+                'improving': study_plan.get_improving('reading'),
+            })
+        
+        # Handle writing/math diagnostic (lesson-based)
         if not lesson_id:
-            return Response({'error': 'lesson_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'lesson_id or passage_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             lesson = Lesson.objects.get(id=lesson_id)
@@ -1724,9 +1793,6 @@ class DiagnosticSubmitView(APIView):
         
         if not lesson.is_diagnostic:
             return Response({'error': 'This lesson is not a diagnostic test'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Get or create study plan
-        study_plan, _ = StudyPlan.objects.get_or_create(user=user)
         
         # Calculate performance by classification
         performance = {}
@@ -1761,13 +1827,9 @@ class DiagnosticSubmitView(APIView):
             if data['total'] > 0:
                 data['percentage'] = round((data['correct'] / data['total']) * 100, 1)
         
-        # Update study plan based on lesson type
+        # Update study plan based on lesson type (only writing and math now)
         category = lesson.lesson_type
-        if category == 'reading':
-            study_plan.reading_performance = performance
-            study_plan.reading_diagnostic_completed = True
-            study_plan.reading_diagnostic = lesson
-        elif category == 'writing':
+        if category == 'writing':
             study_plan.writing_performance = performance
             study_plan.writing_diagnostic_completed = True
             study_plan.writing_diagnostic = lesson
@@ -1917,13 +1979,9 @@ class SubmitLessonView(APIView):
             if data['total'] > 0:
                 data['percentage'] = round((data['correct'] / data['total']) * 100, 1)
         
-        # Update study plan based on lesson type
+        # Update study plan based on lesson type (only writing and math - reading uses passages)
         category = lesson.lesson_type
-        if category == 'reading':
-            study_plan.reading_performance = performance
-            study_plan.reading_diagnostic_completed = True
-            study_plan.reading_diagnostic = lesson
-        elif category == 'writing':
+        if category == 'writing':
             study_plan.writing_performance = performance
             study_plan.writing_diagnostic_completed = True
             study_plan.writing_diagnostic = lesson

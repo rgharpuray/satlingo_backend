@@ -6032,6 +6032,43 @@
                     }
                 }
                 
+                // If this is a diagnostic passage, also submit to diagnostic endpoint
+                if (!isWritingSection && !isMathSection && currentPassageData && currentPassageData.is_diagnostic && authToken) {
+                    try {
+                        // Build answers with is_correct flag for diagnostic
+                        const diagnosticAnswers = answers.map(answer => {
+                            const question = questionsList.find(q => String(q.id) === String(answer.question_id));
+                            return {
+                                question_id: answer.question_id,
+                                selected_option_index: answer.selected_option_index,
+                                is_correct: question ? answer.selected_option_index === question.correct_answer_index : false
+                            };
+                        });
+                        
+                        await fetch(`${API_BASE}/diagnostic/submit`, {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify({
+                                passage_id: currentPassageId,
+                                answers: diagnosticAnswers
+                            })
+                        });
+                        
+                        // Show diagnostic completion message
+                        const resultsSection = document.getElementById('resultsSection');
+                        const diagnosticBanner = document.createElement('div');
+                        diagnosticBanner.style.cssText = 'background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center; border: 1px solid var(--border-color);';
+                        diagnosticBanner.innerHTML = `
+                            <h3 style="color: var(--text-primary); margin-bottom: 12px;">Reading Diagnostic Complete!</h3>
+                            <p style="color: var(--text-secondary); margin-bottom: 16px;">Your study plan has been updated with personalized recommendations.</p>
+                            <button class="btn btn-primary" onclick="showProfile()">View Your Study Plan</button>
+                        `;
+                        resultsSection.appendChild(diagnosticBanner);
+                    } catch (diagnosticError) {
+                        console.error('Failed to submit diagnostic:', diagnosticError);
+                    }
+                }
+                
             } catch (error) {
                 console.error('Failed to submit answers:', error);
                 alert('Network error. Please try again.');
@@ -7348,7 +7385,7 @@
         
         function hasDiagnosticsAvailable(studyPlan) {
             if (!studyPlan) return false;
-            return (studyPlan.reading && studyPlan.reading.diagnostic_lesson_id) || 
+            return (studyPlan.reading && studyPlan.reading.diagnostic_passage_id) || 
                    (studyPlan.writing && studyPlan.writing.diagnostic_lesson_id) || 
                    (studyPlan.math && studyPlan.math.diagnostic_lesson_id);
         }
@@ -7387,7 +7424,8 @@
         
         function populateStudyPlan(studyPlan) {
             // Helper to render diagnostic status
-            function renderDiagnosticStatus(catData, elementId, lessonId) {
+            // diagnosticType can be 'lesson' or 'passage'
+            function renderDiagnosticStatus(catData, elementId, diagnosticId, diagnosticType) {
                 const el = document.getElementById(elementId);
                 if (catData && catData.diagnostic_completed) {
                     const strengths = catData.strengths || [];
@@ -7398,10 +7436,10 @@
                             ${strengths.length} strong · ${weaknesses.length} needs work
                         </div>
                     `;
-                } else if (lessonId) {
+                } else if (diagnosticId) {
                     el.innerHTML = `
                         <div style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">Not started</div>
-                        <button class="btn btn-secondary" onclick="startDiagnostic('${lessonId}')" style="font-size: 12px; padding: 6px 12px;">
+                        <button class="btn btn-secondary" onclick="startDiagnostic('${diagnosticId}', '${diagnosticType}')" style="font-size: 12px; padding: 6px 12px;">
                             Start
                         </button>
                     `;
@@ -7410,9 +7448,9 @@
                 }
             }
             
-            renderDiagnosticStatus(studyPlan.reading, 'readingDiagnosticStatus', studyPlan.reading?.diagnostic_lesson_id);
-            renderDiagnosticStatus(studyPlan.writing, 'writingDiagnosticStatus', studyPlan.writing?.diagnostic_lesson_id);
-            renderDiagnosticStatus(studyPlan.math, 'mathDiagnosticStatus', studyPlan.math?.diagnostic_lesson_id);
+            renderDiagnosticStatus(studyPlan.reading, 'readingDiagnosticStatus', studyPlan.reading?.diagnostic_passage_id, 'passage');
+            renderDiagnosticStatus(studyPlan.writing, 'writingDiagnosticStatus', studyPlan.writing?.diagnostic_lesson_id, 'lesson');
+            renderDiagnosticStatus(studyPlan.math, 'mathDiagnosticStatus', studyPlan.math?.diagnostic_lesson_id, 'lesson');
             
             // Recommended Lessons
             const recommendedContainer = document.getElementById('recommendedLessons');
@@ -7437,9 +7475,13 @@
             }
         }
         
-        function startDiagnostic(lessonId) {
-            // Navigate to the diagnostic lesson
-            window.location.hash = `#lesson/${lessonId}`;
+        function startDiagnostic(diagnosticId, diagnosticType) {
+            // Navigate to the diagnostic (passage for reading, lesson for writing/math)
+            if (diagnosticType === 'passage') {
+                window.location.hash = `#passage/${diagnosticId}`;
+            } else {
+                window.location.hash = `#lesson/${diagnosticId}`;
+            }
         }
         
         function goToLesson(lessonId) {

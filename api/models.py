@@ -24,6 +24,7 @@ class Passage(models.Model):
     content = models.TextField()
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
     tier = models.CharField(max_length=10, choices=TIER_CHOICES, default='free')
+    is_diagnostic = models.BooleanField(default=False, help_text="If true, this passage is the diagnostic test for reading")
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='passages', help_text="Header/section this passage belongs to")
     order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
@@ -1130,8 +1131,8 @@ class StudyPlan(models.Model):
     writing_diagnostic_completed = models.BooleanField(default=False)
     math_diagnostic_completed = models.BooleanField(default=False)
     
-    # Store the diagnostic lesson references
-    reading_diagnostic = models.ForeignKey('Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='reading_study_plans')
+    # Store the diagnostic references (reading uses Passage, others use Lesson)
+    reading_diagnostic_passage = models.ForeignKey('Passage', on_delete=models.SET_NULL, null=True, blank=True, related_name='reading_study_plans', help_text="Reading diagnostic is a passage")
     writing_diagnostic = models.ForeignKey('Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='writing_study_plans')
     math_diagnostic = models.ForeignKey('Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='math_study_plans')
     

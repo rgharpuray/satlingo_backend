@@ -53,6 +53,4 @@ Thumbs.db
 *_stripe_heroku*.sh
 setup_stripe_heroku.sh
 set_stripe_heroku_quick.sh
-
-
 latest.dump

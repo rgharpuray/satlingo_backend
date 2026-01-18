@@ -66,7 +66,7 @@ class PassageListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Passage
-        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'header', 'order_within_header', 'question_count', 'attempt_count', 'attempt_summary',
+        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'is_diagnostic', 'header', 'order_within_header', 'question_count', 'attempt_count', 'attempt_summary',
                  'created_at', 'updated_at']
     
     def get_question_count(self, obj):

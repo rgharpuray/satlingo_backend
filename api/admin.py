@@ -162,8 +162,8 @@ class PassageAdminForm(forms.ModelForm):
 class PassageAdmin(nested_admin.NestedModelAdmin):
     """Admin interface for passages with inline questions, options, and annotations"""
     form = PassageAdminForm
-    list_display = ['title', 'difficulty', 'tier', 'header', 'order_within_header', 'display_order', 'question_count', 'annotation_count', 'created_at', 'preview_link']
-    list_filter = ['difficulty', 'tier', 'header', 'created_at']
+    list_display = ['title', 'difficulty', 'tier', 'is_diagnostic', 'header', 'order_within_header', 'display_order', 'question_count', 'annotation_count', 'created_at', 'preview_link']
+    list_filter = ['difficulty', 'tier', 'is_diagnostic', 'header', 'created_at']
     search_fields = ['title', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'annotation_count_display']
     inlines = [PassageAnnotationInline, QuestionInline]
@@ -3060,7 +3060,7 @@ class StudyPlanAdmin(admin.ModelAdmin):
     list_filter = ['reading_diagnostic_completed', 'writing_diagnostic_completed', 'math_diagnostic_completed']
     search_fields = ['user__email', 'user__first_name', 'user__last_name']
     readonly_fields = ['id', 'created_at', 'updated_at', 'reading_summary', 'writing_summary', 'math_summary']
-    raw_id_fields = ['user', 'reading_diagnostic', 'writing_diagnostic', 'math_diagnostic']
+    raw_id_fields = ['user', 'reading_diagnostic_passage', 'writing_diagnostic', 'math_diagnostic']
     filter_horizontal = ['recommended_lessons']
     
     fieldsets = (
@@ -3068,7 +3068,7 @@ class StudyPlanAdmin(admin.ModelAdmin):
             'fields': ('id', 'user')
         }),
         ('Reading', {
-            'fields': ('reading_diagnostic_completed', 'reading_diagnostic', 'reading_performance', 'reading_summary'),
+            'fields': ('reading_diagnostic_completed', 'reading_diagnostic_passage', 'reading_performance', 'reading_summary'),
             'classes': ('collapse',)
         }),
         ('Writing', {
