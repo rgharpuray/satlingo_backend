@@ -212,7 +212,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
         """Dynamically exclude display_order from fieldsets if column doesn't exist"""
         fieldsets = (
             ('Basic Information', {
-                'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+                'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'is_diagnostic')
             }),
             ('Metadata', {
                 'fields': ('question_count_display', 'annotation_count_display', 'created_at', 'updated_at'),
@@ -311,6 +311,13 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             return format_html('<a href="{}" target="_blank">View</a>', url)
         return '-'
     preview_link.short_description = 'Actions'
+    
+    def save_model(self, request, obj, form, change):
+        """Ensure only one passage can be diagnostic (for reading)"""
+        if obj.is_diagnostic:
+            # Unset any other diagnostic passages
+            Passage.objects.filter(is_diagnostic=True).exclude(pk=obj.pk).update(is_diagnostic=False)
+        super().save_model(request, obj, form, change)
     
     class Media:
         css = {
