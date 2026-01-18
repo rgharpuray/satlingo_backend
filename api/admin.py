@@ -228,7 +228,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             # Field exists, add it to fieldsets
             fieldsets = (
                 ('Basic Information', {
-                    'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+                    'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'is_diagnostic')
                 }),
                 ('Organization', {
                     'fields': ('header', 'order_within_header', 'display_order'),
@@ -246,7 +246,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+            'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'is_diagnostic')
         }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
