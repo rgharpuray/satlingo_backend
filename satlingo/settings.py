@@ -239,6 +239,13 @@ GOOGLE_OAUTH_ANDROID_CLIENT_ID = os.environ.get(
     '412415832820-kdps9c4s09r15fvp42rcbini75ptslu7.apps.googleusercontent.com'
 )
 
+# Apple App Store Settings (for iOS in-app purchases)
+APPLE_BUNDLE_ID = os.environ.get('APPLE_BUNDLE_ID', 'com.keuvi.app')
+APPLE_SHARED_SECRET = os.environ.get('APPLE_SHARED_SECRET', '')  # For receipt verification
+APPLE_APP_STORE_KEY_ID = os.environ.get('APPLE_APP_STORE_KEY_ID', '')  # For App Store Server API
+APPLE_APP_STORE_ISSUER_ID = os.environ.get('APPLE_APP_STORE_ISSUER_ID', '')
+APPLE_APP_STORE_PRIVATE_KEY = os.environ.get('APPLE_APP_STORE_PRIVATE_KEY', '')  # Base64 encoded .p8 key
+
 # Sentry Settings (Error Tracking)
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 if SENTRY_DSN:

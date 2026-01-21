@@ -16,6 +16,10 @@ from .stripe_views import (
     create_checkout_session, create_portal_session,
     subscription_status, stripe_webhook, sync_subscription_from_stripe
 )
+from .appstore_views import (
+    verify_appstore_receipt, verify_appstore_transaction,
+    appstore_subscription_status, appstore_webhook, restore_appstore_purchases
+)
 
 router = DefaultRouter()
 router.register(r'passages', PassageViewSet, basename='passage')
@@ -64,12 +68,19 @@ urlpatterns = [
     path('auth/google/callback', google_oauth_callback, name='google-oauth-callback'),
     path('auth/google/token', google_oauth_token, name='google-oauth-token'),  # For iOS: verify ID token directly
     
-    # Stripe/Payment endpoints
+    # Stripe/Payment endpoints (Web & Android)
     path('payments/checkout', create_checkout_session, name='create-checkout'),
     path('payments/portal', create_portal_session, name='create-portal'),
     path('payments/subscription', subscription_status, name='subscription-status'),
     path('payments/sync', sync_subscription_from_stripe, name='sync-subscription'),
     path('payments/webhook', stripe_webhook, name='stripe-webhook'),
+    
+    # App Store/Payment endpoints (iOS)
+    path('payments/appstore/verify', verify_appstore_receipt, name='appstore-verify'),
+    path('payments/appstore/transaction', verify_appstore_transaction, name='appstore-transaction'),
+    path('payments/appstore/status', appstore_subscription_status, name='appstore-status'),
+    path('payments/appstore/restore', restore_appstore_purchases, name='appstore-restore'),
+    path('payments/appstore/webhook', appstore_webhook, name='appstore-webhook'),
     
     # Word of the Day
     path('word-of-the-day', WordOfTheDayView.as_view(), name='word-of-the-day'),

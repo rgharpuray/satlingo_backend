@@ -236,6 +236,50 @@ class Subscription(models.Model):
         return self.status == 'active' and self.current_period_end > timezone.now()
 
 
+class AppStoreSubscription(models.Model):
+    """
+    Track iOS App Store subscriptions (StoreKit 2).
+    Apple requires in-app purchases for iOS apps.
+    """
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('expired', 'Expired'),
+        ('in_billing_retry', 'In Billing Retry'),
+        ('in_grace_period', 'In Grace Period'),
+        ('revoked', 'Revoked'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appstore_subscriptions')
+    original_transaction_id = models.CharField(max_length=255, unique=True, help_text="Apple's original transaction ID")
+    product_id = models.CharField(max_length=255, help_text="Apple product ID (e.g., 'com.keuvi.premium.monthly')")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    purchase_date = models.DateTimeField(help_text="Original purchase date")
+    expires_date = models.DateTimeField(help_text="Current expiration date")
+    is_in_intro_offer = models.BooleanField(default=False)
+    is_upgraded = models.BooleanField(default=False)
+    environment = models.CharField(max_length=20, default='Production', help_text="Sandbox or Production")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'appstore_subscriptions'
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['original_transaction_id']),
+            models.Index(fields=['expires_date']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.product_id} - {self.status}"
+    
+    def is_active(self):
+        """Check if subscription is currently active"""
+        from django.utils import timezone
+        return self.status == 'active' and self.expires_date > timezone.now()
+
+
 class UserSession(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
