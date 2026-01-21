@@ -228,6 +228,16 @@ AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
 GOOGLE_OAUTH_REDIRECT_URI = os.environ.get('GOOGLE_OAUTH_REDIRECT_URI', '')
+# iOS Google Client ID (for token verification from iOS app)
+GOOGLE_OAUTH_IOS_CLIENT_ID = os.environ.get(
+    'GOOGLE_OAUTH_IOS_CLIENT_ID', 
+    '412415832820-s8dqgts2es0mtbc7efkqjui5l5ed2sgk.apps.googleusercontent.com'
+)
+# Android Google Client ID (for token verification from Android app)
+GOOGLE_OAUTH_ANDROID_CLIENT_ID = os.environ.get(
+    'GOOGLE_OAUTH_ANDROID_CLIENT_ID', 
+    '412415832820-kdps9c4s09r15fvp42rcbini75ptslu7.apps.googleusercontent.com'
+)
 
 # Sentry Settings (Error Tracking)
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')

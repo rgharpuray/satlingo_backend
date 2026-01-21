@@ -148,6 +148,125 @@ def me(request):
     })
 
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_oauth_token(request):
+    """
+    Verify a Google ID token directly (for iOS/mobile apps).
+    
+    iOS uses Google Sign-In SDK which returns an ID token directly,
+    rather than an auth code that needs to be exchanged.
+    
+    POST body: { "id_token": "..." }
+    """
+    from django.conf import settings
+    
+    id_token_str = request.data.get('id_token')
+    
+    if not id_token_str:
+        return Response(
+            {'error': {'code': 'BAD_REQUEST', 'message': 'id_token is required'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Build list of valid client IDs (web, iOS, Android)
+    valid_client_ids = []
+    if settings.GOOGLE_OAUTH_CLIENT_ID:
+        valid_client_ids.append(settings.GOOGLE_OAUTH_CLIENT_ID)
+    if settings.GOOGLE_OAUTH_IOS_CLIENT_ID:
+        valid_client_ids.append(settings.GOOGLE_OAUTH_IOS_CLIENT_ID)
+    if settings.GOOGLE_OAUTH_ANDROID_CLIENT_ID:
+        valid_client_ids.append(settings.GOOGLE_OAUTH_ANDROID_CLIENT_ID)
+    
+    if not valid_client_ids:
+        return Response(
+            {'error': {'code': 'CONFIGURATION_ERROR', 'message': 'Google OAuth not configured'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    # Try to verify against each valid client ID
+    idinfo = None
+    last_error = None
+    for client_id in valid_client_ids:
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                id_token_str,
+                google.auth.transport.requests.Request(),
+                client_id
+            )
+            break  # Success!
+        except ValueError as e:
+            last_error = e
+            continue
+    
+    if idinfo is None:
+        return Response(
+            {'error': {'code': 'OAUTH_ERROR', 'message': f'Invalid token: {str(last_error)}'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Extract user info
+    google_id = idinfo.get('sub')
+    email = idinfo.get('email')
+    given_name = idinfo.get('given_name', '')
+    family_name = idinfo.get('family_name', '')
+    
+    if not email:
+        return Response(
+            {'error': {'code': 'OAUTH_ERROR', 'message': 'Email not provided by Google'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Find or create user
+    user = None
+    if google_id:
+        try:
+            user = User.objects.get(google_id=google_id)
+        except User.DoesNotExist:
+            pass
+    
+    if not user:
+        try:
+            user = User.objects.get(email=email)
+            # Link Google account to existing user
+            if not user.google_id:
+                user.google_id = google_id
+                user.save()
+        except User.DoesNotExist:
+            # Create new user
+            username = email.split('@')[0]
+            base_username = username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+            
+            user = User.objects.create_user(
+                email=email,
+                username=username,
+                google_id=google_id,
+                first_name=given_name,
+                last_name=family_name,
+                password=None
+            )
+    
+    # Generate JWT tokens
+    refresh = RefreshToken.for_user(user)
+    
+    return Response({
+        'user': {
+            'id': str(user.id),
+            'email': user.email,
+            'username': user.username,
+            'is_premium': user.is_premium,
+        },
+        'tokens': {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        }
+    })
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def google_oauth_url(request):
@@ -273,15 +392,32 @@ def google_oauth_callback(request):
             )
         
         # Verify and decode the ID token
-        try:
-            idinfo = id_token.verify_oauth2_token(
-                id_token_str,
-                google.auth.transport.requests.Request(),
-                settings.GOOGLE_OAUTH_CLIENT_ID
-            )
-        except ValueError as e:
+        # Accept tokens from web, iOS, and Android client IDs
+        valid_client_ids = [settings.GOOGLE_OAUTH_CLIENT_ID]
+        if settings.GOOGLE_OAUTH_IOS_CLIENT_ID:
+            valid_client_ids.append(settings.GOOGLE_OAUTH_IOS_CLIENT_ID)
+        if settings.GOOGLE_OAUTH_ANDROID_CLIENT_ID:
+            valid_client_ids.append(settings.GOOGLE_OAUTH_ANDROID_CLIENT_ID)
+        
+        idinfo = None
+        last_error = None
+        for client_id in valid_client_ids:
+            if not client_id:
+                continue
+            try:
+                idinfo = id_token.verify_oauth2_token(
+                    id_token_str,
+                    google.auth.transport.requests.Request(),
+                    client_id
+                )
+                break
+            except ValueError as e:
+                last_error = e
+                continue
+        
+        if idinfo is None:
             return Response(
-                {'error': {'code': 'OAUTH_ERROR', 'message': f'Invalid token: {str(e)}'}},
+                {'error': {'code': 'OAUTH_ERROR', 'message': f'Invalid token: {str(last_error)}'}},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
