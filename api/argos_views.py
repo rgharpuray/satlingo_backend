@@ -10,7 +10,7 @@ from django.conf import settings
 from django.db import connection
 from django.utils import timezone
 from django.db.models import Count, Q
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
@@ -54,7 +54,8 @@ def require_argos_token(view_func):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@authentication_classes([])  # Bypass DRF authentication
+@permission_classes([AllowAny])  # Allow access (we check token manually)
 def argos_health(request):
     """
     Health check endpoint - checks database connectivity and overall service status.
@@ -113,7 +114,8 @@ def argos_health(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@authentication_classes([])  # Bypass DRF authentication
+@permission_classes([AllowAny])  # Allow access (we check token manually)
 def argos_metrics(request):
     """
     Metrics endpoint - aggregates user counts, errors, and performance metrics.
@@ -184,7 +186,8 @@ def argos_metrics(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@authentication_classes([])  # Bypass DRF authentication
+@permission_classes([AllowAny])  # Allow access (we check token manually)
 def argos_tests_run(request):
     """
     Trigger E2E test run.
@@ -322,7 +325,8 @@ def argos_tests_run(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@authentication_classes([])  # Bypass DRF authentication
+@permission_classes([AllowAny])  # Allow access (we check token manually)
 def argos_tests_latest(request):
     """
     Get latest completed test run results.
