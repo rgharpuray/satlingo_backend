@@ -28,7 +28,7 @@ Content-Type: application/json
   "success": true,
   "is_premium": true,
   "subscription": {
-    "product_id": "com.keuvi.premium.monthly",
+    "product_id": "keuvipremiumbase",
     "expires_date": "2026-02-21T00:00:00Z",
     "is_active": true,
     "environment": "Production"
@@ -59,7 +59,7 @@ Authorization: Bearer <access_token>
   "has_subscription": true,
   "source": "appstore",
   "status": "active",
-  "product_id": "com.keuvi.premium.monthly",
+  "product_id": "keuvipremiumbase",
   "expires_date": "2026-02-21T00:00:00Z",
   "environment": "Production"
 }
@@ -83,7 +83,7 @@ Content-Type: application/json
   "restored_count": 2,
   "is_premium": true,
   "active_subscription": {
-    "product_id": "com.keuvi.premium.monthly",
+    "product_id": "keuvipremiumbase",
     "expires_date": "2026-02-21T00:00:00Z"
   }
 }
@@ -472,13 +472,13 @@ struct BenefitRow: View {
    - Go to App Store Connect → Your App → In-App Purchases
    - Click "+" → Auto-Renewable Subscription
    - Reference Name: "Premium Monthly"
-   - Product ID: `com.keuvi.premium.monthly`
+   - Product ID: `keuvipremiumbase`
    - Price: $4.99 (or your choice)
 
 2. **Configure Server Notifications**
    - Go to App Store Connect → Your App → App Information
    - Scroll to "App Store Server Notifications"
-   - URL: `https://keuvi.herokuapp.com/api/v1/payments/appstore/webhook`
+   - URL: `https://keuvi.app/api/v1/payments/appstore/webhook`
    - Version: Version 2
 
 3. **Set Up Shared Secret** (for receipt verification)
@@ -506,3 +506,314 @@ struct BenefitRow: View {
 4. **User keeps premium until period ends**
 5. **When period ends, Apple sends EXPIRED notification**
 6. **Backend sets `is_premium = false`**
+
+**Important**: Users cancel subscriptions through iOS Settings → [Your Name] → Subscriptions → Keuvi. The app cannot cancel subscriptions directly (Apple requirement). However, you should:
+- Show subscription status in your app
+- Display expiration date
+- Provide a button that opens iOS Settings to manage subscription
+- Check subscription status on app launch
+
+---
+
+## Complete Implementation Guide
+
+### 1. Check Subscription Status on App Launch
+
+```swift
+// In your AppDelegate or SceneDelegate
+func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+    Task {
+        await checkSubscriptionStatus()
+    }
+    return true
+}
+
+// Or in your main view's onAppear
+struct ContentView: View {
+    @StateObject private var storeManager = StoreManager()
+    
+    var body: some View {
+        // Your app content
+        .onAppear {
+            Task {
+                await checkSubscriptionStatus()
+            }
+        }
+    }
+    
+    func checkSubscriptionStatus() async {
+        // Check with backend
+        do {
+            let status = try await APIClient.shared.getAppStoreSubscriptionStatus()
+            if status.hasSubscription {
+                AuthManager.shared.currentUser?.isPremium = true
+            }
+        } catch {
+            print("Failed to check subscription: \(error)")
+        }
+        
+        // Also check local StoreKit entitlements
+        await storeManager.updatePurchasedProducts()
+    }
+}
+```
+
+### 2. Subscription Management View
+
+```swift
+import SwiftUI
+import StoreKit
+
+struct SubscriptionManagementView: View {
+    @StateObject private var storeManager = StoreManager()
+    @State private var subscriptionStatus: AppStoreStatusResponse?
+    @State private var isLoading = false
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                if isLoading {
+                    ProgressView()
+                } else if let status = subscriptionStatus {
+                    if status.hasSubscription {
+                        // Active subscription
+                        VStack(spacing: 16) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Premium Active")
+                                    .font(.headline)
+                            }
+                            
+                            if let expiresDate = status.expiresDate {
+                                Text("Expires: \(formatDate(expiresDate))")
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Button(action: {
+                                openSubscriptionSettings()
+                            }) {
+                                Text("Manage Subscription")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                            
+                            Text("Manage your subscription in iOS Settings")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        // No subscription
+                        VStack(spacing: 16) {
+                            Text("No Active Subscription")
+                                .font(.headline)
+                            
+                            Button(action: {
+                                // Navigate to subscription purchase view
+                            }) {
+                                Text("Subscribe Now")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
+            .navigationTitle("Subscription")
+            .onAppear {
+                Task {
+                    await loadSubscriptionStatus()
+                }
+            }
+        }
+    }
+    
+    func loadSubscriptionStatus() async {
+        isLoading = true
+        do {
+            subscriptionStatus = try await APIClient.shared.getAppStoreSubscriptionStatus()
+        } catch {
+            print("Failed to load subscription status: \(error)")
+        }
+        isLoading = false
+    }
+    
+    func openSubscriptionSettings() {
+        // Open iOS Settings → Subscriptions
+        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+            UIApplication.shared.open(url)
+        }
+    }
+    
+    func formatDate(_ dateString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            displayFormatter.timeStyle = .none
+            return displayFormatter.string(from: date)
+        }
+        return dateString
+    }
+}
+```
+
+### 3. Handle Subscription Status Changes
+
+```swift
+// Add to StoreManager
+@MainActor
+class StoreManager: ObservableObject {
+    // ... existing code ...
+    
+    @Published var subscriptionStatus: SubscriptionStatus = .unknown
+    
+    enum SubscriptionStatus {
+        case unknown
+        case active
+        case expired
+        case cancelled
+    }
+    
+    // Check subscription status periodically
+    func startStatusMonitoring() {
+        Task {
+            while true {
+                await checkStatus()
+                try? await Task.sleep(nanoseconds: 3600_000_000_000) // Check every hour
+            }
+        }
+    }
+    
+    func checkStatus() async {
+        do {
+            let status = try await APIClient.shared.getAppStoreSubscriptionStatus()
+            
+            await MainActor.run {
+                if status.hasSubscription {
+                    self.subscriptionStatus = .active
+                    AuthManager.shared.currentUser?.isPremium = true
+                } else {
+                    self.subscriptionStatus = .expired
+                    AuthManager.shared.currentUser?.isPremium = false
+                }
+            }
+        } catch {
+            print("Failed to check status: \(error)")
+        }
+    }
+}
+```
+
+### 4. Listen for Transaction Updates (Auto-renewal, Cancellation)
+
+```swift
+// Enhanced transaction listener in StoreManager
+func listenForTransactions() -> Task<Void, Error> {
+    return Task.detached {
+        for await result in Transaction.updates {
+            do {
+                let transaction = try self.checkVerified(result)
+                
+                // Check transaction type
+                if transaction.revocationDate != nil {
+                    // Subscription was revoked/refunded
+                    await MainActor.run {
+                        self.subscriptionStatus = .cancelled
+                        AuthManager.shared.currentUser?.isPremium = false
+                    }
+                } else if transaction.expirationDate != nil,
+                          transaction.expirationDate! < Date() {
+                    // Subscription expired
+                    await MainActor.run {
+                        self.subscriptionStatus = .expired
+                        AuthManager.shared.currentUser?.isPremium = false
+                    }
+                } else {
+                    // Active subscription
+                    await self.verifyWithBackend(transaction: transaction)
+                }
+                
+                await transaction.finish()
+            } catch {
+                print("Transaction failed verification: \(error)")
+            }
+        }
+    }
+}
+```
+
+### 5. Show Premium Status Throughout App
+
+```swift
+// Create a view modifier or environment object
+@MainActor
+class PremiumManager: ObservableObject {
+    @Published var isPremium: Bool = false
+    
+    func checkPremiumStatus() async {
+        // Check with backend
+        do {
+            let status = try await APIClient.shared.getAppStoreSubscriptionStatus()
+            isPremium = status.hasSubscription
+        } catch {
+            // Fallback to local StoreKit check
+            let storeManager = StoreManager()
+            await storeManager.updatePurchasedProducts()
+            isPremium = !storeManager.purchasedProductIDs.isEmpty
+        }
+    }
+}
+
+// Use in your views
+struct PremiumContentView: View {
+    @StateObject private var premiumManager = PremiumManager()
+    
+    var body: some View {
+        if premiumManager.isPremium {
+            // Premium content
+        } else {
+            // Free content or upgrade prompt
+        }
+    }
+}
+```
+
+---
+
+## Testing Checklist
+
+### Sandbox Testing
+1. Create sandbox test account in App Store Connect
+2. Sign out of App Store on device
+3. Test purchase flow
+4. Test cancellation (cancel in Settings)
+5. Test restore purchases
+6. Verify backend receives webhooks
+
+### Production Testing
+1. Submit app with subscription for review
+2. Apple will test the subscription flow
+3. Once approved, test with real account
+4. Monitor webhook logs on Heroku
+
+---
+
+## Important Notes
+
+1. **Cancellation**: Users must cancel through iOS Settings. Your app cannot cancel subscriptions (Apple requirement).
+
+2. **Status Sync**: Always check subscription status on app launch and periodically during use.
+
+3. **Webhooks**: Backend automatically handles renewals, cancellations, and expirations via webhooks. The app should periodically check status as a backup.
+
+4. **Restore Purchases**: Always provide a "Restore Purchases" button for users who reinstall the app or switch devices.
+
+5. **Error Handling**: Handle network errors gracefully. If backend verification fails, you can still check local StoreKit entitlements as a fallback.

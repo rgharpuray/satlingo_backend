@@ -155,9 +155,18 @@ def create_portal_session(request):
         )
     
     try:
+        # Build return URL for portal (same logic as checkout)
+        host = request.get_host()
+        if 'keuvi.app' in host or not settings.DEBUG:
+            scheme = 'https'
+        else:
+            scheme = 'http'
+        
+        return_url = f"{scheme}://{host}/web/"
+        
         portal_session = stripe.billing_portal.Session.create(
             customer=user.stripe_customer_id,
-            return_url=request.build_absolute_uri('/web/subscription'),
+            return_url=return_url,
         )
         
         return Response({

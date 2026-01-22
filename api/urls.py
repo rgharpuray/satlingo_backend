@@ -20,6 +20,9 @@ from .appstore_views import (
     verify_appstore_receipt, verify_appstore_transaction,
     appstore_subscription_status, appstore_webhook, restore_appstore_purchases
 )
+from .argos_views import (
+    argos_health, argos_metrics, argos_tests_run, argos_tests_latest
+)
 
 router = DefaultRouter()
 router.register(r'passages', PassageViewSet, basename='passage')
@@ -95,5 +98,11 @@ urlpatterns = [
     path('progress/lessons/<str:lesson_id>/submit', SubmitLessonView.as_view(), name='progress-lesson-submit'),
     path('progress/lessons/<str:lesson_id>/review', ReviewLessonView.as_view(), name='progress-lesson-review'),
     path('progress/lessons/<str:lesson_id>/attempts', LessonAttemptsView.as_view(), name='progress-lesson-attempts'),
+    
+    # Argos Control monitoring endpoints
+    path('argos/health', argos_health, name='argos-health'),
+    path('argos/metrics', argos_metrics, name='argos-metrics'),
+    path('argos/tests/run', argos_tests_run, name='argos-tests-run'),
+    path('argos/tests/latest', argos_tests_latest, name='argos-tests-latest'),
 ]
 

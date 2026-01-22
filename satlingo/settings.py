@@ -268,3 +268,8 @@ if POSTHOG_API_KEY:
     posthog.project_api_key = POSTHOG_API_KEY
     posthog.host = POSTHOG_HOST
     posthog.debug = DEBUG
+
+# Argos Control Settings (Monitoring)
+ARGOS_TOKEN = os.environ.get('ARGOS_TOKEN', '')
+SERVICE_NAME = os.environ.get('SERVICE_NAME', 'satlingo-backend')
+VERSION = os.environ.get('VERSION', '1.0.0')
