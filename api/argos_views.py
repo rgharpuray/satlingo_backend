@@ -149,10 +149,10 @@ def argos_metrics(request):
         # Users active today (users with sessions or attempts in last 24h)
         users_today = User.objects.filter(
             Q(sessions__created_at__gte=yesterday) |
-            Q(passageattempt__completed_at__gte=yesterday) |
-            Q(lessonattempt__completed_at__gte=yesterday) |
-            Q(writingsectionattempt__completed_at__gte=yesterday) |
-            Q(mathsectionattempt__completed_at__gte=yesterday)
+            Q(passage_attempts__completed_at__gte=yesterday) |
+            Q(lesson_attempts__completed_at__gte=yesterday) |
+            Q(writing_section_attempts__completed_at__gte=yesterday) |
+            Q(math_section_attempts__completed_at__gte=yesterday)
         ).distinct().count()
         
         # Total users
