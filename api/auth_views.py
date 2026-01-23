@@ -8,12 +8,20 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.shortcuts import redirect
-from .models import User
+from django.utils import timezone
+from .models import User, Subscription, AppStoreSubscription
 import google.auth.transport.requests
 from google.oauth2 import id_token
 import requests
 from urllib.parse import quote
 import logging
+import jwt
+from jwt.algorithms import RSAAlgorithm
+try:
+    import stripe
+    stripe_available = True
+except ImportError:
+    stripe_available = False
 
 logger = logging.getLogger(__name__)
 
@@ -529,6 +537,254 @@ def google_oauth_callback(request):
         logger.error(f"Google OAuth unexpected error: {str(e)}", exc_info=True)
         return Response(
             {'error': {'code': 'INTERNAL_ERROR', 'message': f'Unexpected error: {str(e)}'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+def verify_apple_token(identity_token, bundle_id):
+    """
+    Verify Apple identity token and return decoded claims.
+    
+    Args:
+        identity_token: JWT string from Apple Sign In
+        bundle_id: Your app's bundle ID (e.g., 'com.keuvi.app')
+    
+    Returns:
+        dict: Decoded token claims (sub, email, etc.)
+    
+    Raises:
+        ValueError: If token is invalid
+    """
+    try:
+        # Fetch Apple's public keys
+        apple_keys_url = 'https://appleid.apple.com/auth/keys'
+        apple_keys_response = requests.get(apple_keys_url, timeout=10)
+        apple_keys_response.raise_for_status()
+        apple_keys = apple_keys_response.json()
+        
+        # Decode header to get kid (key ID)
+        unverified_header = jwt.get_unverified_header(identity_token)
+        kid = unverified_header.get('kid')
+        
+        if not kid:
+            raise ValueError("Token header missing 'kid'")
+        
+        # Find matching key
+        matching_key = None
+        for key in apple_keys.get('keys', []):
+            if key.get('kid') == kid:
+                matching_key = key
+                break
+        
+        if not matching_key:
+            raise ValueError(f"No matching key found for kid: {kid}")
+        
+        # Construct public key from JWK
+        public_key = RSAAlgorithm.from_jwk(matching_key)
+        
+        # Verify and decode the token
+        decoded = jwt.decode(
+            identity_token,
+            public_key,
+            algorithms=['RS256'],
+            audience=bundle_id,
+            issuer='https://appleid.apple.com'
+        )
+        
+        return decoded
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Token has expired")
+    except jwt.InvalidAudienceError:
+        raise ValueError(f"Invalid audience. Expected: {bundle_id}")
+    except jwt.InvalidIssuerError:
+        raise ValueError("Invalid issuer. Expected: https://appleid.apple.com")
+    except Exception as e:
+        raise ValueError(f"Token verification failed: {str(e)}")
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def apple_oauth_token(request):
+    """
+    Verify Apple identity token and create/login user.
+    
+    POST body:
+    {
+        "identity_token": "eyJraWQiOiJXNldjT0...",  // Required: JWT from Apple
+        "email": "user@example.com",                 // Optional: Only on first sign-in
+        "first_name": "John",                        // Optional: Only on first sign-in
+        "last_name": "Doe"                           // Optional: Only on first sign-in
+    }
+    """
+    identity_token = request.data.get('identity_token')
+    email = request.data.get('email')  # Optional, may be in token or request
+    first_name = request.data.get('first_name', '')
+    last_name = request.data.get('last_name', '')
+    
+    if not identity_token:
+        return Response(
+            {'error': {'code': 'BAD_REQUEST', 'message': 'identity_token is required'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    bundle_id = settings.APPLE_BUNDLE_ID
+    if not bundle_id:
+        return Response(
+            {'error': {'code': 'CONFIGURATION_ERROR', 'message': 'Apple Bundle ID not configured'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    try:
+        # Verify the token
+        decoded_token = verify_apple_token(identity_token, bundle_id)
+        
+        # Extract user info from token
+        apple_user_id = decoded_token.get('sub')  # Apple's unique user ID
+        token_email = decoded_token.get('email')  # Email may be in token (first sign-in only)
+        
+        # Use email from token if available, otherwise use email from request
+        user_email = token_email or email
+        
+        if not apple_user_id:
+            return Response(
+                {'error': {'code': 'OAUTH_ERROR', 'message': 'Invalid token: missing sub claim'}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Find or create user
+        user = None
+        
+        # First, try to find by Apple ID
+        if apple_user_id:
+            try:
+                user = User.objects.get(apple_id=apple_user_id)
+            except User.DoesNotExist:
+                pass
+        
+        # If not found by Apple ID, try to find by email (for account linking)
+        if not user and user_email:
+            try:
+                user = User.objects.get(email=user_email)
+                # Link Apple account to existing user
+                if not user.apple_id:
+                    user.apple_id = apple_user_id
+                    user.save()
+            except User.DoesNotExist:
+                pass
+        
+        # If still no user, create a new one
+        if not user:
+            # Generate email if not provided (Apple private relay or placeholder)
+            if not user_email:
+                user_email = f"{apple_user_id}@privaterelay.appleid.com"
+            
+            # Generate unique username
+            username = user_email.split('@')[0]
+            base_username = username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+            
+            user = User.objects.create_user(
+                email=user_email,
+                username=username,
+                apple_id=apple_user_id,
+                first_name=first_name,
+                last_name=last_name,
+                password=None  # No password for OAuth users
+            )
+        
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'user': {
+                'id': str(user.id),
+                'email': user.email,
+                'username': user.username,
+                'is_premium': user.is_premium,
+            },
+            'tokens': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+            }
+        })
+        
+    except ValueError as e:
+        logger.error(f"Apple OAuth token verification failed: {str(e)}", exc_info=True)
+        return Response(
+            {'error': {'code': 'OAUTH_ERROR', 'message': f'Invalid token: {str(e)}'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f"Apple OAuth unexpected error: {str(e)}", exc_info=True)
+        return Response(
+            {'error': {'code': 'INTERNAL_ERROR', 'message': f'Unexpected error: {str(e)}'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_account(request):
+    """
+    Delete user account and all associated data.
+    
+    Required by Apple App Store Guideline 5.1.1(v).
+    
+    This will:
+    - Cancel any active subscriptions (Stripe and App Store)
+    - Delete or anonymize user data
+    - Invalidate all refresh tokens
+    - Log the deletion
+    """
+    user = request.user
+    
+    try:
+        # Cancel Stripe subscriptions
+        stripe_subscriptions = Subscription.objects.filter(user=user, status='active')
+        for sub in stripe_subscriptions:
+            try:
+                if sub.stripe_subscription_id and stripe_available and settings.STRIPE_SECRET_KEY:
+                    stripe.api_key = settings.STRIPE_SECRET_KEY
+                    stripe.Subscription.delete(sub.stripe_subscription_id)
+                    logger.info(f"Cancelled Stripe subscription {sub.stripe_subscription_id} for user {user.email}")
+            except Exception as e:
+                logger.error(f"Error cancelling Stripe subscription {sub.stripe_subscription_id}: {str(e)}", exc_info=True)
+            
+            # Mark subscription as cancelled in database
+            sub.status = 'canceled'
+            sub.save()
+        
+        # Cancel App Store subscriptions (mark as revoked)
+        appstore_subscriptions = AppStoreSubscription.objects.filter(user=user, status='active')
+        for sub in appstore_subscriptions:
+            sub.status = 'revoked'
+            sub.save()
+            logger.info(f"Revoked App Store subscription {sub.original_transaction_id} for user {user.email}")
+        
+        # Invalidate all refresh tokens for this user
+        # Note: simplejwt doesn't have a built-in blacklist, but we can delete refresh tokens
+        # by filtering them (they're stored in the database if using a token blacklist app)
+        # For now, we'll just delete the user which will cascade to related tokens
+        
+        # Store user info for logging before deletion
+        user_id = user.id
+        user_email = user.email
+        
+        # Delete all user-related data (cascade will handle related objects)
+        # This includes: UserProgress, UserAnswer, PassageAttempt, LessonAttempt, etc.
+        user.delete()
+        
+        logger.info(f"Account deleted: user_id={user_id}, email={user_email}, ip={request.META.get('REMOTE_ADDR', 'unknown')}")
+        
+        return Response({}, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error deleting account for user {user.email}: {str(e)}", exc_info=True)
+        return Response(
+            {'error': {'code': 'INTERNAL_ERROR', 'message': f'Failed to delete account: {str(e)}'}},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 

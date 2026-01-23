@@ -11,7 +11,7 @@ from .views import (
     QuestionClassificationViewSet, UserProfileView, DiagnosticSubmitView,
     SubmitLessonView, ReviewLessonView, LessonAttemptsView
 )
-from .auth_views import register, login, me, google_oauth_url, google_oauth_callback, google_oauth_token
+from .auth_views import register, login, me, google_oauth_url, google_oauth_callback, google_oauth_token, apple_oauth_token, delete_account
 from .stripe_views import (
     create_checkout_session, create_portal_session,
     subscription_status, stripe_webhook, sync_subscription_from_stripe
@@ -70,6 +70,8 @@ urlpatterns = [
     path('auth/google/url', google_oauth_url, name='google-oauth-url'),
     path('auth/google/callback', google_oauth_callback, name='google-oauth-callback'),
     path('auth/google/token', google_oauth_token, name='google-oauth-token'),  # For iOS: verify ID token directly
+    path('auth/apple/token', apple_oauth_token, name='apple-oauth-token'),  # Apple Sign In
+    path('auth/delete-account', delete_account, name='delete-account'),  # Account deletion (App Store requirement)
     
     # Stripe/Payment endpoints (Web & Android)
     path('payments/checkout', create_checkout_session, name='create-checkout'),

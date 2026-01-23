@@ -184,6 +184,7 @@ class User(AbstractUser):
     is_premium = models.BooleanField(default=False)
     stripe_customer_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
     google_id = models.CharField(max_length=255, null=True, blank=True, unique=True, help_text="Google OAuth ID")
+    apple_id = models.CharField(max_length=255, null=True, blank=True, unique=True, help_text="Apple Sign In ID (sub claim from identity token)")
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
