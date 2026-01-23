@@ -2979,8 +2979,8 @@
                         if (!currentUser) {
                             lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">Log in to access all lessons.</p>';
                         } else {
-                            lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
-                        }
+                        lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
+                    }
                     } else if (!currentUser) {
                         // Add CTA banner for non-logged-in users
                         const ctaBanner = document.createElement('div');
@@ -2995,8 +2995,8 @@
                 } else {
                     if (!currentUser) {
                         lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">Log in to access all lessons.</p>';
-                    } else {
-                        lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
+                } else {
+                    lessonsList.innerHTML = '<p style="color: #666; font-style: italic;">No lessons available yet.</p>';
                     }
                 }
             } catch (error) {
@@ -3560,7 +3560,7 @@
                     if (!currentUser) {
                         passagesList.innerHTML = '<p style="color: #666; font-style: italic;">Log in to access all passages.</p>';
                     } else {
-                        passagesList.innerHTML = '<p style="color: #666; font-style: italic;">No passages available yet.</p>';
+                    passagesList.innerHTML = '<p style="color: #666; font-style: italic;">No passages available yet.</p>';
                     }
                 }
             } catch (error) {
@@ -6375,9 +6375,9 @@
                 currentPageQuestions = lessonData.questions;
             } else {
                 currentPageQuestions = lessonData.questions.filter(q => {
-                    // Check if question's chunk_index is in the current page
-                    return q.chunk_index !== undefined && currentPageChunkIndices.has(q.chunk_index);
-                });
+                // Check if question's chunk_index is in the current page
+                return q.chunk_index !== undefined && currentPageChunkIndices.has(q.chunk_index);
+            });
             }
             
             if (currentPageQuestions.length === 0) {
@@ -6385,31 +6385,43 @@
                 return;
             }
             
+            // Calculate correct answers for current page questions (for display only)
             let correctCount = 0;
             const totalQuestions = currentPageQuestions.length;
             
-            // Build answers array for backend submission
-            const answersForBackend = [];
-            
-            // Calculate correct answers for current page questions only
             currentPageQuestions.forEach(question => {
                 const userAnswer = userAnswers[question.id];
                 const isCorrect = userAnswer === question.correct_answer_index;
                 if (isCorrect) {
                     correctCount++;
                 }
-                
-                // Track for backend
-                answersForBackend.push({
-                    question_id: question.id,
-                    selected_option_index: userAnswer !== undefined ? userAnswer : -1,
-                    is_correct: isCorrect
-                });
             });
             
             const percentage = Math.round((correctCount / totalQuestions) * 100);
             
+            // Build answers array for backend submission - include ALL questions in the lesson
+            // This aggregates all answers across all pages into a single submission
+            const allLessonQuestions = lessonData.questions || [];
+            const answersForBackend = [];
+            let allQuestionsAnswered = true;
+            
+            allLessonQuestions.forEach(question => {
+                const userAnswer = userAnswers[question.id];
+                const hasAnswer = userAnswer !== undefined && userAnswer !== null;
+                
+                if (!hasAnswer) {
+                    allQuestionsAnswered = false;
+                }
+                
+                // Include all questions, even if not answered (use -1 for unanswered)
+                answersForBackend.push({
+                    question_id: question.id,
+                    selected_option_index: hasAnswer ? userAnswer : -1
+                });
+            });
+            
             // Submit to backend for ALL lessons (logged in or not - track progress)
+            // This aggregates all answers from all pages into a single attempt
             if (currentLessonId) {
                 try {
                     const headers = {
@@ -6419,12 +6431,16 @@
                         headers['Authorization'] = `Bearer ${authToken}`;
                     }
                     
+                    // Determine if this is a complete submission (all questions answered)
+                    const isComplete = allQuestionsAnswered && answersForBackend.length === allLessonQuestions.length;
+                    
                     const submitResponse = await fetch(`${API_BASE}/progress/lessons/${currentLessonId}/submit`, {
                         method: 'POST',
                         headers: headers,
                         body: JSON.stringify({
                             answers: answersForBackend,
-                            time_spent_seconds: null // Could track this with a timer
+                            time_spent_seconds: null, // Could track this with a timer
+                            is_complete: isComplete  // Tell backend if this is the final submission
                         })
                     });
                     
@@ -6432,8 +6448,10 @@
                         const submitResult = await submitResponse.json();
                         console.log('Lesson submitted successfully:', submitResult);
                         
-                        // Update UI with backend score if available
-                        if (submitResult.score !== undefined) {
+                        // Update UI with backend score if available (for current page display)
+                        // Note: Backend score is for ALL questions, current page score is just for display
+                        if (submitResult.score !== undefined && isComplete) {
+                            // If complete, show overall score
                             correctCount = submitResult.correct_count;
                         }
                     } else {
@@ -6460,11 +6478,11 @@
                 `;
             } else {
                 resultsHeader = `
-                    <div class="results-summary">
-                        <h3>Your Results (Page ${currentPageIndex + 1})</h3>
-                        <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
-                    </div>
-                `;
+                <div class="results-summary">
+                    <h3>Your Results (Page ${currentPageIndex + 1})</h3>
+                    <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                </div>
+            `;
             }
             
             let resultsHTML = resultsHeader;

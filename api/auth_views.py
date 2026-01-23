@@ -419,14 +419,14 @@ def google_oauth_callback(request):
         for client_id in valid_client_ids:
             if not client_id:
                 continue
-            try:
-                idinfo = id_token.verify_oauth2_token(
-                    id_token_str,
-                    google.auth.transport.requests.Request(),
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                id_token_str,
+                google.auth.transport.requests.Request(),
                     client_id
-                )
+            )
                 break
-            except ValueError as e:
+        except ValueError as e:
                 last_error = e
                 continue
         

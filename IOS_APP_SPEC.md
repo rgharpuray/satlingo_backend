@@ -609,6 +609,8 @@ Response (200):
     "reading": {
       "diagnostic_completed": true,
       "diagnostic_passage_id": "uuid",
+      "diagnostic_passage_title": "Reading Diagnostic Test",
+      "diagnostic_type": "passage",
       "strengths": [
         {
           "name": "Main Idea",
@@ -629,12 +631,16 @@ Response (200):
     "writing": {
       "diagnostic_completed": false,
       "diagnostic_lesson_id": "uuid",
+      "diagnostic_lesson_title": "Writing Diagnostic Test",
+      "diagnostic_type": "lesson",
       "strengths": [],
       "weaknesses": []
     },
     "math": {
       "diagnostic_completed": false,
       "diagnostic_lesson_id": "uuid",
+      "diagnostic_lesson_title": "Math Diagnostic Test",
+      "diagnostic_type": "lesson",
       "strengths": [],
       "weaknesses": []
     },
@@ -1208,6 +1214,9 @@ struct CategoryPlan: Codable {
     let diagnosticCompleted: Bool
     let diagnosticPassageId: UUID?  // For reading
     let diagnosticLessonId: UUID?   // For writing/math
+    let diagnosticPassageTitle: String?  // For reading
+    let diagnosticLessonTitle: String?  // For writing/math
+    let diagnosticType: String  // "passage" or "lesson"
     let strengths: [SkillPerformance]
     let weaknesses: [SkillPerformance]
     
@@ -1216,6 +1225,9 @@ struct CategoryPlan: Codable {
         case diagnosticCompleted = "diagnostic_completed"
         case diagnosticPassageId = "diagnostic_passage_id"
         case diagnosticLessonId = "diagnostic_lesson_id"
+        case diagnosticPassageTitle = "diagnostic_passage_title"
+        case diagnosticLessonTitle = "diagnostic_lesson_title"
+        case diagnosticType = "diagnostic_type"
     }
 }
 

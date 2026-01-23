@@ -1012,6 +1012,8 @@ class SubmitWritingSectionView(APIView):
     """
     View for submitting answers to a writing section.
     POST /progress/writing-sections/:writing_section_id/submit - Submit answers
+    
+    Supports incremental submissions (one question at a time) and aggregates into final attempt.
     """
     
     def post(self, request, writing_section_id):
@@ -1032,63 +1034,122 @@ class SubmitWritingSectionView(APIView):
         
         answers_data = serializer.validated_data['answers']
         time_spent = serializer.validated_data.get('time_spent_seconds', 0)
+        is_complete = request.data.get('is_complete', False)
         
         # Get all questions for the writing section
         questions = writing_section.questions.all().order_by('order')
         question_dict = {str(q.id): q for q in questions}
+        total_questions_in_section = questions.count()
+        
+        # Check if there's an in-progress attempt
+        in_progress_attempt = None
+        if user:
+            recent_attempts = WritingSectionAttempt.objects.filter(
+                user=user,
+                writing_section=writing_section
+            ).order_by('-created_at')
+            
+            if recent_attempts.exists():
+                latest_attempt = recent_attempts.first()
+                if len(latest_attempt.answers_data) < total_questions_in_section:
+                    in_progress_attempt = latest_attempt
         
         # Process answers
         answer_results = []
-        correct_count = 0
-        total_questions = questions.count()
-        
-        for answer_data in answers_data:
-            question_id = str(answer_data['question_id'])
-            if question_id not in question_dict:
-                continue
+        if in_progress_attempt:
+            # Merge with existing answers
+            existing_answers = {a['question_id']: a for a in in_progress_attempt.answers_data}
             
-            question = question_dict[question_id]
-            selected_index = answer_data['selected_option_index']
-            is_correct = selected_index == question.correct_answer_index
+            for answer_data in answers_data:
+                question_id = str(answer_data['question_id'])
+                if question_id not in question_dict:
+                    continue
+                
+                question = question_dict[question_id]
+                selected_index = answer_data['selected_option_index']
+                is_correct = selected_index == question.correct_answer_index
+                
+                answer_result = {
+                    'question_id': question_id,
+                    'selected_option_index': selected_index,
+                    'correct_answer_index': question.correct_answer_index,
+                    'is_correct': is_correct,
+                    'explanation': question.explanation,
+                }
+                existing_answers[question_id] = answer_result
             
-            if is_correct:
-                correct_count += 1
-            
-            # Note: UserAnswer is only for Passage questions
-            # Writing section answers are stored in WritingSectionAttempt.answers_data (JSON field)
-            
-            answer_results.append({
-                'question_id': question_id,
-                'selected_option_index': selected_index,
-                'correct_answer_index': question.correct_answer_index,
-                'is_correct': is_correct,
-                'explanation': question.explanation,
-            })
+            answer_results = list(existing_answers.values())
+        else:
+            # New submission
+            for answer_data in answers_data:
+                question_id = str(answer_data['question_id'])
+                if question_id not in question_dict:
+                    continue
+                
+                question = question_dict[question_id]
+                selected_index = answer_data['selected_option_index']
+                is_correct = selected_index == question.correct_answer_index
+                
+                # Note: UserAnswer is only for Passage questions
+                # Writing section answers are stored in WritingSectionAttempt.answers_data (JSON field)
+                
+                answer_results.append({
+                    'question_id': question_id,
+                    'selected_option_index': selected_index,
+                    'correct_answer_index': question.correct_answer_index,
+                    'is_correct': is_correct,
+                    'explanation': question.explanation,
+                })
         
         # Calculate score
-        score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
+        correct_count = sum(1 for a in answer_results if a.get('is_correct', False))
+        total_questions_answered = len(answer_results)
+        is_final_submission = is_complete or (total_questions_answered >= total_questions_in_section)
         
-        # Create a new attempt record (for logged-in users only)
+        total_questions_for_score = total_questions_in_section if is_final_submission else total_questions_answered
+        score = int((correct_count / total_questions_for_score * 100)) if total_questions_for_score > 0 else 0
+        
+        # Update or create attempt record
         attempt = None
         if user:
-            attempt = WritingSectionAttempt.objects.create(
-                user=user,
-                writing_section=writing_section,
-                score=score,
-                correct_count=correct_count,
-                total_questions=total_questions,
-                time_spent_seconds=time_spent,
-                answers_data=answer_results,
-            )
+            if in_progress_attempt and not is_final_submission:
+                # Update existing in-progress attempt
+                in_progress_attempt.answers_data = answer_results
+                in_progress_attempt.correct_count = correct_count
+                in_progress_attempt.total_questions = total_questions_answered
+                in_progress_attempt.time_spent_seconds = time_spent
+                in_progress_attempt.save()
+                attempt = in_progress_attempt
+            elif in_progress_attempt:
+                # Finalize existing attempt
+                in_progress_attempt.score = score
+                in_progress_attempt.correct_count = correct_count
+                in_progress_attempt.total_questions = total_questions_in_section
+                in_progress_attempt.answers_data = answer_results
+                in_progress_attempt.time_spent_seconds = time_spent
+                in_progress_attempt.save()
+                attempt = in_progress_attempt
+            else:
+                # Create new attempt
+                attempt = WritingSectionAttempt.objects.create(
+                    user=user,
+                    writing_section=writing_section,
+                    score=score,
+                    correct_count=correct_count,
+                    total_questions=total_questions_in_section if is_final_submission else total_questions_answered,
+                    time_spent_seconds=time_spent,
+                    answers_data=answer_results,
+                )
         
         response_data = {
             'writing_section_id': str(writing_section.id),
             'score': score,
-            'total_questions': total_questions,
+            'total_questions': total_questions_in_section,
+            'total_questions_answered': total_questions_answered,
             'correct_count': correct_count,
-            'is_completed': True,
+            'is_completed': is_final_submission,
             'answers': answer_results,
-            'completed_at': timezone.now().isoformat(),
+            'completed_at': timezone.now().isoformat() if is_final_submission else None,
             'attempt_id': str(attempt.id) if attempt else None,
         }
         
@@ -1223,6 +1284,8 @@ class SubmitMathSectionView(APIView):
     """
     View for submitting answers to a math section.
     POST /progress/math-sections/:math_section_id/submit - Submit answers
+    
+    Supports incremental submissions (one question at a time) and aggregates into final attempt.
     """
     
     def post(self, request, math_section_id):
@@ -1244,60 +1307,119 @@ class SubmitMathSectionView(APIView):
         
         answers_data = serializer.validated_data['answers']
         time_spent = serializer.validated_data.get('time_spent_seconds', 0)
+        is_complete = request.data.get('is_complete', False)
         
         # Get all questions for the math section
         questions = math_section.questions.all().order_by('order')
         question_dict = {str(q.id): q for q in questions}
+        total_questions_in_section = questions.count()
+        
+        # Check if there's an in-progress attempt
+        in_progress_attempt = None
+        if user:
+            recent_attempts = MathSectionAttempt.objects.filter(
+                user=user,
+                math_section=math_section
+            ).order_by('-created_at')
+            
+            if recent_attempts.exists():
+                latest_attempt = recent_attempts.first()
+                if len(latest_attempt.answers_data) < total_questions_in_section:
+                    in_progress_attempt = latest_attempt
         
         # Process answers
         answer_results = []
-        correct_count = 0
-        total_questions = questions.count()
-        
-        for answer_data in answers_data:
-            question_id = str(answer_data['question_id'])
-            if question_id not in question_dict:
-                continue
+        if in_progress_attempt:
+            # Merge with existing answers
+            existing_answers = {a['question_id']: a for a in in_progress_attempt.answers_data}
             
-            question = question_dict[question_id]
-            selected_index = answer_data['selected_option_index']
-            is_correct = selected_index == question.correct_answer_index
+            for answer_data in answers_data:
+                question_id = str(answer_data['question_id'])
+                if question_id not in question_dict:
+                    continue
+                
+                question = question_dict[question_id]
+                selected_index = answer_data['selected_option_index']
+                is_correct = selected_index == question.correct_answer_index
+                
+                answer_result = {
+                    'question_id': question_id,
+                    'selected_option_index': selected_index,
+                    'correct_answer_index': question.correct_answer_index,
+                    'is_correct': is_correct,
+                    'explanation': question.explanation or '',
+                }
+                existing_answers[question_id] = answer_result
             
-            if is_correct:
-                correct_count += 1
-            
-            answer_results.append({
-                'question_id': question_id,
-                'selected_option_index': selected_index,
-                'correct_answer_index': question.correct_answer_index,
-                'is_correct': is_correct,
-                'explanation': question.explanation or '',
-            })
+            answer_results = list(existing_answers.values())
+        else:
+            # New submission
+            for answer_data in answers_data:
+                question_id = str(answer_data['question_id'])
+                if question_id not in question_dict:
+                    continue
+                
+                question = question_dict[question_id]
+                selected_index = answer_data['selected_option_index']
+                is_correct = selected_index == question.correct_answer_index
+                
+                answer_results.append({
+                    'question_id': question_id,
+                    'selected_option_index': selected_index,
+                    'correct_answer_index': question.correct_answer_index,
+                    'is_correct': is_correct,
+                    'explanation': question.explanation or '',
+                })
         
         # Calculate score
-        score = int((correct_count / total_questions * 100)) if total_questions > 0 else 0
+        correct_count = sum(1 for a in answer_results if a.get('is_correct', False))
+        total_questions_answered = len(answer_results)
+        is_final_submission = is_complete or (total_questions_answered >= total_questions_in_section)
         
-        # Create a new attempt record (for logged-in users only)
+        total_questions_for_score = total_questions_in_section if is_final_submission else total_questions_answered
+        score = int((correct_count / total_questions_for_score * 100)) if total_questions_for_score > 0 else 0
+        
+        # Update or create attempt record
         attempt = None
         if user:
-            attempt = MathSectionAttempt.objects.create(
-                user=user,
-                math_section=math_section,
-                score=score,
-                correct_count=correct_count,
-                total_questions=total_questions,
-                time_spent_seconds=time_spent,
-                answers_data=answer_results,
-            )
+            if in_progress_attempt and not is_final_submission:
+                # Update existing in-progress attempt
+                in_progress_attempt.answers_data = answer_results
+                in_progress_attempt.correct_count = correct_count
+                in_progress_attempt.total_questions = total_questions_answered
+                in_progress_attempt.time_spent_seconds = time_spent
+                in_progress_attempt.save()
+                attempt = in_progress_attempt
+            elif in_progress_attempt:
+                # Finalize existing attempt
+                in_progress_attempt.score = score
+                in_progress_attempt.correct_count = correct_count
+                in_progress_attempt.total_questions = total_questions_in_section
+                in_progress_attempt.answers_data = answer_results
+                in_progress_attempt.time_spent_seconds = time_spent
+                in_progress_attempt.save()
+                attempt = in_progress_attempt
+            else:
+                # Create new attempt
+                attempt = MathSectionAttempt.objects.create(
+                    user=user,
+                    math_section=math_section,
+                    score=score,
+                    correct_count=correct_count,
+                    total_questions=total_questions_in_section if is_final_submission else total_questions_answered,
+                    time_spent_seconds=time_spent,
+                    answers_data=answer_results,
+                )
         
         response_data = {
             'writing_section_id': str(math_section.id),  # Use writing_section_id to match serializer
             'score': score,
-            'total_questions': total_questions,
+            'total_questions': total_questions_in_section,
+            'total_questions_answered': total_questions_answered,
             'correct_count': correct_count,
-            'is_completed': True,
+            'is_completed': is_final_submission,
             'answers': answer_results,
-            'completed_at': timezone.now().isoformat(),
+            'completed_at': timezone.now().isoformat() if is_final_submission else None,
             'attempt_id': str(attempt.id) if attempt else None,
         }
         
@@ -1869,6 +1991,25 @@ class SubmitLessonView(APIView):
     """
     Submit lesson answers and track progress.
     POST /progress/lessons/<lesson_id>/submit
+    
+    Supports two modes:
+    1. Incremental submission: Submit one answer at a time (for immediate feedback)
+       - Send single answer in 'answers' array
+       - Backend aggregates answers into in-progress attempt
+    2. Final submission: Submit all answers at once (when lesson is complete)
+       - Send all answers in 'answers' array
+       - Set 'is_complete' to true (or backend detects when all questions answered)
+       - Backend finalizes the attempt
+    
+    Request body:
+    {
+        "answers": [
+            {"question_id": "uuid", "selected_option_index": 0},
+            ...
+        ],
+        "time_spent_seconds": 300,
+        "is_complete": true  // Optional: explicitly mark as complete
+    }
     """
     
     def post(self, request, lesson_id):
@@ -1881,55 +2022,136 @@ class SubmitLessonView(APIView):
         
         answers = request.data.get('answers', [])
         time_spent = request.data.get('time_spent_seconds')
+        is_complete = request.data.get('is_complete', False)
         
         if not answers:
             return Response({'error': 'No answers provided'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Calculate score
-        correct_count = 0
-        total_questions = len(answers)
+        # Get all questions for this lesson to determine total count
+        all_questions = lesson.questions.all().order_by('order')
+        total_questions_in_lesson = all_questions.count()
+        question_dict = {str(q.id): q for q in all_questions}
         
-        processed_answers = []
-        for answer in answers:
-            question_id = answer.get('question_id')
-            selected_index = answer.get('selected_option_index', -1)
+        # Check if there's an in-progress attempt for this user+lesson
+        # Look for the most recent attempt that might be in progress
+        in_progress_attempt = None
+        if user:
+            # Get the most recent attempt for this lesson
+            recent_attempts = LessonAttempt.objects.filter(
+                user=user,
+                lesson=lesson
+            ).order_by('-created_at')
             
-            try:
-                question = LessonQuestion.objects.get(id=question_id)
-                is_correct = selected_index == question.correct_answer_index
-                if is_correct:
-                    correct_count += 1
+            if recent_attempts.exists():
+                latest_attempt = recent_attempts.first()
+                # Check if it's potentially in-progress (has fewer answers than total questions)
+                if len(latest_attempt.answers_data) < total_questions_in_lesson:
+                    in_progress_attempt = latest_attempt
+        
+        # Process new answers
+        processed_answers = []
+        if in_progress_attempt:
+            # Merge with existing answers (update if question already answered, add if new)
+            existing_answers = {a['question_id']: a for a in in_progress_attempt.answers_data}
+            
+            for answer in answers:
+                question_id = str(answer.get('question_id'))
+                selected_index = answer.get('selected_option_index', -1)
+                
+                try:
+                    question = question_dict[question_id]
+                    is_correct = selected_index == question.correct_answer_index
                     
-                processed_answers.append({
-                    'question_id': str(question_id),
-                    'selected_option_index': selected_index,
-                    'correct_answer_index': question.correct_answer_index,
-                    'is_correct': is_correct,
-                })
-            except LessonQuestion.DoesNotExist:
-                processed_answers.append({
-                    'question_id': str(question_id),
-                    'selected_option_index': selected_index,
-                    'is_correct': False,
-                    'error': 'Question not found'
-                })
+                    processed_answer = {
+                        'question_id': question_id,
+                        'selected_option_index': selected_index,
+                        'correct_answer_index': question.correct_answer_index,
+                        'is_correct': is_correct,
+                    }
+                    existing_answers[question_id] = processed_answer
+                except (KeyError, LessonQuestion.DoesNotExist):
+                    processed_answers.append({
+                        'question_id': question_id,
+                        'selected_option_index': selected_index,
+                        'is_correct': False,
+                        'error': 'Question not found'
+                    })
+            
+            # Convert back to list
+            processed_answers = list(existing_answers.values())
+        else:
+            # New submission - process all answers
+            for answer in answers:
+                question_id = str(answer.get('question_id'))
+                selected_index = answer.get('selected_option_index', -1)
+                
+                try:
+                    question = question_dict[question_id]
+                    is_correct = selected_index == question.correct_answer_index
+                    
+                    processed_answers.append({
+                        'question_id': question_id,
+                        'selected_option_index': selected_index,
+                        'correct_answer_index': question.correct_answer_index,
+                        'is_correct': is_correct,
+                    })
+                except (KeyError, LessonQuestion.DoesNotExist):
+                    processed_answers.append({
+                        'question_id': question_id,
+                        'selected_option_index': selected_index,
+                        'is_correct': False,
+                        'error': 'Question not found'
+                    })
         
-        score = round((correct_count / total_questions) * 100) if total_questions > 0 else 0
+        # Calculate score based on all processed answers
+        correct_count = sum(1 for a in processed_answers if a.get('is_correct', False))
+        total_questions_answered = len(processed_answers)
         
-        # Create attempt record
-        attempt = LessonAttempt.objects.create(
-            user=user,
-            lesson=lesson,
-            score=score,
-            correct_count=correct_count,
-            total_questions=total_questions,
-            time_spent_seconds=time_spent,
-            answers_data=processed_answers,
-            is_diagnostic_attempt=lesson.is_diagnostic,
-        )
+        # Determine if this is a complete submission
+        # Complete if: explicitly marked, or all questions in lesson are answered
+        is_final_submission = is_complete or (total_questions_answered >= total_questions_in_lesson)
         
-        # If this is a diagnostic, also update the study plan
-        if lesson.is_diagnostic and user:
+        # Use total questions in lesson for score calculation (not just answered)
+        total_questions_for_score = total_questions_in_lesson if is_final_submission else total_questions_answered
+        score = round((correct_count / total_questions_for_score) * 100) if total_questions_for_score > 0 else 0
+        
+        # Update or create attempt record
+        if in_progress_attempt and not is_final_submission:
+            # Update existing in-progress attempt
+            in_progress_attempt.answers_data = processed_answers
+            in_progress_attempt.correct_count = correct_count
+            in_progress_attempt.total_questions = total_questions_answered
+            if time_spent is not None:
+                in_progress_attempt.time_spent_seconds = time_spent
+            in_progress_attempt.save()
+            attempt = in_progress_attempt
+        else:
+            # Create new attempt (or finalize existing one)
+            if in_progress_attempt:
+                # Finalize the existing attempt
+                in_progress_attempt.score = score
+                in_progress_attempt.correct_count = correct_count
+                in_progress_attempt.total_questions = total_questions_in_lesson
+                in_progress_attempt.answers_data = processed_answers
+                if time_spent is not None:
+                    in_progress_attempt.time_spent_seconds = time_spent
+                in_progress_attempt.save()
+                attempt = in_progress_attempt
+            else:
+                # Create new attempt
+                attempt = LessonAttempt.objects.create(
+                    user=user,
+                    lesson=lesson,
+                    score=score,
+                    correct_count=correct_count,
+                    total_questions=total_questions_in_lesson if is_final_submission else total_questions_answered,
+                    time_spent_seconds=time_spent,
+                    answers_data=processed_answers,
+                    is_diagnostic_attempt=lesson.is_diagnostic,
+                )
+        
+        # If this is a final submission and a diagnostic, update the study plan
+        if is_final_submission and lesson.is_diagnostic and user:
             self._update_study_plan(user, lesson, processed_answers)
         
         return Response({
@@ -1937,7 +2159,9 @@ class SubmitLessonView(APIView):
             'attempt_id': str(attempt.id),
             'score': score,
             'correct_count': correct_count,
-            'total_questions': total_questions,
+            'total_questions': total_questions_in_lesson,
+            'total_questions_answered': total_questions_answered,
+            'is_complete': is_final_submission,
             'is_diagnostic': lesson.is_diagnostic,
             'answers': processed_answers,
         })
