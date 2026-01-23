@@ -6144,12 +6144,7 @@
                 };
             }
             
-            let resultsHTML = `
-                <div class="results-summary">
-                    <h3>Your Results</h3>
-                    <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
-                </div>
-            `;
+            let resultsHTML = '';
             
             // Show attempt history button for logged-in users
             if (authToken && currentId) {
@@ -6541,32 +6536,20 @@
             
             const pagePercentage = Math.round((pageCorrectCount / pageTotalQuestions) * 100);
             
-            // Build prominent overall lesson score header at the top
-            let overallHeader = '';
+            // Start with empty results HTML - score will be shown in penguin message box
+            let resultsHTML = '';
+            
+            // For diagnostics, add a note about study plan update
             if (isDiagnostic) {
-                overallHeader = `
-                    <div class="results-summary" style="background: linear-gradient(135deg, var(--accent-color) 0%, #4a90e2 100%); border: none; padding: 32px; border-radius: 12px; text-align: center; margin-bottom: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                        <h2 style="margin-bottom: 12px; color: white; font-size: 24px; font-weight: 700;">Diagnostic Complete</h2>
-                        <div class="score" style="font-size: 48px; font-weight: 700; margin-bottom: 16px; color: white;">${overallCorrectCount} / ${overallTotalQuestions}</div>
-                        <div style="font-size: 32px; font-weight: 600; margin-bottom: 16px; color: white; opacity: 0.95;">${overallPercentage}%</div>
-                        <p style="color: white; font-size: 16px; margin-bottom: 20px; opacity: 0.9;">Your study plan has been updated.</p>
-                        <button class="btn btn-primary" onclick="showProfile()" style="margin-top: 8px; padding: 12px 24px; font-size: 16px; background: white; color: var(--accent-color); border: none; font-weight: 600; border-radius: 6px; cursor: pointer;">
+                resultsHTML += `
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; margin-bottom: 24px; text-align: center;">
+                        <p style="color: var(--text-primary); font-size: 16px; margin-bottom: 16px;">Your study plan has been updated.</p>
+                        <button class="btn btn-primary" onclick="showProfile()" style="padding: 10px 20px; font-size: 14px;">
                             View Study Plan
                         </button>
                     </div>
                 `;
-            } else {
-                overallHeader = `
-                    <div class="results-summary" style="background: linear-gradient(135deg, var(--accent-color) 0%, #4a90e2 100%); border: none; padding: 32px; border-radius: 12px; text-align: center; margin-bottom: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                        <h2 style="margin-bottom: 12px; color: white; font-size: 24px; font-weight: 700;">Your Results</h2>
-                        <div class="score" style="font-size: 48px; font-weight: 700; margin-bottom: 16px; color: white;">${overallCorrectCount} / ${overallTotalQuestions}</div>
-                        <div style="font-size: 32px; font-weight: 600; margin-bottom: 8px; color: white; opacity: 0.95;">${overallPercentage}%</div>
-                        ${!isComplete ? `<p style="color: white; font-size: 14px; margin-top: 12px; opacity: 0.85;">Questions from page ${currentPageIndex + 1} shown below</p>` : '<p style="color: white; font-size: 14px; margin-top: 12px; opacity: 0.85;">All questions completed!</p>'}
-                    </div>
-                `;
             }
-            
-            let resultsHTML = overallHeader;
             
             // Show each question from current page with correct answer and explanation
             currentPageQuestions.forEach((question, index) => {
@@ -6694,12 +6677,7 @@
             const totalQuestions = sortedQuestions.length;
             const percentage = Math.round((correctCount / totalQuestions) * 100);
             
-            let resultsHTML = `
-                <div class="results-summary">
-                    <h3>Your Results</h3>
-                    <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
-                </div>
-            `;
+            let resultsHTML = '';
             
             sortedQuestions.forEach((question, index) => {
                 const userAnswer = userAnswers[question.id];
@@ -6752,6 +6730,18 @@
                     </div>
                 `;
             });
+            
+            // Add penguin message after questions
+            if (totalQuestions > 0) {
+                const penguinMessage = getPenguinMessage(correctCount, totalQuestions, !passageData?.is_diagnostic);
+                resultsHTML += `
+                    <div style="background: #f0f8ff; border: 2px solid var(--accent-color); border-radius: 12px; padding: 24px; margin-top: 32px; text-align: center;">
+                        <img src="/static/web/images/penguin.png" alt="Penguin" style="width: 80px; height: auto; margin-bottom: 16px;" />
+                        <div style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                        <p style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin: 0;">${penguinMessage}</p>
+                    </div>
+                `;
+            }
             
             resultsSection.innerHTML = resultsHTML;
             resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
