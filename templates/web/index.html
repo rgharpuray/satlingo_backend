@@ -6360,9 +6360,11 @@
             
             // Add penguin message after questions
             const penguinMessage = getPenguinMessage(correctCount, totalQuestions, !currentData?.is_diagnostic);
+            const percentage = Math.round((correctCount / totalQuestions) * 100);
             resultsHTML += `
                 <div style="background: #f0f8ff; border: 2px solid var(--accent-color); border-radius: 12px; padding: 24px; margin-top: 32px; text-align: center;">
-                    <div style="font-size: 48px; margin-bottom: 16px;">🐧</div>
+                    <img src="/static/web/images/penguin.png" alt="Penguin" style="width: 80px; height: auto; margin-bottom: 16px;" />
+                    <div style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">${correctCount} / ${totalQuestions} (${percentage}%)</div>
                     <p style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin: 0;">${penguinMessage}</p>
                 </div>
             `;
@@ -6655,7 +6657,8 @@
             const penguinMessage = getPenguinMessage(overallCorrectCount, overallTotalQuestions, !isDiagnostic);
             resultsHTML += `
                 <div style="background: #f0f8ff; border: 2px solid var(--accent-color); border-radius: 12px; padding: 24px; margin-top: 32px; text-align: center;">
-                    <div style="font-size: 48px; margin-bottom: 16px;">🐧</div>
+                    <img src="/static/web/images/penguin.png" alt="Penguin" style="width: 80px; height: auto; margin-bottom: 16px;" />
+                    <div style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">${overallCorrectCount} / ${overallTotalQuestions} (${overallPercentage}%)</div>
                     <p style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin: 0;">${penguinMessage}</p>
                 </div>
             `;
