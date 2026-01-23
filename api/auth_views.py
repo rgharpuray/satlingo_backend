@@ -21,7 +21,6 @@ try:
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import serialization
-    from cryptography import jwk
     cryptography_available = True
 except ImportError:
     cryptography_available = False
