@@ -2120,6 +2120,38 @@
             return document.body.classList.contains('dark-mode') ? '#b0b0b0' : '#666666';
         }
         
+        // Function to get penguin message based on score
+        async function getPenguinMessage(score, totalQuestions, isPractice = false) {
+            const percentage = Math.round((score / totalQuestions) * 100);
+            
+            // Perfect score for practice
+            if (isPractice && score === totalQuestions && totalQuestions > 0) {
+                const perfectMessages = [
+                    "Perfectamundo!",
+                    "Perfect! We'll have to find some harder questions next time."
+                ];
+                return perfectMessages[Math.floor(Math.random() * perfectMessages.length)];
+            }
+            
+            // 70% or higher
+            if (percentage >= 70) {
+                const goodMessages = [
+                    "Good stuff!",
+                    "Nice, nice.",
+                    "Very cool."
+                ];
+                return goodMessages[Math.floor(Math.random() * goodMessages.length)];
+            }
+            
+            // Below 70%
+            const encouragingMessages = [
+                "The hardest work is the most important work",
+                "The only way through it is through it.",
+                "Getting there."
+            ];
+            return encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)];
+        }
+        
         // Helper function to get background color for example boxes
         function getExampleBgColor(type) {
             const isDark = document.body.classList.contains('dark-mode');
@@ -6326,6 +6358,15 @@
                 `;
             });
             
+            // Add penguin message after questions
+            const penguinMessage = await getPenguinMessage(correctCount, totalQuestions, !currentData?.is_diagnostic);
+            resultsHTML += `
+                <div style="background: #f0f8ff; border: 2px solid var(--accent-color); border-radius: 12px; padding: 24px; margin-top: 32px; text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">🐧</div>
+                    <p style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin: 0;">${penguinMessage}</p>
+                </div>
+            `;
+            
             resultsSection.innerHTML = resultsHTML;
             
             // Scroll to results
@@ -6610,7 +6651,14 @@
                 `;
             });
             
-            // No need for duplicate overall summary at bottom since it's already prominent at top
+            // Add penguin message after questions
+            const penguinMessage = await getPenguinMessage(overallCorrectCount, overallTotalQuestions, !isDiagnostic);
+            resultsHTML += `
+                <div style="background: #f0f8ff; border: 2px solid var(--accent-color); border-radius: 12px; padding: 24px; margin-top: 32px; text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">🐧</div>
+                    <p style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin: 0;">${penguinMessage}</p>
+                </div>
+            `;
             
             console.log('Setting resultsSection innerHTML, length:', resultsHTML.length);
             resultsSection.innerHTML = resultsHTML;
