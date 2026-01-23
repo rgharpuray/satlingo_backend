@@ -15,8 +15,16 @@ from google.oauth2 import id_token
 import requests
 from urllib.parse import quote
 import logging
+import base64
 import jwt
-from jwt.algorithms import RSAAlgorithm
+try:
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import serialization
+    from cryptography import jwk
+    cryptography_available = True
+except ImportError:
+    cryptography_available = False
 try:
     import stripe
     stripe_available = True
@@ -579,13 +587,46 @@ def verify_apple_token(identity_token, bundle_id):
         if not matching_key:
             raise ValueError(f"No matching key found for kid: {kid}")
         
-        # Construct public key from JWK
-        public_key = RSAAlgorithm.from_jwk(matching_key)
+        # Construct public key from JWK using cryptography
+        if not cryptography_available:
+            raise ValueError("cryptography library is required for Apple token verification")
         
-        # Verify and decode the token
+        # Convert JWK to PEM format for PyJWT
+        # PyJWT can decode with the public key directly
+        # We'll use jwt.decode with options={'verify_signature': True} and construct the key
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.hazmat.backends import default_backend
+        from cryptography.hazmat.primitives import serialization
+        
+        # Extract key parameters from JWK (base64url encoded)
+        # Add padding if needed for base64 decoding
+        n_b64 = matching_key['n']
+        e_b64 = matching_key['e']
+        
+        # Add padding
+        n_padded = n_b64 + '=' * (4 - len(n_b64) % 4)
+        e_padded = e_b64 + '=' * (4 - len(e_b64) % 4)
+        
+        # Decode base64url to bytes, then to int
+        n_bytes = base64.urlsafe_b64decode(n_padded)
+        e_bytes = base64.urlsafe_b64decode(e_padded)
+        
+        n = int.from_bytes(n_bytes, 'big')
+        e = int.from_bytes(e_bytes, 'big')
+        
+        # Construct RSA public key
+        public_key = rsa.RSAPublicNumbers(e, n).public_key(default_backend())
+        
+        # Serialize to PEM format for PyJWT
+        pem = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        
+        # Verify and decode the token (PyJWT accepts PEM string or key object)
         decoded = jwt.decode(
             identity_token,
-            public_key,
+            pem,
             algorithms=['RS256'],
             audience=bundle_id,
             issuer='https://appleid.apple.com'
