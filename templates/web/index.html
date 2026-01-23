@@ -6385,20 +6385,6 @@
                 return;
             }
             
-            // Calculate correct answers for current page questions (for display only)
-            let correctCount = 0;
-            const totalQuestions = currentPageQuestions.length;
-            
-            currentPageQuestions.forEach(question => {
-                const userAnswer = userAnswers[question.id];
-                const isCorrect = userAnswer === question.correct_answer_index;
-                if (isCorrect) {
-                    correctCount++;
-                }
-            });
-            
-            const percentage = Math.round((correctCount / totalQuestions) * 100);
-            
             // Build answers array for backend submission - include ALL questions in the lesson
             // This aggregates all answers across all pages into a single submission
             const allLessonQuestions = lessonData.questions || [];
@@ -6420,6 +6406,13 @@
                 });
             });
             
+            // Variables to store overall lesson results from backend
+            let overallCorrectCount = 0;
+            let overallTotalQuestions = allLessonQuestions.length;
+            let overallScore = 0;
+            let overallPercentage = 0;
+            let isComplete = false;
+            
             // Submit to backend for ALL lessons (logged in or not - track progress)
             // This aggregates all answers from all pages into a single attempt
             if (currentLessonId) {
@@ -6432,7 +6425,7 @@
                     }
                     
                     // Determine if this is a complete submission (all questions answered)
-                    const isComplete = allQuestionsAnswered && answersForBackend.length === allLessonQuestions.length;
+                    isComplete = allQuestionsAnswered && answersForBackend.length === allLessonQuestions.length;
                     
                     const submitResponse = await fetch(`${API_BASE}/progress/lessons/${currentLessonId}/submit`, {
                         method: 'POST',
@@ -6448,28 +6441,69 @@
                         const submitResult = await submitResponse.json();
                         console.log('Lesson submitted successfully:', submitResult);
                         
-                        // Update UI with backend score if available (for current page display)
-                        // Note: Backend score is for ALL questions, current page score is just for display
-                        if (submitResult.score !== undefined && isComplete) {
-                            // If complete, show overall score
-                            correctCount = submitResult.correct_count;
+                        // Use backend response for overall lesson results
+                        if (submitResult.correct_count !== undefined) {
+                            overallCorrectCount = submitResult.correct_count;
+                        }
+                        if (submitResult.total_questions !== undefined) {
+                            overallTotalQuestions = submitResult.total_questions;
+                        }
+                        if (submitResult.score !== undefined) {
+                            overallScore = submitResult.score;
+                            overallPercentage = overallScore;
+                        }
+                        if (submitResult.is_complete !== undefined) {
+                            isComplete = submitResult.is_complete;
                         }
                     } else {
                         console.error('Failed to submit lesson:', await submitResponse.text());
+                        // Fallback: calculate from submitted answers
+                        overallCorrectCount = answersForBackend.filter(a => {
+                            const question = allLessonQuestions.find(q => String(q.id) === String(a.question_id));
+                            return question && a.selected_option_index === question.correct_answer_index;
+                        }).length;
+                        overallPercentage = Math.round((overallCorrectCount / overallTotalQuestions) * 100);
                     }
                     
                 } catch (error) {
                     console.error('Error submitting lesson answers:', error);
+                    // Fallback: calculate from submitted answers
+                    overallCorrectCount = answersForBackend.filter(a => {
+                        const question = allLessonQuestions.find(q => String(q.id) === String(a.question_id));
+                        return question && a.selected_option_index === question.correct_answer_index;
+                    }).length;
+                    overallPercentage = Math.round((overallCorrectCount / overallTotalQuestions) * 100);
                 }
+            } else {
+                // Not logged in - calculate locally
+                overallCorrectCount = answersForBackend.filter(a => {
+                    const question = allLessonQuestions.find(q => String(q.id) === String(a.question_id));
+                    return question && a.selected_option_index === question.correct_answer_index;
+                }).length;
+                overallPercentage = Math.round((overallCorrectCount / overallTotalQuestions) * 100);
             }
             
-            // Build results header based on whether this is a diagnostic
+            // Calculate current page results for display (if showing page-specific questions)
+            let pageCorrectCount = 0;
+            const pageTotalQuestions = currentPageQuestions.length;
+            
+            currentPageQuestions.forEach(question => {
+                const userAnswer = userAnswers[question.id];
+                const isCorrect = userAnswer === question.correct_answer_index;
+                if (isCorrect) {
+                    pageCorrectCount++;
+                }
+            });
+            
+            const pagePercentage = Math.round((pageCorrectCount / pageTotalQuestions) * 100);
+            
+            // Build results header - show overall lesson results, not just current page
             let resultsHeader = '';
             if (isDiagnostic) {
                 resultsHeader = `
                     <div class="results-summary" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 24px; border-radius: 8px; text-align: center;">
                         <h3 style="margin-bottom: 8px; color: var(--text-primary); font-size: 18px; font-weight: 600;">Diagnostic Complete</h3>
-                        <div class="score" style="font-size: 28px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                        <div class="score" style="font-size: 28px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">${overallCorrectCount} / ${overallTotalQuestions} (${overallPercentage}%)</div>
                         <p style="color: var(--text-secondary); font-size: 14px;">Your study plan has been updated.</p>
                         <button class="btn btn-primary" onclick="showProfile()" style="margin-top: 16px; padding: 10px 20px; font-size: 14px;">
                             View Study Plan
@@ -6477,10 +6511,13 @@
                     </div>
                 `;
             } else {
+                // Show overall lesson results, with optional page indicator if not complete
+                const pageIndicator = isComplete ? '' : ` <span style="font-size: 14px; color: var(--text-secondary); font-weight: normal;">(Page ${currentPageIndex + 1} shown below)</span>`;
                 resultsHeader = `
                 <div class="results-summary">
-                    <h3>Your Results (Page ${currentPageIndex + 1})</h3>
-                    <div class="score">${correctCount} / ${totalQuestions} (${percentage}%)</div>
+                    <h3>Your Results${pageIndicator}</h3>
+                    <div class="score">${overallCorrectCount} / ${overallTotalQuestions} (${overallPercentage}%)</div>
+                    ${!isComplete ? `<p style="color: var(--text-secondary); font-size: 12px; margin-top: 8px;">Showing questions from page ${currentPageIndex + 1}. Overall lesson score: ${overallCorrectCount}/${overallTotalQuestions}</p>` : ''}
                 </div>
             `;
             }
