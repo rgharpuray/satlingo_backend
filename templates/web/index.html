@@ -6497,32 +6497,25 @@
             
             const pagePercentage = Math.round((pageCorrectCount / pageTotalQuestions) * 100);
             
-            // Build results header - show overall lesson results, not just current page
-            let resultsHeader = '';
+            // Build current page results header (shown first)
+            let pageResultsHeader = '';
             if (isDiagnostic) {
-                resultsHeader = `
-                    <div class="results-summary" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 24px; border-radius: 8px; text-align: center;">
-                        <h3 style="margin-bottom: 8px; color: var(--text-primary); font-size: 18px; font-weight: 600;">Diagnostic Complete</h3>
-                        <div class="score" style="font-size: 28px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">${overallCorrectCount} / ${overallTotalQuestions} (${overallPercentage}%)</div>
-                        <p style="color: var(--text-secondary); font-size: 14px;">Your study plan has been updated.</p>
-                        <button class="btn btn-primary" onclick="showProfile()" style="margin-top: 16px; padding: 10px 20px; font-size: 14px;">
-                            View Study Plan
-                        </button>
+                pageResultsHeader = `
+                    <div class="results-summary" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+                        <h3 style="margin-bottom: 8px; color: var(--text-primary); font-size: 18px; font-weight: 600;">Your Results (Page ${currentPageIndex + 1})</h3>
+                        <div class="score" style="font-size: 24px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">${pageCorrectCount} / ${pageTotalQuestions} (${pagePercentage}%)</div>
                     </div>
                 `;
             } else {
-                // Show overall lesson results, with optional page indicator if not complete
-                const pageIndicator = isComplete ? '' : ` <span style="font-size: 14px; color: var(--text-secondary); font-weight: normal;">(Page ${currentPageIndex + 1} shown below)</span>`;
-                resultsHeader = `
-                <div class="results-summary">
-                    <h3>Your Results${pageIndicator}</h3>
-                    <div class="score">${overallCorrectCount} / ${overallTotalQuestions} (${overallPercentage}%)</div>
-                    ${!isComplete ? `<p style="color: var(--text-secondary); font-size: 12px; margin-top: 8px;">Showing questions from page ${currentPageIndex + 1}. Overall lesson score: ${overallCorrectCount}/${overallTotalQuestions}</p>` : ''}
+                pageResultsHeader = `
+                <div class="results-summary" style="margin-bottom: 24px;">
+                    <h3>Your Results (Page ${currentPageIndex + 1})</h3>
+                    <div class="score">${pageCorrectCount} / ${pageTotalQuestions} (${pagePercentage}%)</div>
                 </div>
             `;
             }
             
-            let resultsHTML = resultsHeader;
+            let resultsHTML = pageResultsHeader;
             
             // Show each question from current page with correct answer and explanation
             currentPageQuestions.forEach((question, index) => {
@@ -6609,6 +6602,31 @@
                     </div>
                 `;
             });
+            
+            // Add overall lesson summary at the bottom
+            let overallSummary = '';
+            if (isDiagnostic) {
+                overallSummary = `
+                    <div class="results-summary" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 24px; border-radius: 8px; text-align: center; margin-top: 32px;">
+                        <h3 style="margin-bottom: 8px; color: var(--text-primary); font-size: 18px; font-weight: 600;">Diagnostic Complete</h3>
+                        <div class="score" style="font-size: 28px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">${overallCorrectCount} / ${overallTotalQuestions} (${overallPercentage}%)</div>
+                        <p style="color: var(--text-secondary); font-size: 14px;">Your study plan has been updated.</p>
+                        <button class="btn btn-primary" onclick="showProfile()" style="margin-top: 16px; padding: 10px 20px; font-size: 14px;">
+                            View Study Plan
+                        </button>
+                    </div>
+                `;
+            } else {
+                overallSummary = `
+                    <div class="results-summary" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; margin-top: 32px;">
+                        <h3 style="margin-bottom: 8px; color: var(--text-primary); font-size: 18px; font-weight: 600;">Overall Lesson Score</h3>
+                        <div class="score" style="font-size: 24px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">${overallCorrectCount} / ${overallTotalQuestions} (${overallPercentage}%)</div>
+                        ${!isComplete ? `<p style="color: var(--text-secondary); font-size: 12px; margin-top: 8px;">You've answered questions from multiple pages. Complete all pages to see your final score.</p>` : '<p style="color: var(--text-secondary); font-size: 12px; margin-top: 8px;">All questions completed!</p>'}
+                    </div>
+                `;
+            }
+            
+            resultsHTML += overallSummary;
             
             console.log('Setting resultsSection innerHTML, length:', resultsHTML.length);
             resultsSection.innerHTML = resultsHTML;
