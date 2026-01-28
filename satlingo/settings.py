@@ -218,11 +218,18 @@ PREMIUM_MONTHLY_PRICE = 5.00  # $5 per month
 # OpenAI Settings
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
-# AWS S3 Settings for diagram storage
+# AWS S3 Settings for diagram storage (used when USE_GCS is False; keep during migration)
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
 AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME', '')
 AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
+
+# Google Cloud Storage (GCS) – used when USE_GCS is True
+GS_BUCKET_NAME = os.environ.get('GS_BUCKET_NAME', '')
+GS_PROJECT_ID = os.environ.get('GS_PROJECT_ID', '')  # Optional if set in credentials JSON
+# Heroku/non-file: set GOOGLE_APPLICATION_CREDENTIALS_JSON to the full JSON key (one line)
+GOOGLE_APPLICATION_CREDENTIALS_JSON = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON', '')
+USE_GCS = bool(GS_BUCKET_NAME and GOOGLE_APPLICATION_CREDENTIALS_JSON)
 
 # Google OAuth Settings
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
@@ -241,6 +248,9 @@ GOOGLE_OAUTH_ANDROID_CLIENT_ID = os.environ.get(
 
 # Apple App Store Settings (for iOS in-app purchases)
 APPLE_BUNDLE_ID = os.environ.get('APPLE_BUNDLE_ID', 'com.keuvi.app')
+# Audiences accepted for Apple Sign In: web (com.keuvi.app), iOS app (pro.argosventures.keuvi). Comma-separated if set via env.
+_apple_audiences = os.environ.get('APPLE_ALLOWED_AUDIENCES', 'com.keuvi.app,pro.argosventures.keuvi')
+APPLE_ALLOWED_AUDIENCES = [x.strip() for x in _apple_audiences.split(',') if x.strip()]
 APPLE_SHARED_SECRET = os.environ.get('APPLE_SHARED_SECRET', '')  # For receipt verification
 APPLE_APP_STORE_KEY_ID = os.environ.get('APPLE_APP_STORE_KEY_ID', '')  # For App Store Server API
 APPLE_APP_STORE_ISSUER_ID = os.environ.get('APPLE_APP_STORE_ISSUER_ID', '')

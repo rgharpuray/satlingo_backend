@@ -35,3 +35,17 @@ def subscription_cancel(request):
     return render(request, 'web/subscription_cancel.html')
 
 
+def terms(request):
+    """Terms of Service"""
+    return render(request, 'web/terms.html')
+
+
+def privacy(request):
+    """Privacy Policy"""
+    return render(request, 'web/privacy.html')
+
+
+def support(request):
+    """Support / contact"""
+    return render(request, 'web/support.html')
+

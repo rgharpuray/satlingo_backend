@@ -56,6 +56,10 @@ urlpatterns = [
     path('web/', web_views.index, name='web-index'),
     path('web/subscription/success', web_views.subscription_success, name='subscription-success'),
     path('web/subscription/cancel', web_views.subscription_cancel, name='subscription-cancel'),
+    # Legal and support (canonical URLs for app stores and links)
+    path('terms/', web_views.terms, name='terms'),
+    path('privacy/', web_views.privacy, name='privacy'),
+    path('support/', web_views.support, name='support'),
 ]
 
 if settings.DEBUG:

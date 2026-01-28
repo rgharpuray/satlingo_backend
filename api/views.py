@@ -2154,7 +2154,8 @@ class SubmitLessonView(APIView):
         if is_final_submission and lesson.is_diagnostic and user:
             self._update_study_plan(user, lesson, processed_answers)
         
-        return Response({
+        # Build response
+        response_data = {
             'status': 'success',
             'attempt_id': str(attempt.id),
             'score': score,
@@ -2164,7 +2165,25 @@ class SubmitLessonView(APIView):
             'is_complete': is_final_submission,
             'is_diagnostic': lesson.is_diagnostic,
             'answers': processed_answers,
-        })
+        }
+        
+        # Add next lesson suggestion for completed non-diagnostic lessons
+        if is_final_submission and not lesson.is_diagnostic and user:
+            next_lesson = self._get_next_lesson_suggestion(user, lesson, processed_answers)
+            if next_lesson:
+                response_data['next_lesson'] = {
+                    'id': str(next_lesson.id),
+                    'title': next_lesson.title,
+                    'lesson_type': next_lesson.lesson_type,
+                    'difficulty': next_lesson.difficulty,
+                    'tier': next_lesson.tier,
+                    'header': next_lesson.header.title if next_lesson.header else None,
+                }
+            
+            # Add encouraging message based on score
+            response_data['feedback'] = self._get_feedback_message(score)
+        
+        return Response(response_data)
     
     def _update_study_plan(self, user, lesson, answers):
         """Update study plan with diagnostic results"""
@@ -2215,6 +2234,109 @@ class SubmitLessonView(APIView):
             study_plan.math_diagnostic = lesson
         
         study_plan.save()
+    
+    def _get_next_lesson_suggestion(self, user, current_lesson, answers):
+        """
+        Suggest the next lesson based on user's weaknesses and avoiding repeats.
+        
+        Logic:
+        1. Find classifications where user performed poorly in this lesson
+        2. Find other lessons with those classifications that user hasn't completed recently
+        3. Prioritize by: weakness match > same header > display order
+        4. Avoid recently completed lessons
+        """
+        from django.db.models import Count, Q
+        from datetime import timedelta
+        from django.utils import timezone
+        
+        lesson_type = current_lesson.lesson_type
+        
+        # Get classifications where user got questions wrong
+        weak_classifications = set()
+        for answer in answers:
+            if not answer.get('is_correct', True):
+                question_id = answer.get('question_id')
+                try:
+                    question = LessonQuestion.objects.get(id=question_id)
+                    for classification in question.classifications.all():
+                        weak_classifications.add(classification.id)
+                except LessonQuestion.DoesNotExist:
+                    pass
+        
+        # Get lessons user has completed in the last 7 days (to avoid immediate repeats)
+        recent_cutoff = timezone.now() - timedelta(days=7)
+        recently_completed_lesson_ids = LessonAttempt.objects.filter(
+            user=user,
+            completed_at__gte=recent_cutoff,
+            total_questions__gt=0  # Only count actual attempts
+        ).values_list('lesson_id', flat=True).distinct()
+        
+        # Find candidate lessons (same type, not the current one, not recently completed, not diagnostic)
+        candidate_lessons = Lesson.objects.filter(
+            lesson_type=lesson_type,
+            is_diagnostic=False
+        ).exclude(
+            id=current_lesson.id
+        ).exclude(
+            id__in=recently_completed_lesson_ids
+        )
+        
+        # If we have weak classifications, prioritize lessons that cover them
+        if weak_classifications:
+            # Count how many weak classifications each lesson covers
+            lessons_with_weakness_coverage = candidate_lessons.filter(
+                questions__classifications__id__in=weak_classifications
+            ).annotate(
+                weakness_match_count=Count('questions__classifications', filter=Q(questions__classifications__id__in=weak_classifications))
+            ).order_by('-weakness_match_count', '-order_within_header')
+            
+            if lessons_with_weakness_coverage.exists():
+                return lessons_with_weakness_coverage.first()
+        
+        # Fallback: get next lesson in same header, or any lesson in same type
+        if current_lesson.header:
+            # Try to get next lesson in same header
+            same_header_lessons = candidate_lessons.filter(
+                header=current_lesson.header
+            ).order_by('-order_within_header')
+            
+            # Get lessons with lower order_within_header (next in sequence)
+            next_in_header = same_header_lessons.filter(
+                order_within_header__lt=current_lesson.order_within_header
+            ).order_by('-order_within_header').first()
+            
+            if next_in_header:
+                return next_in_header
+        
+        # Final fallback: any lesson in the same type
+        return candidate_lessons.order_by('?').first()
+    
+    def _get_feedback_message(self, score):
+        """Get encouraging feedback message based on score."""
+        if score >= 90:
+            return {
+                'title': 'Amazing!',
+                'message': "You're crushing it! Keep up the fantastic work!",
+                'emoji': '🎉'
+            }
+        elif score >= 70:
+            return {
+                'title': 'Great job!',
+                'message': "You're making solid progress. Keep practicing!",
+                'emoji': '⭐'
+            }
+        elif score >= 50:
+            return {
+                'title': 'Good effort!',
+                'message': "You're getting there! A little more practice will help.",
+                'emoji': '💪'
+            }
+        else:
+            return {
+                'title': 'Keep going!',
+                'message': "Every mistake is a chance to learn. You've got this!",
+                'emoji': '🌟'
+            }
 
 
 class ReviewLessonView(APIView):

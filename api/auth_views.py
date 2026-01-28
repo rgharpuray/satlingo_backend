@@ -548,13 +548,21 @@ def google_oauth_callback(request):
         )
 
 
-def verify_apple_token(identity_token, bundle_id):
+# Allowed audiences for Apple Sign In: web/service uses com.keuvi.app, iOS app uses its bundle ID.
+APPLE_ALLOWED_AUDIENCES = getattr(
+    settings,
+    'APPLE_ALLOWED_AUDIENCES',
+    ['com.keuvi.app', 'pro.argosventures.keuvi']
+)
+
+
+def verify_apple_token(identity_token, allowed_audiences):
     """
     Verify Apple identity token and return decoded claims.
     
     Args:
         identity_token: JWT string from Apple Sign In
-        bundle_id: Your app's bundle ID (e.g., 'com.keuvi.app')
+        allowed_audiences: List of valid audience values (e.g. ['com.keuvi.app', 'pro.argosventures.keuvi'])
     
     Returns:
         dict: Decoded token claims (sub, email, etc.)
@@ -622,12 +630,12 @@ def verify_apple_token(identity_token, bundle_id):
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
         
-        # Verify and decode the token (PyJWT accepts PEM string or key object)
+        # Verify and decode the token (PyJWT accepts list of audiences)
         decoded = jwt.decode(
             identity_token,
             pem,
             algorithms=['RS256'],
-            audience=bundle_id,
+            audience=allowed_audiences,
             issuer='https://appleid.apple.com'
         )
         
@@ -635,7 +643,7 @@ def verify_apple_token(identity_token, bundle_id):
     except jwt.ExpiredSignatureError:
         raise ValueError("Token has expired")
     except jwt.InvalidAudienceError:
-        raise ValueError(f"Invalid audience. Expected: {bundle_id}")
+        raise ValueError(f"Invalid audience. Expected one of: {allowed_audiences}")
     except jwt.InvalidIssuerError:
         raise ValueError("Invalid issuer. Expected: https://appleid.apple.com")
     except Exception as e:
@@ -667,16 +675,30 @@ def apple_oauth_token(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    bundle_id = settings.APPLE_BUNDLE_ID
-    if not bundle_id:
+    # Allow both web (com.keuvi.app) and iOS app (pro.argosventures.keuvi) audiences
+    allowed_audiences = list(APPLE_ALLOWED_AUDIENCES)
+    if not allowed_audiences:
+        fallback = [getattr(settings, 'APPLE_BUNDLE_ID', None) or 'com.keuvi.app', 'pro.argosventures.keuvi']
+        allowed_audiences = [a for a in fallback if a]
+    if not allowed_audiences:
         return Response(
-            {'error': {'code': 'CONFIGURATION_ERROR', 'message': 'Apple Bundle ID not configured'}},
+            {'error': {'code': 'CONFIGURATION_ERROR', 'message': 'Apple allowed audiences not configured'}},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
+    # Optional: client may send bundle_id; require it to be in the allow-list
+    bundle_id_from_request = request.data.get('bundle_id')
+    if bundle_id_from_request and bundle_id_from_request not in allowed_audiences:
+        return Response(
+            {'error': {'code': 'BAD_REQUEST', 'message': 'bundle_id not allowed'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    if bundle_id_from_request:
+        logger.debug("Apple Sign In from bundle_id=%s", bundle_id_from_request)
+    
     try:
-        # Verify the token
-        decoded_token = verify_apple_token(identity_token, bundle_id)
+        # Verify the token (audience may be com.keuvi.app or pro.argosventures.keuvi)
+        decoded_token = verify_apple_token(identity_token, allowed_audiences)
         
         # Extract user info from token
         apple_user_id = decoded_token.get('sub')  # Apple's unique user ID

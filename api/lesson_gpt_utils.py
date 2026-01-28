@@ -10,108 +10,33 @@ from .ingestion_utils import (
     HAS_OPENAI, HAS_PDF, HAS_DOCX
 )
 
-# Check for boto3 (AWS SDK for S3)
-try:
-    import boto3
-    from botocore.exceptions import ClientError
-    from boto3.exceptions import S3UploadFailedError
-    HAS_BOTO3 = True
-except ImportError:
-    HAS_BOTO3 = False
-    S3UploadFailedError = None
+# Storage: S3 or GCS via storage_backend
+from .storage_backend import upload_media
+
+HAS_BOTO3 = True  # Kept for any legacy checks; uploads go through storage_backend
 
 
 def upload_lesson_asset_to_s3(image_path, asset_id, lesson_id):
     """
-    Upload an image file to S3 for a lesson asset.
-    
-    Args:
-        image_path: Local path to the image file
-        asset_id: Unique identifier for the asset (e.g., 'diagram-1')
-        lesson_id: ID of the lesson (e.g., 'proportions')
-        
-    Returns:
-        str: Public S3 URL
-        
-    Raises:
-        Exception: If upload fails or S3 is not configured
+    Upload an image file for a lesson asset. Uses GCS when USE_GCS is True, else S3.
+    Returns the URL to store (GCS or S3).
     """
-    if not HAS_BOTO3:
-        raise Exception("boto3 not installed. Install boto3 for S3 uploads: pip install boto3")
-    
-    # Get S3 configuration from settings
-    aws_access_key_id = getattr(settings, 'AWS_ACCESS_KEY_ID', None)
-    aws_secret_access_key = getattr(settings, 'AWS_SECRET_ACCESS_KEY', None)
-    aws_storage_bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', None)
-    aws_s3_region_name = getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1')
-    
-    if not all([aws_access_key_id, aws_secret_access_key, aws_storage_bucket_name]):
-        raise Exception("S3 not configured. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_STORAGE_BUCKET_NAME in settings.")
-    
-    # Initialize S3 client
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        region_name=aws_s3_region_name
-    )
-    
-    # Determine file extension
+    if not os.path.exists(image_path):
+        raise Exception(f"Image file does not exist: {image_path}")
     file_ext = os.path.splitext(image_path)[1].lower()
     if file_ext not in ['.png', '.jpg', '.jpeg', '.svg', '.gif']:
-        file_ext = '.png'  # Default to PNG
-    
-    # Create S3 key (path in bucket) - use lessons/ prefix
-    s3_key = f"lessons/{lesson_id}/{asset_id}{file_ext}"
-    
-    try:
-        # Check if file exists
-        if not os.path.exists(image_path):
-            raise Exception(f"Image file does not exist: {image_path}")
-        
-        # Try uploading with ACL first (for buckets with ACL enabled)
-        try:
-            s3_client.upload_file(
-                image_path,
-                aws_storage_bucket_name,
-                s3_key,
-                ExtraArgs={'ACL': 'public-read'}  # Make file publicly readable
-            )
-        except (ClientError, S3UploadFailedError) as acl_error:
-            # If ACL fails (bucket might have ACLs disabled), try without ACL
-            # The bucket policy should make it public instead
-            if isinstance(acl_error, ClientError):
-                error_code = acl_error.response.get('Error', {}).get('Code', '')
-                error_message = acl_error.response.get('Error', {}).get('Message', '')
-            else:
-                # S3UploadFailedError wraps the original error
-                error_code = 'AccessControlListNotSupported' if 'ACL' in str(acl_error) else 'Unknown'
-                error_message = str(acl_error)
-            
-            if 'AccessControlListNotSupported' in error_code or 'ACL' in error_message:
-                # Upload without ACL - rely on bucket policy for public access
-                s3_client.upload_file(
-                    image_path,
-                    aws_storage_bucket_name,
-                    s3_key
-                )
-            else:
-                # Re-raise if it's a different error
-                raise
-        
-        # Construct public URL
-        if aws_s3_region_name == 'us-east-1':
-            s3_url = f"https://{aws_storage_bucket_name}.s3.amazonaws.com/{s3_key}"
-        else:
-            s3_url = f"https://{aws_storage_bucket_name}.s3.{aws_s3_region_name}.amazonaws.com/{s3_key}"
-        
-        return s3_url
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', '')
-        error_message = e.response.get('Error', {}).get('Message', str(e))
-        raise Exception(f"Failed to upload image to S3 (Error: {error_code}): {error_message}")
-    except Exception as e:
-        raise Exception(f"Failed to upload image to S3: {str(e)}")
+        file_ext = '.png'
+    key = f"lessons/{lesson_id}/{asset_id}{file_ext}"
+    content_type = None
+    if file_ext == '.png':
+        content_type = 'image/png'
+    elif file_ext in ('.jpg', '.jpeg'):
+        content_type = 'image/jpeg'
+    elif file_ext == '.gif':
+        content_type = 'image/gif'
+    elif file_ext == '.svg':
+        content_type = 'image/svg+xml'
+    return upload_media(image_path, key, content_type=content_type)
 
 
 def get_lesson_schema_prompt():

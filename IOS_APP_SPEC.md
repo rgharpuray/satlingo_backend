@@ -1585,9 +1585,10 @@ If your app logs `Question text: '' (empty: true)`, you're trying to use the arr
 
 ## 14. App Store Requirements
 
-- Privacy Policy URL (required)
-- Terms of Service URL (required)
-- Support email: admin@argosventures.pro
+- **Privacy Policy URL (required):** https://keuvi.app/privacy/
+- **Terms of Service URL (required):** https://keuvi.app/terms/
+- **Support URL:** https://keuvi.app/support/
+- **Support email:** admin@argosventures.pro
 - App icon (penguin mascot)
 - Screenshots for all device sizes
 - App description highlighting SAT prep features

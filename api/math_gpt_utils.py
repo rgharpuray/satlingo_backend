@@ -12,15 +12,10 @@ from .ingestion_utils import (
     HAS_OPENAI, HAS_PDF, HAS_DOCX
 )
 
-# Check for boto3 (AWS SDK for S3)
-try:
-    import boto3
-    from botocore.exceptions import ClientError
-    from boto3.exceptions import S3UploadFailedError
-    HAS_BOTO3 = True
-except ImportError:
-    HAS_BOTO3 = False
-    S3UploadFailedError = None
+# Storage: S3 or GCS via storage_backend
+from .storage_backend import upload_media
+
+HAS_BOTO3 = True  # Kept for any legacy checks; uploads go through storage_backend
 
 
 def get_math_schema_prompt():
@@ -76,110 +71,30 @@ For full schema details, see MATH_SECTION_JSON_SCHEMA.md"""
 
 def upload_image_to_s3(image_path, asset_id, math_section_id):
     """
-    Upload an image file to S3.
-    
-    Args:
-        image_path: Local path to the image file
-        asset_id: Unique identifier for the asset
-        math_section_id: ID of the math section (for organizing in S3)
-        
-    Returns:
-        str: Public S3 URL
-        
-    Raises:
-        Exception: If upload fails or S3 is not configured
+    Upload an image file for a math diagram. Uses GCS when USE_GCS is True, else S3.
+    Returns the URL to store (GCS or S3).
     """
-    if not HAS_BOTO3:
-        raise Exception("boto3 not installed. Install boto3 for S3 uploads: pip install boto3")
-    
-    # Get S3 configuration from settings
-    aws_access_key_id = getattr(settings, 'AWS_ACCESS_KEY_ID', None)
-    aws_secret_access_key = getattr(settings, 'AWS_SECRET_ACCESS_KEY', None)
-    aws_storage_bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', None)
-    aws_s3_region_name = getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1')
-    
-    if not all([aws_access_key_id, aws_secret_access_key, aws_storage_bucket_name]):
-        raise Exception("S3 not configured. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_STORAGE_BUCKET_NAME in settings.")
-    
-    # Initialize S3 client
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        region_name=aws_s3_region_name
-    )
-    
-    # Determine file extension
+    if not os.path.exists(image_path):
+        raise Exception(f"Image file does not exist: {image_path}")
     file_ext = os.path.splitext(image_path)[1].lower()
     if file_ext not in ['.png', '.jpg', '.jpeg', '.svg', '.gif']:
-        file_ext = '.png'  # Default to PNG
-    
-    # Create S3 key (path in bucket)
-    # Use lessons/ prefix directly (same as lesson assets) to work with bucket policy
-    # Support both math-sections and lessons paths for backwards compatibility
+        file_ext = '.png'
     if math_section_id.startswith('lessons/'):
-        s3_key = f"{math_section_id}/{asset_id}{file_ext}"
+        key = f"{math_section_id}/{asset_id}{file_ext}"
     else:
-        # Use lessons/ prefix directly (not lessons/math-sections/) to match bucket policy
-        # This ensures it works the same way as lesson assets
-        s3_key = f"lessons/{math_section_id}/{asset_id}{file_ext}"
-    
-    try:
-        # Check if file exists
-        if not os.path.exists(image_path):
-            raise Exception(f"Image file does not exist: {image_path}")
-        
-        # Try uploading with ACL first (for buckets with ACL enabled)
-        try:
-            s3_client.upload_file(
-                image_path,
-                aws_storage_bucket_name,
-                s3_key,
-                ExtraArgs={'ACL': 'public-read'}  # Make file publicly readable
-            )
-            print(f"Uploaded {s3_key} with ACL")
-        except (ClientError, S3UploadFailedError) as acl_error:
-            # If ACL fails (bucket might have ACLs disabled), try without ACL
-            # The bucket policy should make it public instead
-            if isinstance(acl_error, ClientError):
-                error_code = acl_error.response.get('Error', {}).get('Code', '')
-                error_message = acl_error.response.get('Error', {}).get('Message', '')
-            else:
-                # S3UploadFailedError wraps the original error
-                error_code = 'AccessControlListNotSupported' if 'ACL' in str(acl_error) else 'Unknown'
-                error_message = str(acl_error)
-            
-            print(f"ACL upload failed ({error_code}): {error_message}")
-            
-            if 'AccessControlListNotSupported' in error_code or 'ACL' in error_message:
-                # Upload without ACL - rely on bucket policy for public access
-                print(f"Retrying upload without ACL...")
-                s3_client.upload_file(
-                    image_path,
-                    aws_storage_bucket_name,
-                    s3_key
-                )
-                print(f"Note: Uploaded {s3_key} without ACL (bucket ACLs disabled, using bucket policy)")
-            else:
-                # Re-raise if it's a different error
-                raise
-        
-        # Construct public URL - URL encode the key to handle special characters like #
-        from urllib.parse import quote
-        encoded_key = quote(s3_key, safe='/')
-        if aws_s3_region_name == 'us-east-1':
-            s3_url = f"https://{aws_storage_bucket_name}.s3.amazonaws.com/{encoded_key}"
-        else:
-            s3_url = f"https://{aws_storage_bucket_name}.s3.{aws_s3_region_name}.amazonaws.com/{encoded_key}"
-        
-        print(f"Successfully uploaded {s3_key} to S3: {s3_url}")
-        return s3_url
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', '')
-        error_message = e.response.get('Error', {}).get('Message', str(e))
-        raise Exception(f"Failed to upload image to S3 (Error: {error_code}): {error_message}")
-    except Exception as e:
-        raise Exception(f"Failed to upload image to S3: {str(e)}")
+        key = f"lessons/{math_section_id}/{asset_id}{file_ext}"
+    content_type = None
+    if file_ext == '.png':
+        content_type = 'image/png'
+    elif file_ext in ('.jpg', '.jpeg'):
+        content_type = 'image/jpeg'
+    elif file_ext == '.gif':
+        content_type = 'image/gif'
+    elif file_ext == '.svg':
+        content_type = 'image/svg+xml'
+    url = upload_media(image_path, key, content_type=content_type)
+    print(f"Successfully uploaded {key} to {'GCS' if 'storage.googleapis.com' in url else 'S3'}: {url}")
+    return url
 
 
 def extract_diagrams_from_document(file_path, file_name):
