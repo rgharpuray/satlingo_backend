@@ -49,3 +49,8 @@ def support(request):
     """Support / contact"""
     return render(request, 'web/support.html')
 
+
+def delete_account(request):
+    """Delete account instructions (Play Console Delete account URL)"""
+    return render(request, 'web/delete_account.html')
+

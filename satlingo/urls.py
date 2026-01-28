@@ -60,6 +60,7 @@ urlpatterns = [
     path('terms/', web_views.terms, name='terms'),
     path('privacy/', web_views.privacy, name='privacy'),
     path('support/', web_views.support, name='support'),
+    path('delete-account/', web_views.delete_account, name='delete-account'),
 ]
 
 if settings.DEBUG:
