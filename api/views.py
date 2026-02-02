@@ -34,6 +34,7 @@ from .serializers import (
     MathSectionListSerializer, MathSectionDetailSerializer, MathQuestionSerializer,
     QuestionClassificationSerializer, UserStrengthWeaknessSerializer
 )
+from .onboarding_utils import get_onboarding_data, dismiss_prompt, mark_welcome_seen
 
 
 class PassageViewSet(viewsets.ReadOnlyModelViewSet):
@@ -1822,6 +1823,7 @@ class UserProfileView(APIView):
                     for l in study_plan.recommended_lessons.all()[:10]
                 ],
             },
+            'onboarding': get_onboarding_data(study_plan),
         })
 
 
@@ -2430,5 +2432,90 @@ class LessonAttemptsView(APIView):
                 }
                 for a in attempts
             ]
+        })
+
+
+class OnboardingDismissView(APIView):
+    """
+    Dismiss an onboarding prompt.
+    POST /onboarding/dismiss - Dismiss a specific prompt
+
+    Request body:
+    {
+        "prompt_id": "diagnostic_nudge"  // or "profile_setup", "post_diagnostic"
+    }
+
+    Valid prompt_ids: welcome (not dismissible), profile_setup, diagnostic_nudge, post_diagnostic
+    """
+
+    def post(self, request):
+        user = get_user_from_request(request)
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        prompt_id = request.data.get('prompt_id')
+        if not prompt_id:
+            return Response(
+                {'error': 'prompt_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Valid prompt IDs that can be dismissed
+        valid_prompt_ids = ['profile_setup', 'diagnostic_nudge', 'diagnostic_progress', 'post_diagnostic']
+        if prompt_id not in valid_prompt_ids:
+            return Response(
+                {'error': f'Invalid prompt_id. Must be one of: {", ".join(valid_prompt_ids)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get or create study plan
+        study_plan, _ = StudyPlan.objects.get_or_create(user=user)
+
+        # Dismiss the prompt
+        success = dismiss_prompt(study_plan, prompt_id)
+
+        if not success:
+            return Response(
+                {'error': 'Could not dismiss prompt'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Return updated onboarding data
+        return Response({
+            'success': True,
+            'onboarding': get_onboarding_data(study_plan),
+        })
+
+
+class OnboardingWelcomeSeenView(APIView):
+    """
+    Mark the welcome prompt as seen.
+    POST /onboarding/welcome-seen - Mark welcome as seen and transition to next state
+
+    This is separate from dismiss because welcome is not dismissible -
+    it must be acknowledged to progress.
+    """
+
+    def post(self, request):
+        user = get_user_from_request(request)
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # Get or create study plan
+        study_plan, _ = StudyPlan.objects.get_or_create(user=user)
+
+        # Mark welcome as seen
+        mark_welcome_seen(study_plan)
+
+        # Return updated onboarding data
+        return Response({
+            'success': True,
+            'onboarding': get_onboarding_data(study_plan),
         })
 
