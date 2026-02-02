@@ -9,7 +9,8 @@ from .views import (
     SubmitWritingSectionView, ReviewWritingSectionView, WritingSectionAttemptsView,
     MathSectionViewSet, SubmitMathSectionView, ReviewMathSectionView, MathSectionAttemptsView,
     QuestionClassificationViewSet, UserProfileView, DiagnosticSubmitView,
-    SubmitLessonView, ReviewLessonView, LessonAttemptsView
+    SubmitLessonView, ReviewLessonView, LessonAttemptsView,
+    OnboardingDismissView, OnboardingWelcomeSeenView
 )
 from .auth_views import register, login, me, google_oauth_url, google_oauth_callback, google_oauth_token, apple_oauth_token, delete_account
 from .stripe_views import (
@@ -95,6 +96,10 @@ urlpatterns = [
     
     # Diagnostic test submission
     path('diagnostic/submit', DiagnosticSubmitView.as_view(), name='diagnostic-submit'),
+
+    # Onboarding endpoints
+    path('onboarding/dismiss', OnboardingDismissView.as_view(), name='onboarding-dismiss'),
+    path('onboarding/welcome-seen', OnboardingWelcomeSeenView.as_view(), name='onboarding-welcome-seen'),
     
     # Lesson progress endpoints
     path('progress/lessons/<str:lesson_id>/submit', SubmitLessonView.as_view(), name='progress-lesson-submit'),

@@ -1161,29 +1161,60 @@ class StudyPlan(models.Model):
     """
     User's study plan generated from diagnostic test results.
     Tracks strengths and weaknesses by classification.
+    Also tracks onboarding state for penguin-guided onboarding flow.
     """
+    # Onboarding state choices
+    ONBOARDING_STATE_CHOICES = [
+        ('WELCOME', 'Welcome'),
+        ('PROFILE_SETUP', 'Profile Setup'),
+        ('DIAGNOSTIC_NUDGE', 'Diagnostic Nudge'),
+        ('DIAGNOSTIC_IN_PROGRESS', 'Diagnostic In Progress'),
+        ('POST_DIAGNOSTIC', 'Post Diagnostic'),
+        ('ENGAGED', 'Engaged'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='study_plan')
-    
+
     # Store performance data by classification as JSON
     # Format: {classification_id: {correct: X, total: Y, percentage: Z}}
     reading_performance = models.JSONField(default=dict, blank=True, help_text="Reading classification performance")
     writing_performance = models.JSONField(default=dict, blank=True, help_text="Writing classification performance")
     math_performance = models.JSONField(default=dict, blank=True, help_text="Math classification performance")
-    
+
     # Track which diagnostics have been completed
     reading_diagnostic_completed = models.BooleanField(default=False)
     writing_diagnostic_completed = models.BooleanField(default=False)
     math_diagnostic_completed = models.BooleanField(default=False)
-    
+
     # Store the diagnostic references (reading uses Passage, others use Lesson)
     reading_diagnostic_passage = models.ForeignKey('Passage', on_delete=models.SET_NULL, null=True, blank=True, related_name='reading_study_plans', help_text="Reading diagnostic is a passage")
     writing_diagnostic = models.ForeignKey('Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='writing_study_plans')
     math_diagnostic = models.ForeignKey('Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='math_study_plans')
-    
+
     # Recommended lessons based on weaknesses
     recommended_lessons = models.ManyToManyField('Lesson', blank=True, related_name='recommended_for_users')
-    
+
+    # Onboarding state tracking
+    onboarding_state = models.CharField(
+        max_length=30,
+        default='WELCOME',
+        choices=ONBOARDING_STATE_CHOICES,
+        help_text="Current onboarding state"
+    )
+
+    # Track what prompts user has seen/dismissed
+    welcome_seen_at = models.DateTimeField(null=True, blank=True, help_text="When user saw the welcome prompt")
+    profile_prompt_dismissed_at = models.DateTimeField(null=True, blank=True, help_text="When user dismissed the profile setup prompt")
+    diagnostic_prompt_dismissed_at = models.DateTimeField(null=True, blank=True, help_text="When user dismissed the diagnostic nudge prompt")
+    post_diagnostic_seen_at = models.DateTimeField(null=True, blank=True, help_text="When user saw the post-diagnostic prompt")
+
+    # Track first practice for "engaged" state
+    first_practice_completed_at = models.DateTimeField(null=True, blank=True, help_text="When user completed their first practice session")
+
+    # Quick access flag (computed from above but stored for performance)
+    onboarding_completed = models.BooleanField(default=False, help_text="Whether user has completed onboarding")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
