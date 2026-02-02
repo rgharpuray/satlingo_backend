@@ -1779,6 +1779,149 @@
             background: #3498DB;
             color: white;
         }
+
+        /* Penguin Coach Speech Bubble Styles */
+        .penguin-coach-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            max-width: 360px;
+            width: calc(100% - 48px);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+        }
+
+        .penguin-coach-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .penguin-coach-bubble {
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent-color);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(52, 152, 219, 0.2);
+            position: relative;
+        }
+
+        .penguin-coach-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .penguin-coach-avatar {
+            width: 56px;
+            height: 56px;
+            flex-shrink: 0;
+        }
+
+        .penguin-coach-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .penguin-coach-message {
+            flex: 1;
+        }
+
+        .penguin-coach-message-primary {
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+
+        .penguin-coach-message-secondary {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .penguin-coach-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .penguin-coach-action-btn {
+            flex: 1;
+            padding: 12px 20px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+
+        .penguin-coach-action-btn:hover {
+            background: var(--accent-hover);
+            transform: scale(1.02);
+        }
+
+        .penguin-coach-action-btn:active {
+            transform: scale(0.98);
+        }
+
+        .penguin-coach-dismiss-btn {
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease, color 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .penguin-coach-dismiss-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        /* Mobile adjustments for penguin coach */
+        @media (max-width: 480px) {
+            .penguin-coach-container {
+                bottom: 16px;
+                right: 16px;
+                left: 16px;
+                max-width: none;
+                width: auto;
+            }
+
+            .penguin-coach-bubble {
+                padding: 16px;
+            }
+
+            .penguin-coach-avatar {
+                width: 48px;
+                height: 48px;
+            }
+
+            .penguin-coach-message-primary {
+                font-size: 15px;
+            }
+
+            .penguin-coach-message-secondary {
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2263,6 +2406,378 @@
         if (authToken) {
             console.log('Found authToken in localStorage on page load');
         }
+
+        // =====================================================
+        // Penguin Coach Onboarding System
+        // =====================================================
+        let currentOnboardingData = null;
+
+        /**
+         * Fetch profile data and extract onboarding state
+         * @returns {Promise<Object|null>} The onboarding data or null
+         */
+        async function fetchOnboardingData() {
+            if (!authToken) {
+                console.log('fetchOnboardingData: No auth token, skipping');
+                return null;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error('fetchOnboardingData: Failed to fetch profile');
+                    return null;
+                }
+
+                const data = await response.json();
+                currentOnboardingData = data.onboarding || null;
+                console.log('fetchOnboardingData: Got onboarding data:', currentOnboardingData);
+                return currentOnboardingData;
+            } catch (error) {
+                console.error('fetchOnboardingData: Error:', error);
+                return null;
+            }
+        }
+
+        /**
+         * Show the penguin coach with current onboarding prompt
+         */
+        function showPenguinCoach() {
+            if (!currentOnboardingData || !currentOnboardingData.prompt) {
+                console.log('showPenguinCoach: No prompt to show');
+                hidePenguinCoach();
+                return;
+            }
+
+            const prompt = currentOnboardingData.prompt;
+            const container = document.getElementById('penguinCoachContainer');
+            const primaryMsg = document.getElementById('penguinCoachMessagePrimary');
+            const secondaryMsg = document.getElementById('penguinCoachMessageSecondary');
+            const actionBtn = document.getElementById('penguinCoachActionBtn');
+            const dismissBtn = document.getElementById('penguinCoachDismissBtn');
+
+            if (!container) {
+                console.error('showPenguinCoach: Container not found');
+                return;
+            }
+
+            // Set message content
+            primaryMsg.textContent = prompt.message || '';
+            secondaryMsg.textContent = prompt.secondary_message || '';
+            secondaryMsg.style.display = prompt.secondary_message ? 'block' : 'none';
+
+            // Set action button
+            if (prompt.action) {
+                actionBtn.textContent = prompt.action.label || 'Continue';
+                actionBtn.style.display = 'block';
+                actionBtn.onclick = () => handlePenguinCoachAction(prompt);
+            } else {
+                actionBtn.style.display = 'none';
+            }
+
+            // Set dismiss button visibility (welcome is not dismissible)
+            dismissBtn.style.display = prompt.dismissible ? 'flex' : 'none';
+            dismissBtn.onclick = () => handlePenguinCoachDismiss(prompt.id);
+
+            // Show the container with animation
+            container.classList.add('visible');
+            console.log('showPenguinCoach: Displayed prompt:', prompt.id);
+        }
+
+        /**
+         * Hide the penguin coach with animation
+         */
+        function hidePenguinCoach() {
+            const container = document.getElementById('penguinCoachContainer');
+            if (container) {
+                container.classList.remove('visible');
+            }
+        }
+
+        /**
+         * Handle action button click on penguin coach
+         * @param {Object} prompt - The current prompt object
+         */
+        async function handlePenguinCoachAction(prompt) {
+            if (!prompt || !prompt.action) return;
+
+            const actionType = prompt.action.type;
+            const target = prompt.action.target;
+
+            console.log('handlePenguinCoachAction:', actionType, target);
+
+            // First, handle the state transition if needed
+            if (prompt.id === 'welcome') {
+                // Mark welcome as seen
+                await markWelcomeSeen();
+            }
+
+            // Then handle the navigation/action
+            switch (actionType) {
+                case 'continue':
+                    // For welcome, just refresh state and show next prompt
+                    await refreshOnboardingAndShow();
+                    break;
+
+                case 'navigate':
+                    hidePenguinCoach();
+                    handleOnboardingNavigation(target);
+                    break;
+
+                default:
+                    console.log('handlePenguinCoachAction: Unknown action type:', actionType);
+            }
+        }
+
+        /**
+         * Handle navigation targets from onboarding prompts
+         * @param {string} target - The navigation target
+         */
+        function handleOnboardingNavigation(target) {
+            console.log('handleOnboardingNavigation:', target);
+
+            switch (target) {
+                case 'profile_edit':
+                    showProfile();
+                    break;
+
+                case 'diagnostic_selection':
+                    // Navigate to passages view and show diagnostic options
+                    showPassages();
+                    // Small delay to ensure view is rendered
+                    setTimeout(() => {
+                        showDiagnosticSelectionPrompt();
+                    }, 300);
+                    break;
+
+                case 'diagnostic_resume':
+                    // Similar to diagnostic_selection - show where they can continue
+                    showPassages();
+                    break;
+
+                case 'practice':
+                    showPassages();
+                    break;
+
+                default:
+                    console.log('handleOnboardingNavigation: Unknown target:', target);
+                    showPassages();
+            }
+        }
+
+        /**
+         * Show a prompt to select which diagnostic to start
+         */
+        function showDiagnosticSelectionPrompt() {
+            // Create a simple modal for diagnostic selection
+            const existingModal = document.getElementById('diagnosticSelectionModal');
+            if (existingModal) {
+                existingModal.style.display = 'flex';
+                return;
+            }
+
+            const modal = document.createElement('div');
+            modal.id = 'diagnosticSelectionModal';
+            modal.className = 'modal';
+            modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1001;';
+            modal.innerHTML = `
+                <div style="background: var(--bg-secondary); padding: 30px; border-radius: 16px; max-width: 500px; width: calc(100% - 40px); box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <img src="{% static 'web/images/penguin.png' %}" alt="Penguin" style="width: 64px; height: auto; margin-bottom: 12px;">
+                        <h2 style="color: var(--text-primary); margin: 0 0 8px 0; font-size: 20px;">Choose a Diagnostic</h2>
+                        <p style="color: var(--text-secondary); margin: 0; font-size: 14px; line-height: 1.5;">
+                            Each takes about 15 minutes. I'll use the results to build your personalized study plan.
+                        </p>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <button onclick="startDiagnosticFromModal('reading')" class="btn" style="padding: 16px 20px; background: var(--bg-primary); border: 2px solid var(--border-color); border-radius: 12px; text-align: left; cursor: pointer; transition: border-color 0.2s;">
+                            <strong style="color: var(--text-primary); display: block; margin-bottom: 4px;">Reading</strong>
+                            <span style="color: var(--text-secondary); font-size: 13px;">Comprehension, vocabulary, and analysis</span>
+                        </button>
+                        <button onclick="startDiagnosticFromModal('writing')" class="btn" style="padding: 16px 20px; background: var(--bg-primary); border: 2px solid var(--border-color); border-radius: 12px; text-align: left; cursor: pointer; transition: border-color 0.2s;">
+                            <strong style="color: var(--text-primary); display: block; margin-bottom: 4px;">Writing</strong>
+                            <span style="color: var(--text-secondary); font-size: 13px;">Grammar, style, and expression</span>
+                        </button>
+                        <button onclick="startDiagnosticFromModal('math')" class="btn" style="padding: 16px 20px; background: var(--bg-primary); border: 2px solid var(--border-color); border-radius: 12px; text-align: left; cursor: pointer; transition: border-color 0.2s;">
+                            <strong style="color: var(--text-primary); display: block; margin-bottom: 4px;">Math</strong>
+                            <span style="color: var(--text-secondary); font-size: 13px;">Algebra, geometry, and problem solving</span>
+                        </button>
+                    </div>
+                    <button onclick="closeDiagnosticSelectionModal()" class="btn btn-secondary" style="width: 100%; margin-top: 16px; padding: 12px;">
+                        Maybe Later
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Close on click outside
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeDiagnosticSelectionModal();
+                }
+            });
+
+            // Add hover effects
+            const buttons = modal.querySelectorAll('.btn');
+            buttons.forEach(btn => {
+                if (btn.textContent.includes('Reading') || btn.textContent.includes('Writing') || btn.textContent.includes('Math')) {
+                    btn.addEventListener('mouseenter', () => {
+                        btn.style.borderColor = 'var(--accent-color)';
+                    });
+                    btn.addEventListener('mouseleave', () => {
+                        btn.style.borderColor = 'var(--border-color)';
+                    });
+                }
+            });
+        }
+
+        /**
+         * Close the diagnostic selection modal
+         */
+        function closeDiagnosticSelectionModal() {
+            const modal = document.getElementById('diagnosticSelectionModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        /**
+         * Start a diagnostic from the selection modal
+         * @param {string} category - 'reading', 'writing', or 'math'
+         */
+        async function startDiagnosticFromModal(category) {
+            closeDiagnosticSelectionModal();
+
+            // Fetch the study plan to get diagnostic IDs
+            try {
+                const response = await fetch(`${API_BASE}/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error('Failed to fetch profile for diagnostic');
+                    return;
+                }
+
+                const data = await response.json();
+                const studyPlan = data.study_plan;
+
+                if (!studyPlan) {
+                    console.error('No study plan available');
+                    alert('No diagnostics available yet. Please try again later.');
+                    return;
+                }
+
+                // Get the diagnostic ID for the selected category
+                let diagnosticId = null;
+                let diagnosticType = 'lesson';
+
+                if (category === 'reading' && studyPlan.reading) {
+                    diagnosticId = studyPlan.reading.diagnostic_passage_id;
+                    diagnosticType = 'passage';
+                } else if (category === 'writing' && studyPlan.writing) {
+                    diagnosticId = studyPlan.writing.diagnostic_lesson_id;
+                    diagnosticType = 'lesson';
+                } else if (category === 'math' && studyPlan.math) {
+                    diagnosticId = studyPlan.math.diagnostic_lesson_id;
+                    diagnosticType = 'lesson';
+                }
+
+                if (diagnosticId) {
+                    startDiagnostic(diagnosticId, diagnosticType);
+                } else {
+                    console.error('No diagnostic ID found for category:', category);
+                    alert(`No ${category} diagnostic available yet.`);
+                }
+            } catch (error) {
+                console.error('Error starting diagnostic:', error);
+            }
+        }
+
+        /**
+         * Handle dismiss button click on penguin coach
+         * @param {string} promptId - The prompt ID to dismiss
+         */
+        async function handlePenguinCoachDismiss(promptId) {
+            console.log('handlePenguinCoachDismiss:', promptId);
+
+            hidePenguinCoach();
+
+            try {
+                const response = await fetch(`${API_BASE}/onboarding/dismiss`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt_id: promptId })
+                });
+
+                if (!response.ok) {
+                    console.error('handlePenguinCoachDismiss: Failed to dismiss prompt');
+                }
+
+                // Refresh onboarding state (will show no prompt since dismissed)
+                await refreshOnboardingAndShow();
+            } catch (error) {
+                console.error('handlePenguinCoachDismiss: Error:', error);
+            }
+        }
+
+        /**
+         * Mark welcome prompt as seen
+         */
+        async function markWelcomeSeen() {
+            try {
+                const response = await fetch(`${API_BASE}/onboarding/welcome-seen`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error('markWelcomeSeen: Failed to mark welcome as seen');
+                }
+            } catch (error) {
+                console.error('markWelcomeSeen: Error:', error);
+            }
+        }
+
+        /**
+         * Refresh onboarding data and show the penguin coach if there's a prompt
+         */
+        async function refreshOnboardingAndShow() {
+            const data = await fetchOnboardingData();
+            if (data && data.prompt) {
+                showPenguinCoach();
+            } else {
+                hidePenguinCoach();
+            }
+        }
+
+        /**
+         * Initialize the penguin coach on page load (for logged-in users)
+         */
+        async function initPenguinCoach() {
+            if (!authToken) {
+                console.log('initPenguinCoach: No auth token, skipping');
+                return;
+            }
+
+            // Small delay to let the page settle
+            setTimeout(async () => {
+                await refreshOnboardingAndShow();
+            }, 500);
+        }
         
         // Check URL hash to determine initial view
         function handleHashRoute() {
@@ -2480,6 +2995,8 @@
                     currentUser = await response.json();
                     console.log('checkAuth: User authenticated:', currentUser.email);
                     updateUI();
+                    // Initialize penguin coach for logged-in users
+                    initPenguinCoach();
                     // Keep landing page visible - user can navigate to passages when ready
                 } else {
                     console.log('checkAuth: Auth failed, removing token');
@@ -2522,6 +3039,8 @@
                     currentUser = result.user;
                     closeModal('loginModal');
                     updateUI();
+                    // Initialize penguin coach after login
+                    initPenguinCoach();
                     // Stay on landing page - user can navigate to passages when ready
                 } else {
                     document.getElementById('loginError').textContent = result.error?.message || 'Login failed';
@@ -2632,6 +3151,9 @@
                                 // Don't throw - try to continue anyway
                             }
                             
+                            // Initialize penguin coach after Google login
+                            initPenguinCoach();
+
                             // Navigate to passages view if not already there
                             if (!hashPart.includes('passages') && !hashPart.includes('writing') && !hashPart.includes('math')) {
                                 console.log('Navigating to passages');
@@ -2704,6 +3226,8 @@
                         currentUser = result.user;
                         window.history.replaceState({}, document.title, window.location.pathname);
                         updateUI();
+                        // Initialize penguin coach after Google login
+                        initPenguinCoach();
                         // Navigate to passages after login
                         showPassages();
                     } else {
@@ -2741,7 +3265,9 @@
                     currentUser = result.user;
                     closeModal('registerModal');
                     updateUI();
-                    
+                    // Initialize penguin coach after registration
+                    initPenguinCoach();
+
                     // If there's a saved attempt from before registration, save it now
                     if (lastAttemptData) {
                         const savedPassageId = lastAttemptData.passage_id;
@@ -7479,6 +8005,8 @@
             localStorage.removeItem('authToken');
             authToken = null;
             currentUser = null;
+            currentOnboardingData = null;
+            hidePenguinCoach();
             updateUI();
             loadPassages();
         }
@@ -7891,6 +8419,25 @@
             </p>
         </div>
     </footer>
+
+    <!-- Penguin Coach Speech Bubble -->
+    <div id="penguinCoachContainer" class="penguin-coach-container" aria-live="polite" role="complementary" aria-label="Penguin coach guidance">
+        <div class="penguin-coach-bubble">
+            <div class="penguin-coach-header">
+                <div class="penguin-coach-avatar">
+                    <img src="{% static 'web/images/penguin.png' %}" alt="Keuvi Penguin Coach">
+                </div>
+                <div class="penguin-coach-message">
+                    <div id="penguinCoachMessagePrimary" class="penguin-coach-message-primary"></div>
+                    <div id="penguinCoachMessageSecondary" class="penguin-coach-message-secondary"></div>
+                </div>
+            </div>
+            <div class="penguin-coach-actions">
+                <button id="penguinCoachActionBtn" class="penguin-coach-action-btn" aria-label="Take action"></button>
+                <button id="penguinCoachDismissBtn" class="penguin-coach-dismiss-btn" aria-label="Dismiss" title="Dismiss">&times;</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
 

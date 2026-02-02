@@ -1776,9 +1776,11 @@ class UserProfileView(APIView):
         study_plan, _ = StudyPlan.objects.get_or_create(user=user)
         
         # Get diagnostic tests (reading is a passage, writing/math are lessons)
-        reading_diagnostic = Passage.objects.filter(is_diagnostic=True).first()
-        writing_diagnostic = Lesson.objects.filter(lesson_type='writing', is_diagnostic=True).first()
-        math_diagnostic = Lesson.objects.filter(lesson_type='math', is_diagnostic=True).first()
+        # Use study plan's stored references if user has started/completed a diagnostic,
+        # otherwise fall back to global pool to show available diagnostics
+        reading_diagnostic = study_plan.reading_diagnostic_passage or Passage.objects.filter(is_diagnostic=True).first()
+        writing_diagnostic = study_plan.writing_diagnostic or Lesson.objects.filter(lesson_type='writing', is_diagnostic=True).first()
+        math_diagnostic = study_plan.math_diagnostic or Lesson.objects.filter(lesson_type='math', is_diagnostic=True).first()
         
         return Response({
             'user': {
