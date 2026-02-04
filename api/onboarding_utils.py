@@ -22,7 +22,7 @@ from datetime import timedelta
 PROMPTS = {
     'WELCOME': {
         'id': 'welcome',
-        'message': "Hey! I'm the Keuvi penguin. Let's get you ready for the SAT.",
+        'message': "Hi! Welcome to Keuvi!",
         'secondary_message': "I'll help you find what to practice and track your progress.",
         'action': {'type': 'continue', 'label': "Let's go"},
         'dismissible': False,
