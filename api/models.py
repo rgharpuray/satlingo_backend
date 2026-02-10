@@ -1,10 +1,14 @@
 import uuid
+import logging
 import threading
 from django.db import models
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 class Passage(models.Model):
@@ -1269,4 +1273,179 @@ class StudyPlan(models.Model):
                     'total': data.get('total', 0),
                 })
         return sorted(improving, key=lambda x: x['percentage'], reverse=True)
+
+
+class DiscountCode(models.Model):
+    """
+    Represents a discount/promotion code for web subscriptions.
+    Syncs with Stripe Coupons and Promotion Codes.
+
+    Location: api/models.py
+    Usage: Created/managed via Django admin, automatically syncs to Stripe.
+    Related: Used with checkout sessions in api/stripe_views.py
+    """
+
+    DISCOUNT_TYPE_CHOICES = [
+        ('percent', 'Percentage Off'),
+        ('amount', 'Fixed Amount Off'),
+    ]
+
+    DURATION_CHOICES = [
+        ('once', 'Once (first payment only)'),
+        ('forever', 'Forever (all recurring payments)'),
+        ('repeating', 'Repeating (X months)'),
+    ]
+
+    # Primary fields
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Customer-facing code (e.g., 'STUDENT20', 'WELCOME')"
+    )
+    name = models.CharField(
+        max_length=255,
+        help_text="Display name for admin reference"
+    )
+
+    # Discount configuration
+    discount_type = models.CharField(
+        max_length=10,
+        choices=DISCOUNT_TYPE_CHOICES,
+        default='percent'
+    )
+    percent_off = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(100)],
+        help_text="Percentage discount (1-100)"
+    )
+    amount_off = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.01)],
+        help_text="Fixed amount off in cents (USD)"
+    )
+
+    # Duration settings
+    duration = models.CharField(
+        max_length=10,
+        choices=DURATION_CHOICES,
+        default='forever'
+    )
+    duration_in_months = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of months (only for 'repeating' duration)"
+    )
+
+    # Restrictions
+    max_redemptions = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum total uses (leave blank for unlimited)"
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Expiration date (leave blank for no expiration)"
+    )
+    first_time_transaction = models.BooleanField(
+        default=False,
+        help_text="Only allow for first-time customers"
+    )
+
+    # Status
+    is_active = models.BooleanField(default=True)
+
+    # Stripe references (populated on sync)
+    stripe_coupon_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
+    stripe_promotion_code_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
+
+    # Usage tracking (updated via webhooks or periodic sync)
+    times_redeemed = models.PositiveIntegerField(default=0)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'discount_codes'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['code']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        if self.discount_type == 'percent':
+            return f"{self.code} ({self.percent_off}% off)"
+        return f"{self.code} (${self.amount_off / 100:.2f} off)"
+
+    def clean(self):
+        """Validate discount configuration"""
+        from django.core.exceptions import ValidationError
+
+        if self.discount_type == 'percent' and not self.percent_off:
+            raise ValidationError('Percentage off is required for percent discount type')
+        if self.discount_type == 'amount' and not self.amount_off:
+            raise ValidationError('Amount off is required for fixed amount discount type')
+        if self.duration == 'repeating' and not self.duration_in_months:
+            raise ValidationError('Duration in months is required for repeating duration')
+
+    def is_valid(self):
+        """Check if code is currently valid for use"""
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        if self.max_redemptions and self.times_redeemed >= self.max_redemptions:
+            return False
+        return True
+
+
+@receiver(post_save, sender=DiscountCode)
+def sync_discount_code_to_stripe(sender, instance, created, **kwargs):
+    """Sync discount code to Stripe on save"""
+    from .discount_sync import DiscountSyncService
+
+    try:
+        if created:
+            # New code - create in Stripe
+            logger.info(f"Creating discount code '{instance.code}' in Stripe")
+            coupon_id, promo_id = DiscountSyncService.create_in_stripe(instance)
+            # Update without triggering signal again
+            DiscountCode.objects.filter(pk=instance.pk).update(
+                stripe_coupon_id=coupon_id,
+                stripe_promotion_code_id=promo_id
+            )
+            logger.info(f"Discount code '{instance.code}' synced to Stripe: coupon={coupon_id}, promo={promo_id}")
+        else:
+            # Existing code - update active status in Stripe
+            logger.info(f"Updating discount code '{instance.code}' in Stripe")
+            DiscountSyncService.update_in_stripe(instance)
+            logger.info(f"Discount code '{instance.code}' updated in Stripe")
+    except Exception as e:
+        logger.error(f"Failed to sync discount code '{instance.code}' to Stripe: {str(e)}", exc_info=True)
+        # Don't re-raise - allow the model save to complete even if Stripe sync fails
+        # Admin can manually retry or check Stripe dashboard
+
+
+@receiver(pre_delete, sender=DiscountCode)
+def deactivate_discount_code_in_stripe(sender, instance, **kwargs):
+    """Deactivate promotion code in Stripe before deletion"""
+    from .discount_sync import DiscountSyncService
+
+    try:
+        logger.info(f"Deactivating discount code '{instance.code}' in Stripe before deletion")
+        DiscountSyncService.deactivate_in_stripe(instance)
+        logger.info(f"Discount code '{instance.code}' deactivated in Stripe")
+    except Exception as e:
+        logger.error(f"Failed to deactivate discount code '{instance.code}' in Stripe: {str(e)}", exc_info=True)
+        # Don't re-raise - allow deletion to proceed
 

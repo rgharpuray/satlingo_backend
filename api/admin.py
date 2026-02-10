@@ -11,7 +11,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, LessonAttempt, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription, QuestionClassification, StudyPlan
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, LessonAttempt, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription, QuestionClassification, StudyPlan, DiscountCode
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -3168,8 +3168,118 @@ class LessonAttemptAdmin(admin.ModelAdmin):
     search_fields = ['user__email', 'lesson__title']
     readonly_fields = ['id', 'user', 'lesson', 'score', 'correct_count', 'total_questions', 'time_spent_seconds', 'answers_data', 'is_diagnostic_attempt', 'completed_at', 'created_at']
     ordering = ['-completed_at']
-    
+
     def user_display(self, obj):
         return obj.user.email if obj.user else 'Anonymous'
     user_display.short_description = 'User'
+
+
+@admin.register(DiscountCode)
+class DiscountCodeAdmin(admin.ModelAdmin):
+    """
+    Admin interface for discount code management.
+
+    Location: api/admin.py
+    Summary: Provides CRUD operations for discount codes that sync with Stripe.
+    Usage: Admin users create/edit discount codes here; changes auto-sync to Stripe.
+    """
+    list_display = [
+        'code',
+        'name',
+        'discount_display',
+        'duration',
+        'is_active',
+        'times_redeemed_display',
+        'expires_at',
+        'created_at'
+    ]
+    list_filter = ['is_active', 'discount_type', 'duration', 'created_at']
+    search_fields = ['code', 'name']
+    readonly_fields = [
+        'id',
+        'stripe_coupon_id',
+        'stripe_promotion_code_id',
+        'times_redeemed',
+        'created_at',
+        'updated_at'
+    ]
+
+    fieldsets = (
+        ('Code Details', {
+            'fields': ('code', 'name', 'is_active')
+        }),
+        ('Discount Configuration', {
+            'fields': ('discount_type', 'percent_off', 'amount_off')
+        }),
+        ('Duration', {
+            'fields': ('duration', 'duration_in_months')
+        }),
+        ('Restrictions', {
+            'fields': ('max_redemptions', 'expires_at', 'first_time_transaction')
+        }),
+        ('Stripe Sync (Read-Only)', {
+            'fields': ('stripe_coupon_id', 'stripe_promotion_code_id', 'times_redeemed'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('id', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    actions = ['activate_codes', 'deactivate_codes', 'sync_usage_stats']
+
+    def discount_display(self, obj):
+        """Display discount amount/percentage"""
+        if obj.discount_type == 'percent':
+            return f"{obj.percent_off}% off"
+        if obj.amount_off:
+            return f"${obj.amount_off / 100:.2f} off"
+        return "-"
+    discount_display.short_description = 'Discount'
+
+    def times_redeemed_display(self, obj):
+        """Display redemption count with max if set"""
+        if obj.max_redemptions:
+            return f"{obj.times_redeemed} / {obj.max_redemptions}"
+        return str(obj.times_redeemed)
+    times_redeemed_display.short_description = 'Redemptions'
+
+    @admin.action(description='Activate selected codes')
+    def activate_codes(self, request, queryset):
+        """Activate selected discount codes (syncs to Stripe via signal)"""
+        for code in queryset:
+            code.is_active = True
+            code.save()  # Triggers signal to sync to Stripe
+        self.message_user(request, f"Activated {queryset.count()} discount code(s)")
+
+    @admin.action(description='Deactivate selected codes')
+    def deactivate_codes(self, request, queryset):
+        """Deactivate selected discount codes (syncs to Stripe via signal)"""
+        for code in queryset:
+            code.is_active = False
+            code.save()  # Triggers signal to sync to Stripe
+        self.message_user(request, f"Deactivated {queryset.count()} discount code(s)")
+
+    @admin.action(description='Sync usage stats from Stripe')
+    def sync_usage_stats(self, request, queryset):
+        """Fetch current redemption counts from Stripe"""
+        from .discount_sync import DiscountSyncService
+
+        synced_count = 0
+        for code in queryset:
+            if code.stripe_promotion_code_id:
+                try:
+                    count = DiscountSyncService.sync_usage_from_stripe(code)
+                    code.times_redeemed = count
+                    code.save(update_fields=['times_redeemed'])
+                    synced_count += 1
+                except Exception as e:
+                    self.message_user(
+                        request,
+                        f"Failed to sync {code.code}: {str(e)}",
+                        level='error'
+                    )
+
+        self.message_user(request, f"Synced usage stats for {synced_count} discount code(s)")
 
