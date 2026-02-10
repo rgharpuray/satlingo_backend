@@ -1324,10 +1324,10 @@ class DiscountCode(models.Model):
     )
     amount_off = models.DecimalField(
         max_digits=10,
-        decimal_places=2,
+        decimal_places=0,
         null=True,
         blank=True,
-        validators=[MinValueValidator(0.01)],
+        validators=[MinValueValidator(1)],
         help_text="Fixed amount off in cents (USD)"
     )
 
