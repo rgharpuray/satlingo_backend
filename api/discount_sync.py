@@ -80,8 +80,11 @@ class DiscountSyncService:
         logger.info(f"Created Stripe coupon: {coupon.id}")
 
         # Build promotion code parameters
+        # Note: Stripe API 2025+ requires coupon inside 'promotion' object
         promo_params = {
-            'coupon': coupon.id,
+            'promotion': {
+                'coupon': coupon.id,
+            },
             'code': discount_code.code,
             'active': discount_code.is_active,
             'metadata': {

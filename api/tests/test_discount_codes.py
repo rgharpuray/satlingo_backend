@@ -281,7 +281,7 @@ class DiscountSyncServiceCreateTests(TestCase):
         # Verify promo code creation call
         mock_promo_create.assert_called_once()
         promo_args = mock_promo_create.call_args[1]
-        self.assertEqual(promo_args['coupon'], 'coupon_test123')
+        self.assertEqual(promo_args['promotion']['coupon'], 'coupon_test123')
         self.assertEqual(promo_args['code'], 'STRIPE20')
         self.assertTrue(promo_args['active'])
 
