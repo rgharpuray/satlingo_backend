@@ -99,6 +99,7 @@ def create_checkout_session(request):
             mode='subscription',
             success_url=success_url,
             cancel_url=cancel_url,
+            allow_promotion_codes=True,  # Enable promo code field in Stripe Checkout
             metadata={
                 'user_id': str(user.id),
             },
