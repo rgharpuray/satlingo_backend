@@ -1362,6 +1362,12 @@ class DiscountCode(models.Model):
     # Status
     is_active = models.BooleanField(default=True)
 
+    # Direct premium grant (bypasses Stripe)
+    grants_premium_directly = models.BooleanField(
+        default=False,
+        help_text="If True, code grants premium directly without Stripe checkout (e.g., for contests, partnerships)"
+    )
+
     # Stripe references (populated on sync)
     stripe_coupon_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
     stripe_promotion_code_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
@@ -1413,6 +1419,11 @@ class DiscountCode(models.Model):
 def sync_discount_code_to_stripe(sender, instance, created, **kwargs):
     """Sync discount code to Stripe on save"""
     from .discount_sync import DiscountSyncService
+
+    # Skip Stripe sync for codes that grant premium directly
+    if instance.grants_premium_directly:
+        logger.info(f"Skipping Stripe sync for direct premium code '{instance.code}'")
+        return
 
     try:
         if created:

@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import User, Subscription
+from .models import User, Subscription, DiscountCode
 
 logger = logging.getLogger(__name__)
 
@@ -673,4 +673,75 @@ def handle_subscription_deleted(subscription):
         sub.user.save()
     except Subscription.DoesNotExist:
         logger.warning(f"Subscription {subscription_id} not found in database when handling deletion")
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def redeem_code(request):
+    """
+    Redeem a direct premium code (grants_premium_directly=True).
+
+    Location: api/stripe_views.py
+    Usage: POST /api/payments/redeem-code with {"code": "SOMECODE"}
+    Related: DiscountCode model in api/models.py
+    """
+    code_value = request.data.get('code', '').strip().upper()
+
+    if not code_value:
+        return Response(
+            {'error': {'code': 'BAD_REQUEST', 'message': 'Code is required'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        discount_code = DiscountCode.objects.get(code__iexact=code_value)
+    except DiscountCode.DoesNotExist:
+        logger.warning(f"Redeem attempt with invalid code '{code_value}' by user {request.user.id}")
+        return Response(
+            {'error': {'code': 'INVALID_CODE', 'message': 'Invalid code'}},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Check if this is a direct premium code
+    if not discount_code.grants_premium_directly:
+        return Response(
+            {'error': {'code': 'CHECKOUT_CODE', 'message': 'Use this code at checkout'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Validate the code is usable
+    if not discount_code.is_active:
+        return Response(
+            {'error': {'code': 'INACTIVE_CODE', 'message': 'This code is no longer active'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if discount_code.expires_at and discount_code.expires_at < timezone.now():
+        return Response(
+            {'error': {'code': 'EXPIRED_CODE', 'message': 'This code has expired'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if discount_code.max_redemptions and discount_code.times_redeemed >= discount_code.max_redemptions:
+        return Response(
+            {'error': {'code': 'MAX_REDEMPTIONS', 'message': 'This code has reached its maximum uses'}},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Grant premium to user
+    user = request.user
+    user.is_premium = True
+    user.save()
+
+    # Increment redemption count
+    discount_code.times_redeemed += 1
+    discount_code.save(update_fields=['times_redeemed'])
+
+    logger.info(f"User {user.id} ({user.email}) redeemed direct premium code '{code_value}'")
+
+    return Response({
+        'success': True,
+        'message': 'Premium access granted',
+        'is_premium': True,
+    })
 
