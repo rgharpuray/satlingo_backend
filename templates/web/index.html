@@ -2072,6 +2072,17 @@
                             <button class="btn btn-secondary" onclick="refreshUserData()" style="margin-top: 5px; width: 100%; font-size: 12px; padding: 6px;">
                                 🔄 Refresh Status
                             </button>
+                            <!-- Promo Code Section -->
+                            <div id="promoCodeSection" style="margin-top: 10px;">
+                                <a href="#" id="promoCodeLink" onclick="togglePromoCodeInput(event)" style="color: var(--accent-color); font-size: 12px; text-decoration: none;">Have a promo code?</a>
+                                <div id="promoCodeInputSection" style="display: none; margin-top: 8px;">
+                                    <input type="text" id="promoCodeInput" placeholder="Enter code" style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 14px; background: var(--bg-primary); color: var(--text-primary); box-sizing: border-box;">
+                                    <button class="btn btn-primary" onclick="redeemPromoCode()" id="redeemPromoBtn" style="margin-top: 5px; width: 100%; font-size: 12px; padding: 8px;">
+                                        Redeem
+                                    </button>
+                                    <div id="promoCodeMessage" style="margin-top: 5px; font-size: 12px; display: none;"></div>
+                                </div>
+                            </div>
                         </div>
                         <button class="btn btn-primary" onclick="showProfile()" style="margin-top: 15px; width: 100%;">
                             My Profile
@@ -7886,7 +7897,90 @@
                 alert('Network error. Please try again.');
             }
         }
-        
+
+        function togglePromoCodeInput(event) {
+            event.preventDefault();
+            const inputSection = document.getElementById('promoCodeInputSection');
+            const isVisible = inputSection.style.display !== 'none';
+            inputSection.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                document.getElementById('promoCodeInput').focus();
+            }
+        }
+
+        async function redeemPromoCode() {
+            if (!authToken) {
+                showRegisterModal();
+                return;
+            }
+
+            const codeInput = document.getElementById('promoCodeInput');
+            const messageEl = document.getElementById('promoCodeMessage');
+            const redeemBtn = document.getElementById('redeemPromoBtn');
+            const code = codeInput.value.trim();
+
+            if (!code) {
+                messageEl.style.display = 'block';
+                messageEl.style.color = 'var(--error-color, #dc3545)';
+                messageEl.textContent = 'Please enter a promo code.';
+                return;
+            }
+
+            // Disable button while processing
+            redeemBtn.disabled = true;
+            redeemBtn.textContent = 'Redeeming...';
+            messageEl.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE}/payments/redeem-code`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ code: code })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Show success message
+                    messageEl.style.display = 'block';
+                    messageEl.style.color = 'var(--success-color, #28a745)';
+                    messageEl.textContent = data.message || 'Promo code redeemed successfully!';
+
+                    // Clear input
+                    codeInput.value = '';
+
+                    // Refresh user data to update premium status
+                    await refreshUserData();
+
+                    // Hide promo code section after success (user is now premium)
+                    setTimeout(() => {
+                        const promoSection = document.getElementById('promoCodeSection');
+                        if (promoSection) {
+                            promoSection.style.display = 'none';
+                        }
+                    }, 2000);
+                } else {
+                    // Show error message
+                    const errorMessage = data.error?.message || data.message || 'Failed to redeem code. Please try again.';
+                    messageEl.style.display = 'block';
+                    messageEl.style.color = 'var(--error-color, #dc3545)';
+                    messageEl.textContent = errorMessage;
+                }
+            } catch (error) {
+                console.error('Failed to redeem promo code:', error);
+                messageEl.style.display = 'block';
+                messageEl.style.color = 'var(--error-color, #dc3545)';
+                messageEl.textContent = 'Network error. Please try again.';
+            } finally {
+                // Re-enable button
+                redeemBtn.disabled = false;
+                redeemBtn.textContent = 'Redeem';
+            }
+        }
+
         async function refreshUserData() {
             /**Refresh user data from server to get latest premium status*/
             if (!authToken) {
@@ -7957,6 +8051,9 @@
                             btn.classList.remove('btn-success');
                             btn.classList.add('btn-secondary');
                         }
+                        // Hide promo code section for premium users
+                        const promoSection = document.getElementById('promoCodeSection');
+                        if (promoSection) promoSection.style.display = 'none';
                     } else {
                         const statusEl = document.getElementById('subscriptionStatus');
                         if (statusEl) statusEl.textContent = 'Free';
@@ -7967,6 +8064,9 @@
                             btn.classList.remove('btn-secondary');
                             btn.classList.add('btn-success');
                         }
+                        // Show promo code section for free users
+                        const promoSection = document.getElementById('promoCodeSection');
+                        if (promoSection) promoSection.style.display = 'block';
                     }
                 }
             } else {
