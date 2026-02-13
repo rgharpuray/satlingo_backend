@@ -3206,7 +3206,7 @@ class DiscountCodeAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Code Details', {
-            'fields': ('code', 'name', 'is_active')
+            'fields': ('code', 'name', 'is_active', 'grants_premium_directly')
         }),
         ('Discount Configuration', {
             'fields': ('discount_type', 'percent_off', 'amount_off')
