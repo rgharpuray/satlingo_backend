@@ -348,13 +348,15 @@ def sync_subscription_from_stripe(request):
             })
         else:
             # No active subscriptions found
-            user.is_premium = False
-            user.save()
-            
+            # Only remove premium if it wasn't granted directly (via promo code)
+            if not user.premium_granted_directly:
+                user.is_premium = False
+                user.save()
+
             return Response({
                 'success': True,
                 'message': 'No active subscriptions found',
-                'is_premium': False,
+                'is_premium': user.is_premium,
             })
     
     except stripe.error.StripeError as e:
@@ -731,6 +733,7 @@ def redeem_code(request):
     # Grant premium to user
     user = request.user
     user.is_premium = True
+    user.premium_granted_directly = True
     user.save()
 
     # Increment redemption count

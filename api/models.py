@@ -186,6 +186,7 @@ class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
     is_premium = models.BooleanField(default=False)
+    premium_granted_directly = models.BooleanField(default=False, help_text="True if premium was granted via promo code (bypasses Stripe sync)")
     stripe_customer_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
     google_id = models.CharField(max_length=255, null=True, blank=True, unique=True, help_text="Google OAuth ID")
     apple_id = models.CharField(max_length=255, null=True, blank=True, unique=True, help_text="Apple Sign In ID (sub claim from identity token)")
