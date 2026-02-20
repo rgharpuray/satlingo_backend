@@ -5,10 +5,24 @@ from django.db import models
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator, URLValidator
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def validate_gcs_icon_url(value):
+    """
+    Validator that ensures icon URLs are hosted on the approved GCS bucket.
+    This prevents arbitrary external URLs from being used for icons.
+    """
+    from api.constants import GCS_ICON_URL_PREFIX
+    if value and not value.startswith(GCS_ICON_URL_PREFIX):
+        raise DjangoValidationError(
+            f'Icon URL must start with {GCS_ICON_URL_PREFIX}',
+            code='invalid_icon_url'
+        )
 
 
 class Passage(models.Model):
@@ -32,9 +46,27 @@ class Passage(models.Model):
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='passages', help_text="Header/section this passage belongs to")
     order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
+    # Visual Enhancement Fields
+    icon_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        validators=[validate_gcs_icon_url],
+        help_text="URL to passage icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
+    )
+    icon_color = models.CharField(
+        max_length=7,
+        null=True,
+        blank=True,
+        validators=[RegexValidator(
+            regex=r'^#[0-9A-Fa-f]{6}$',
+            message='Enter a valid hex color code (e.g., #58CC02)'
+        )],
+        help_text="Primary accent color for icon/UI (hex format, e.g., #58CC02)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'passages'
         indexes = [
@@ -463,9 +495,27 @@ class Lesson(models.Model):
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='lessons', help_text="Header/section this lesson belongs to")
     order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
+    # Visual Enhancement Fields
+    icon_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        validators=[validate_gcs_icon_url],
+        help_text="URL to lesson icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
+    )
+    icon_color = models.CharField(
+        max_length=7,
+        null=True,
+        blank=True,
+        validators=[RegexValidator(
+            regex=r'^#[0-9A-Fa-f]{6}$',
+            message='Enter a valid hex color code (e.g., #58CC02)'
+        )],
+        help_text="Primary accent color for icon/UI (hex format, e.g., #58CC02)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'lessons'
         indexes = [
@@ -502,9 +552,27 @@ class Header(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, help_text="Category this header belongs to")
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES, default='both', help_text="Type of content this header is for: lessons, sections/passages, or both")
     display_order = models.IntegerField(default=0, help_text="Order for display within category (higher numbers appear first)")
+    # Visual Enhancement Fields
+    icon_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        validators=[validate_gcs_icon_url],
+        help_text="URL to header/unit icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
+    )
+    background_color = models.CharField(
+        max_length=7,
+        null=True,
+        blank=True,
+        validators=[RegexValidator(
+            regex=r'^#[0-9A-Fa-f]{6}$',
+            message='Enter a valid hex color code (e.g., #1CB0F6)'
+        )],
+        help_text="Header background/accent color (hex format, e.g., #1CB0F6)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'headers'
         indexes = [
@@ -714,9 +782,27 @@ class WritingSection(models.Model):
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='writing_sections', help_text="Header/section this writing section belongs to")
     order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
+    # Visual Enhancement Fields
+    icon_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        validators=[validate_gcs_icon_url],
+        help_text="URL to writing section icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
+    )
+    icon_color = models.CharField(
+        max_length=7,
+        null=True,
+        blank=True,
+        validators=[RegexValidator(
+            regex=r'^#[0-9A-Fa-f]{6}$',
+            message='Enter a valid hex color code (e.g., #58CC02)'
+        )],
+        help_text="Primary accent color for icon/UI (hex format, e.g., #58CC02)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'writing_sections'
         indexes = [
@@ -996,9 +1082,27 @@ class MathSection(models.Model):
     display_order = models.IntegerField(default=0, help_text="Order for display in admin (higher numbers appear first)")
     header = models.ForeignKey('Header', on_delete=models.SET_NULL, null=True, blank=True, related_name='math_sections', help_text="Header/section this math section belongs to")
     order_within_header = models.IntegerField(default=0, help_text="Order within the header (higher numbers appear first)")
+    # Visual Enhancement Fields
+    icon_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        validators=[validate_gcs_icon_url],
+        help_text="URL to math section icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
+    )
+    icon_color = models.CharField(
+        max_length=7,
+        null=True,
+        blank=True,
+        validators=[RegexValidator(
+            regex=r'^#[0-9A-Fa-f]{6}$',
+            message='Enter a valid hex color code (e.g., #58CC02)'
+        )],
+        help_text="Primary accent color for icon/UI (hex format, e.g., #58CC02)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'math_sections'
         indexes = [

@@ -26,6 +26,41 @@ from .math_ingestion_utils import process_math_ingestion
 from .math_gpt_utils import convert_document_to_math_json
 
 
+class ColorInputWidget(forms.TextInput):
+    """Custom widget that renders an HTML5 color picker alongside a text input for hex colors."""
+    template_name = 'admin/widgets/color_input.html'
+
+    def __init__(self, attrs=None):
+        default_attrs = {'type': 'text', 'maxlength': 7, 'style': 'width: 80px; margin-right: 10px;'}
+        if attrs:
+            default_attrs.update(attrs)
+        super().__init__(default_attrs)
+
+    def render(self, name, value, attrs=None, renderer=None):
+        """Render color picker and text input side by side."""
+        if attrs is None:
+            attrs = {}
+        final_attrs = self.build_attrs(self.attrs, extra_attrs=attrs)
+        final_attrs['name'] = name
+        final_attrs['id'] = f'id_{name}'
+
+        # Use a default color if value is empty/None
+        display_value = value if value else '#58CC02'
+        text_value = value if value else ''
+
+        html = f'''
+        <div style="display: flex; align-items: center;">
+            <input type="color" id="id_{name}_picker" value="{display_value}"
+                   onchange="document.getElementById('id_{name}').value = this.value;"
+                   style="width: 50px; height: 30px; padding: 0; border: 1px solid #ccc; cursor: pointer;">
+            <input type="text" name="{name}" id="id_{name}" value="{text_value}"
+                   maxlength="7" placeholder="#58CC02" style="width: 80px; margin-left: 10px;"
+                   onchange="document.getElementById('id_{name}_picker').value = this.value || '#58CC02';">
+        </div>
+        '''
+        return mark_safe(html)
+
+
 class MultipleFileInput(forms.Widget):
     """Custom widget for multiple file uploads that bypasses FileInput's multiple restriction"""
     input_type = 'file'
@@ -179,7 +214,13 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
                 Q(content_type='section') | Q(content_type='both')
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
-    
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """Use color picker widget for icon_color field."""
+        if db_field.name == 'icon_color':
+            kwargs['widget'] = ColorInputWidget()
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
     def get_queryset(self, request):
         """Override queryset to handle missing display_order column gracefully"""
         qs = super().get_queryset(request)
@@ -248,6 +289,10 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
         ('Basic Information', {
             'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'is_diagnostic')
         }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'icon_color'),
+            'description': 'Icon URL and accent color for mobile display'
+        }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
             'description': 'Assign passage to a header/section and set its order within that header. Only reading category headers will be shown.'
@@ -257,7 +302,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def move_up(self, request, queryset):
         """Move selected items up (increase display_order)"""
         for obj in queryset:
@@ -265,7 +310,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             obj.save()
         self.message_user(request, f"Moved {queryset.count()} item(s) up.")
     move_up.short_description = "Move up (increase order)"
-    
+
     def move_down(self, request, queryset):
         """Move selected items down (decrease display_order)"""
         for obj in queryset:
@@ -273,7 +318,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             obj.save()
         self.message_user(request, f"Moved {queryset.count()} item(s) down.")
     move_down.short_description = "Move down (decrease order)"
-    
+
     def question_count(self, obj):
         """Display number of questions for this passage"""
         if obj.pk:
@@ -1487,10 +1532,20 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
                     pass
             # For new lessons, we can't filter yet - user needs to set lesson_type first
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
-    
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """Use color picker widget for icon_color field."""
+        if db_field.name == 'icon_color':
+            kwargs['widget'] = ColorInputWidget()
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'lesson_id', 'title', 'lesson_type', 'is_diagnostic', 'difficulty', 'tier')
+        }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'icon_color'),
+            'description': 'Icon URL and accent color for mobile display'
         }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
@@ -1505,7 +1560,7 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def save_model(self, request, obj, form, change):
         """Ensure only one diagnostic per lesson_type"""
         if obj.is_diagnostic:
@@ -2147,7 +2202,7 @@ class WritingSectionAdmin(admin.ModelAdmin):
     search_fields = ['title', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at']
     actions = ['move_up', 'move_down', 'move_up_in_header', 'move_down_in_header']
-    
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Filter headers by writing category and content_type when assigning to writing sections"""
         if db_field.name == 'header':
@@ -2158,10 +2213,20 @@ class WritingSectionAdmin(admin.ModelAdmin):
                 Q(content_type='section') | Q(content_type='both')
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
-    
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """Use color picker widget for icon_color field."""
+        if db_field.name == 'icon_color':
+            kwargs['widget'] = ColorInputWidget()
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+        }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'icon_color'),
+            'description': 'Icon URL and accent color for mobile display'
         }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
@@ -2682,7 +2747,7 @@ class MathSectionAdmin(nested_admin.NestedModelAdmin):
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'asset_count_display']
     inlines = [MathAssetInline]
     actions = ['move_up', 'move_down', 'move_up_in_header', 'move_down_in_header']
-    
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Filter headers by math category and content_type when assigning to math sections"""
         if db_field.name == 'header':
@@ -2693,10 +2758,20 @@ class MathSectionAdmin(nested_admin.NestedModelAdmin):
                 Q(content_type='section') | Q(content_type='both')
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
-    
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """Use color picker widget for icon_color field."""
+        if db_field.name == 'icon_color':
+            kwargs['widget'] = ColorInputWidget()
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'section_id', 'title', 'difficulty', 'tier')
+        }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'icon_color'),
+            'description': 'Icon URL and accent color for mobile display'
         }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
@@ -2992,11 +3067,21 @@ class HeaderAdmin(admin.ModelAdmin):
     search_fields = ['title']
     readonly_fields = ['id', 'created_at', 'updated_at', 'lesson_count_display', 'passage_count_display', 'writing_section_count_display', 'math_section_count_display']
     actions = ['move_up', 'move_down']
-    
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """Use color picker widget for background_color field."""
+        if db_field.name == 'background_color':
+            kwargs['widget'] = ColorInputWidget()
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'title', 'category', 'content_type', 'display_order'),
             'description': 'content_type: "Lesson" for lessons only, "Section/Passage" for sections/passages only, "Both" for both types'
+        }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'background_color'),
+            'description': 'Icon URL and background/accent color for mobile display'
         }),
         ('Metadata', {
             'fields': ('lesson_count_display', 'passage_count_display', 'writing_section_count_display', 'math_section_count_display', 'created_at', 'updated_at'),
