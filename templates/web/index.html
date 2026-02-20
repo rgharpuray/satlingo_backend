@@ -467,7 +467,364 @@
         .passage-card.premium {
             border-left: 4px solid #3498DB;
         }
-        
+
+        /* ====== DUOLINGO-STYLE SKILL GRID ====== */
+
+        /* Skills container with flowing path layout */
+        .skills-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 24px;
+            padding: 20px 10px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Individual skill node */
+        .skill-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            width: 100px;
+        }
+
+        .skill-node:hover {
+            transform: scale(1.08);
+        }
+
+        .skill-node:active {
+            transform: scale(0.98);
+        }
+
+        /* Locked skill styling */
+        .skill-node.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .skill-node.locked:hover {
+            transform: none;
+        }
+
+        /* Circular skill icon container */
+        .skill-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+            overflow: visible;
+        }
+
+        .skill-node:hover .skill-icon {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Icon image or letter placeholder */
+        .skill-icon img {
+            width: 50px;
+            height: 50px;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .skill-icon-letter {
+            font-size: 32px;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Progress ring SVG container */
+        .progress-ring-container {
+            position: absolute;
+            inset: -6px;
+            pointer-events: none;
+        }
+
+        .progress-ring {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-bg {
+            fill: none;
+            stroke: var(--bg-tertiary);
+            stroke-width: 4;
+        }
+
+        .progress-ring-fill {
+            fill: none;
+            stroke-width: 4;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.3s ease;
+        }
+
+        /* Completion crown badge */
+        .skill-crown {
+            position: absolute;
+            top: -12px;
+            right: -8px;
+            font-size: 20px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+            animation: crown-bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes crown-bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-2px); }
+        }
+
+        /* Premium lock badge */
+        .skill-lock {
+            position: absolute;
+            bottom: -4px;
+            right: -4px;
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            border: 2px solid var(--bg-secondary);
+        }
+
+        /* Skill title */
+        .skill-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-align: center;
+            line-height: 1.2;
+            max-width: 90px;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        /* Category header in grid view */
+        .skills-category-header {
+            width: 100%;
+            text-align: center;
+            margin: 30px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        .skills-category-header h3 {
+            color: var(--accent-color);
+            font-size: 22px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        /* First header doesn't need top margin */
+        .skills-grid .skills-category-header:first-child {
+            margin-top: 0;
+        }
+
+        /* ====== GAMIFICATION SIDEBAR ELEMENTS ====== */
+
+        .gamification-stats {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+        }
+
+        .stat-row:not(:last-child) {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .stat-icon {
+            font-size: 24px;
+            width: 36px;
+            text-align: center;
+        }
+
+        .stat-info {
+            flex: 1;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .streak-flames {
+            display: flex;
+            gap: 2px;
+            margin-top: 4px;
+        }
+
+        .streak-flame {
+            font-size: 14px;
+            opacity: 0.3;
+        }
+
+        .streak-flame.active {
+            opacity: 1;
+            animation: flame-flicker 0.8s ease-in-out infinite alternate;
+        }
+
+        @keyframes flame-flicker {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
+        /* View mode toggle */
+        .view-mode-toggle {
+            display: flex;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .view-mode-toggle button {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .view-mode-toggle button.active {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            box-shadow: 0 2px 4px var(--shadow);
+        }
+
+        .view-mode-toggle button:hover:not(.active) {
+            background: var(--bg-secondary);
+            opacity: 0.7;
+        }
+
+        /* Category default colors */
+        .skill-color-reading { background: linear-gradient(135deg, #58CC02 0%, #46A302 100%); }
+        .skill-color-writing { background: linear-gradient(135deg, #CE82FF 0%, #A855F7 100%); }
+        .skill-color-math { background: linear-gradient(135deg, #00BFFF 0%, #0095CC 100%); }
+
+        /* Skill colors based on API icon_color */
+        .skill-bg-green { background: linear-gradient(135deg, #58CC02 0%, #46A302 100%); }
+        .skill-bg-purple { background: linear-gradient(135deg, #CE82FF 0%, #A855F7 100%); }
+        .skill-bg-blue { background: linear-gradient(135deg, #00BFFF 0%, #0095CC 100%); }
+        .skill-bg-orange { background: linear-gradient(135deg, #FF9500 0%, #E68600 100%); }
+        .skill-bg-red { background: linear-gradient(135deg, #FF4B4B 0%, #E63939 100%); }
+        .skill-bg-yellow { background: linear-gradient(135deg, #FFCC00 0%, #E6B800 100%); }
+        .skill-bg-teal { background: linear-gradient(135deg, #20B2AA 0%, #178F89 100%); }
+        .skill-bg-pink { background: linear-gradient(135deg, #FF69B4 0%, #E65FA3 100%); }
+
+        /* Responsive skill grid */
+        @media (max-width: 768px) {
+            .skills-grid {
+                gap: 16px;
+                padding: 16px 8px;
+            }
+
+            .skill-node {
+                width: 85px;
+            }
+
+            .skill-icon {
+                width: 70px;
+                height: 70px;
+            }
+
+            .skill-icon img {
+                width: 42px;
+                height: 42px;
+            }
+
+            .skill-icon-letter {
+                font-size: 28px;
+            }
+
+            .skill-title {
+                font-size: 11px;
+                max-width: 80px;
+            }
+
+            .progress-ring-container {
+                inset: -5px;
+            }
+
+            .progress-ring-bg,
+            .progress-ring-fill {
+                stroke-width: 3;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .skills-grid {
+                gap: 12px;
+            }
+
+            .skill-node {
+                width: 75px;
+            }
+
+            .skill-icon {
+                width: 60px;
+                height: 60px;
+            }
+
+            .skill-icon img {
+                width: 36px;
+                height: 36px;
+            }
+
+            .skill-icon-letter {
+                font-size: 24px;
+            }
+
+            .skill-title {
+                font-size: 10px;
+                max-width: 70px;
+            }
+        }
+
+        /* ====== END DUOLINGO-STYLE SKILL GRID ====== */
+
         .premium-badge {
             display: inline-block;
             background: #FFD700;
@@ -1031,87 +1388,347 @@
             display: none;
         }
         
-        /* Brand Colors */
+        /* Brand Colors - Duolingo-inspired vibrant palette */
         :root {
             --navy: #1B2A4A;
             --gold: #F4C441;
             --blue: #3498DB;
+            --keuvi-green: #58CC02;
+            --keuvi-green-dark: #46a302;
+            --keuvi-blue: #1CB0F6;
+            --keuvi-blue-dark: #1899d6;
+            --keuvi-orange: #FF9600;
+            --keuvi-purple: #CE82FF;
+            --keuvi-pink: #FF86D0;
         }
-        
+
+        /* Hero Section - Full-width vibrant gradient */
         .landing-hero {
-            background: var(--bg-secondary);
-            border-radius: 16px;
-            padding: 100px 40px;
+            background: linear-gradient(135deg, #1CB0F6 0%, #58CC02 50%, #89E219 100%);
+            border-radius: 24px;
+            padding: 60px 40px 80px;
             text-align: center;
-            max-width: 800px;
-            margin: 0 auto 60px;
-            box-shadow: 0 4px 20px var(--shadow);
-            border: 1px solid var(--border-color);
+            max-width: 100%;
+            margin: 0 0 40px 0;
+            box-shadow: 0 8px 32px rgba(28, 176, 246, 0.3);
+            border: none;
             animation: fadeIn 0.8s ease-in;
-            transition: background-color 0.3s ease, border-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated background shapes */
+        .landing-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 30%, rgba(255, 255, 255, 0.08) 0%, transparent 40%);
+            animation: shimmer 8s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(3deg); }
+        }
+
+        /* Floating decorative shapes */
+        .hero-shapes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .hero-shape {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.2;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .hero-shape-1 {
+            width: 80px;
+            height: 80px;
+            background: #FFD700;
+            top: 10%;
+            left: 5%;
+            animation-delay: 0s;
+        }
+
+        .hero-shape-2 {
+            width: 60px;
+            height: 60px;
+            background: #FF86D0;
+            top: 60%;
+            right: 8%;
+            animation-delay: 1s;
+        }
+
+        .hero-shape-3 {
+            width: 40px;
+            height: 40px;
+            background: #CE82FF;
+            bottom: 20%;
+            left: 10%;
+            animation-delay: 2s;
+        }
+
+        .hero-shape-4 {
+            width: 50px;
+            height: 50px;
+            background: #FFD700;
+            top: 25%;
+            right: 15%;
+            animation-delay: 0.5s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .hero-main {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 30px;
         }
         
         .hero-logo {
-            margin-bottom: 24px;
+            flex-shrink: 0;
         }
-        
+
         .hero-logo img {
-            height: 400px;
+            height: 280px;
             width: auto;
             display: block;
             margin: 0 auto;
             object-fit: contain;
             object-position: center;
+            animation: bounce 3s ease-in-out infinite;
+            filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15));
         }
-        
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        .hero-text {
+            text-align: left;
+        }
+
         .hero-title {
-            font-size: 56px;
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 20px;
-            line-height: 1.2;
+            font-size: 48px;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 16px;
+            line-height: 1.1;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         }
-        
+
+        .hero-title-highlight {
+            display: block;
+            color: #FFD700;
+            font-size: 56px;
+        }
+
         .hero-tagline {
-            font-size: 22px;
-            color: var(--text-primary);
-            margin-bottom: 32px;
-            font-weight: 700;
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.95);
+            margin-bottom: 24px;
+            font-weight: 600;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
         }
         
         .hero-features {
-            margin-bottom: 40px;
-        }
-        
-        .hero-features p {
-            font-size: 18px;
-            color: var(--text-primary);
-            margin-bottom: 12px;
-            line-height: 1.6;
-            font-weight: 400;
-        }
-        
-        .hero-features p:last-child {
             margin-bottom: 0;
         }
-        
-        .btn-large {
-            padding: 18px 40px;
-            font-size: 18px;
-            font-weight: 600;
-            border-radius: 12px;
-            background: var(--navy);
+
+        .hero-features-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 0;
+        }
+
+        .hero-feature-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 17px;
             color: white;
+            font-weight: 500;
+        }
+
+        .hero-feature-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        /* CTA Button Row */
+        .hero-cta-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        .btn-large {
+            padding: 18px 48px;
+            font-size: 20px;
+            font-weight: 700;
+            border-radius: 16px;
+            background: white;
+            color: #58CC02;
             border: none;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(27, 42, 74, 0.2);
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 0 #46a302, 0 8px 24px rgba(0, 0, 0, 0.15);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        
+
         .btn-large:hover {
-            transform: scale(1.03) translateY(-2px);
-            box-shadow: 0 6px 20px rgba(27, 42, 74, 0.3);
-            background: #152238;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #46a302, 0 12px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-large:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #46a302, 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-secondary-large {
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 16px;
+            background: transparent;
+            color: white;
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary-large:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: white;
+        }
+
+        /* Social Proof Strip */
+        .social-proof {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            flex-wrap: wrap;
+        }
+
+        .social-proof-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .social-proof-icon {
+            font-size: 20px;
+        }
+
+        .social-proof-number {
+            font-weight: 700;
+            color: white;
+        }
+
+        /* Feature Highlight Cards - Below Hero */
+        .feature-highlights {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .feature-highlight-card {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 32px 24px;
+            text-align: center;
+            box-shadow: 0 4px 16px var(--shadow);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .feature-highlight-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--keuvi-green);
+            box-shadow: 0 12px 32px rgba(88, 204, 2, 0.2);
+        }
+
+        .feature-highlight-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #58CC02 0%, #89E219 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            box-shadow: 0 4px 0 #46a302;
+        }
+
+        .feature-highlight-card:nth-child(2) .feature-highlight-icon {
+            background: linear-gradient(135deg, #1CB0F6 0%, #54D2FF 100%);
+            box-shadow: 0 4px 0 #1899d6;
+        }
+
+        .feature-highlight-card:nth-child(3) .feature-highlight-icon {
+            background: linear-gradient(135deg, #FF9600 0%, #FFB84D 100%);
+            box-shadow: 0 4px 0 #e68600;
+        }
+
+        .feature-highlight-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+
+        .feature-highlight-desc {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.5;
         }
         
         /* Product Preview Section */
@@ -1262,11 +1879,93 @@
         
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
+            /* Hero section mobile */
+            .landing-hero {
+                padding: 40px 24px 60px;
+                border-radius: 20px;
+            }
+
+            .hero-main {
+                flex-direction: column;
+                gap: 24px;
+            }
+
+            .hero-text {
+                text-align: center;
+            }
+
+            .hero-logo img {
+                height: 200px;
+            }
+
+            .hero-title {
+                font-size: 32px;
+            }
+
+            .hero-title-highlight {
+                font-size: 40px;
+            }
+
+            .hero-tagline {
+                font-size: 18px;
+            }
+
+            .hero-features-list {
+                align-items: center;
+            }
+
+            .hero-feature-item {
+                font-size: 15px;
+            }
+
+            .hero-cta-row {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .btn-large {
+                width: 100%;
+                padding: 16px 32px;
+                font-size: 18px;
+            }
+
+            .btn-secondary-large {
+                width: 100%;
+            }
+
+            .social-proof {
+                gap: 16px;
+            }
+
+            .social-proof-item {
+                font-size: 13px;
+            }
+
+            .hero-shape {
+                display: none;
+            }
+
+            /* Feature highlights mobile */
+            .feature-highlights {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .feature-highlight-card {
+                padding: 24px 20px;
+            }
+
+            .feature-highlight-icon {
+                width: 64px;
+                height: 64px;
+                font-size: 32px;
+            }
+
             /* Body and container adjustments */
             body {
                 padding: 16px;
             }
-            
+
             .container {
                 max-width: 100%;
             }
@@ -1945,23 +2644,92 @@
         <!-- Landing Page -->
         <div class="landing-page" id="landingPage">
             <div class="landing-hero">
-                <div class="hero-logo">
-                    <img src="{% static 'web/images/keuvi_penguin_logo.png' %}" alt="Keuvi Logo">
+                <!-- Floating decorative shapes -->
+                <div class="hero-shapes">
+                    <div class="hero-shape hero-shape-1"></div>
+                    <div class="hero-shape hero-shape-2"></div>
+                    <div class="hero-shape hero-shape-3"></div>
+                    <div class="hero-shape hero-shape-4"></div>
                 </div>
-                <p class="hero-tagline">An SAT tutor in your pocket</p>
-                <div class="hero-features">
-                    <p>Lessons covering everything on the test</p>
-                    <p>Hundreds of practice questions</p>
-                    <p>All of it written by people</p>
+
+                <div class="hero-content">
+                    <div class="hero-main">
+                        <div class="hero-logo">
+                            <img src="{% static 'web/images/keuvi_penguin_logo.png' %}" alt="Keuvi Penguin - Your SAT Study Buddy">
+                        </div>
+                        <div class="hero-text">
+                            <h1 class="hero-title">
+                                SAT prep that
+                                <span class="hero-title-highlight">actually works</span>
+                            </h1>
+                            <p class="hero-tagline">Your pocket-sized penguin tutor</p>
+                            <div class="hero-features">
+                                <div class="hero-features-list">
+                                    <div class="hero-feature-item">
+                                        <span class="hero-feature-icon">&#10003;</span>
+                                        <span>Lessons covering everything on the test</span>
+                                    </div>
+                                    <div class="hero-feature-item">
+                                        <span class="hero-feature-icon">&#10003;</span>
+                                        <span>Hundreds of practice questions</span>
+                                    </div>
+                                    <div class="hero-feature-item">
+                                        <span class="hero-feature-icon">&#10003;</span>
+                                        <span>All written by humans (no AI fluff)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="hero-cta-row">
+                        <button class="btn-large" onclick="showPassages()">Start Learning Free</button>
+                        <button class="btn-secondary-large" onclick="showLoginModal()">I have an account</button>
+                    </div>
+
+                    <div class="social-proof">
+                        <div class="social-proof-item">
+                            <span class="social-proof-icon">&#128218;</span>
+                            <span><span class="social-proof-number">100+</span> lessons</span>
+                        </div>
+                        <div class="social-proof-item">
+                            <span class="social-proof-icon">&#9989;</span>
+                            <span><span class="social-proof-number">500+</span> questions</span>
+                        </div>
+                        <div class="social-proof-item">
+                            <span class="social-proof-icon">&#128293;</span>
+                            <span>Updated <span class="social-proof-number">weekly</span></span>
+                        </div>
+                    </div>
                 </div>
-                <button class="btn-large" onclick="showPassages()">Get Started</button>
             </div>
-            
+
+            <!-- Feature Highlights Section -->
+            <div class="feature-highlights">
+                <div class="feature-highlight-card" onclick="switchCategory('reading'); showPassages();">
+                    <div class="feature-highlight-icon">&#128214;</div>
+                    <h3 class="feature-highlight-title">Reading</h3>
+                    <p class="feature-highlight-desc">Master comprehension with engaging passages and strategies</p>
+                </div>
+                <div class="feature-highlight-card" onclick="switchCategory('writing'); showPassages();">
+                    <div class="feature-highlight-icon">&#9998;</div>
+                    <h3 class="feature-highlight-title">Writing</h3>
+                    <p class="feature-highlight-desc">Perfect your grammar and expression skills</p>
+                </div>
+                <div class="feature-highlight-card" onclick="switchCategory('math'); showPassages();">
+                    <div class="feature-highlight-icon">&#128290;</div>
+                    <h3 class="feature-highlight-title">Math</h3>
+                    <p class="feature-highlight-desc">Build confidence from algebra to advanced concepts</p>
+                </div>
+            </div>
+
             <!-- Premium Section -->
-            <div class="why-keuvi" style="text-align: center; padding: 30px 20px;">
-                <p style="font-size: 18px; color: var(--text-primary); line-height: 1.6; margin: 0;">
-                    Sign up for premium to get double the practice questions and new additions every week for $5 a month.
+            <div class="why-keuvi" style="text-align: center; padding: 40px 30px; background: linear-gradient(135deg, rgba(88, 204, 2, 0.08) 0%, rgba(28, 176, 246, 0.08) 100%); border: 2px solid rgba(88, 204, 2, 0.2);">
+                <h3 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: 16px;">Go Premium</h3>
+                <p style="font-size: 18px; color: var(--text-secondary); line-height: 1.6; margin: 0 0 20px 0;">
+                    Get double the practice questions and new content every week for just <strong style="color: var(--keuvi-green);">$5/month</strong>
                 </p>
+                <button class="btn-large" onclick="upgradeToPremium()" style="background: linear-gradient(135deg, #58CC02 0%, #46a302 100%); box-shadow: 0 4px 0 #3d8c02;">Upgrade Now</button>
             </div>
         </div>
         
@@ -1983,14 +2751,26 @@
                     
                     <!-- Reading Category Content -->
                     <div class="category-content active" id="category-reading">
-                        <!-- Reading Lessons List View -->
-                        <div class="passages-section" id="readingLessonsListSection" style="margin-bottom: 40px;">
+                        <!-- View Mode Toggle -->
+                        <div class="view-mode-toggle" id="readingViewToggle">
+                            <button class="active" onclick="setViewMode('reading', 'grid')" id="reading-grid-btn">🎯 Skills</button>
+                            <button onclick="setViewMode('reading', 'list')" id="reading-list-btn">📋 List</button>
+                        </div>
+
+                        <!-- Reading Grid View (Duolingo-style) -->
+                        <div class="passages-section" id="readingGridSection">
+                            <h2>Reading Skills</h2>
+                            <div class="skills-grid" id="readingSkillsGrid"></div>
+                        </div>
+
+                        <!-- Reading Lessons List View (hidden by default) -->
+                        <div class="passages-section" id="readingLessonsListSection" style="margin-bottom: 40px; display: none;">
                             <h2>Reading Lessons</h2>
                             <div id="readingLessonsList"></div>
                         </div>
-                        
-                        <!-- Reading Passages List View -->
-                        <div class="passages-section" id="passagesListSection">
+
+                        <!-- Reading Passages List View (hidden by default) -->
+                        <div class="passages-section" id="passagesListSection" style="display: none;">
                             <h2>Reading Passages</h2>
                             <div id="passagesList"></div>
                         </div>
@@ -1998,12 +2778,24 @@
                     
                     <!-- Writing Category Content -->
                     <div class="category-content" id="category-writing">
-                        <!-- Writing Lessons List View -->
-                        <div class="passages-section" id="writingLessonsListSection" style="margin-bottom: 40px;">
+                        <!-- View Mode Toggle -->
+                        <div class="view-mode-toggle" id="writingViewToggle">
+                            <button class="active" onclick="setViewMode('writing', 'grid')" id="writing-grid-btn">🎯 Skills</button>
+                            <button onclick="setViewMode('writing', 'list')" id="writing-list-btn">📋 List</button>
+                        </div>
+
+                        <!-- Writing Grid View (Duolingo-style) -->
+                        <div class="passages-section" id="writingGridSection">
+                            <h2>Writing Skills</h2>
+                            <div class="skills-grid" id="writingSkillsGrid"></div>
+                        </div>
+
+                        <!-- Writing Lessons List View (hidden by default) -->
+                        <div class="passages-section" id="writingLessonsListSection" style="margin-bottom: 40px; display: none;">
                             <h2>Writing Lessons</h2>
                             <div id="writingLessonsList"></div>
                         </div>
-                        
+
                         <!-- Writing Sections List View - COMMENTED OUT: Writing sections removed, only showing lessons -->
                         <!--
                         <div class="passages-section" id="writingSectionsListSection">
@@ -2015,12 +2807,24 @@
                     
                     <!-- Math Category Content -->
                     <div class="category-content" id="category-math">
-                        <!-- Math Lessons List View -->
-                        <div class="passages-section" id="mathLessonsListSection" style="margin-bottom: 40px;">
+                        <!-- View Mode Toggle -->
+                        <div class="view-mode-toggle" id="mathViewToggle">
+                            <button class="active" onclick="setViewMode('math', 'grid')" id="math-grid-btn">🎯 Skills</button>
+                            <button onclick="setViewMode('math', 'list')" id="math-list-btn">📋 List</button>
+                        </div>
+
+                        <!-- Math Grid View (Duolingo-style) -->
+                        <div class="passages-section" id="mathGridSection">
+                            <h2>Math Skills</h2>
+                            <div class="skills-grid" id="mathSkillsGrid"></div>
+                        </div>
+
+                        <!-- Math Lessons List View (hidden by default) -->
+                        <div class="passages-section" id="mathLessonsListSection" style="margin-bottom: 40px; display: none;">
                             <h2>Math Lessons</h2>
                             <div id="mathLessonsList"></div>
                         </div>
-                        
+
                         <!-- Math Sections List View - COMMENTED OUT: Math sections removed, only showing lessons -->
                         <!--
                         <div class="passages-section" id="mathSectionsListSection">
@@ -2046,6 +2850,40 @@
                 </div>
                 
                 <div class="sidebar">
+                    <!-- Gamification Stats -->
+                    <div class="gamification-stats" id="gamificationStats">
+                        <div class="stat-row">
+                            <div class="stat-icon">🔥</div>
+                            <div class="stat-info">
+                                <div class="stat-label">Day Streak</div>
+                                <div class="stat-value" id="streakCount">0</div>
+                                <div class="streak-flames" id="streakFlames">
+                                    <span class="streak-flame">🔥</span>
+                                    <span class="streak-flame">🔥</span>
+                                    <span class="streak-flame">🔥</span>
+                                    <span class="streak-flame">🔥</span>
+                                    <span class="streak-flame">🔥</span>
+                                    <span class="streak-flame">🔥</span>
+                                    <span class="streak-flame">🔥</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-icon">⚡</div>
+                            <div class="stat-info">
+                                <div class="stat-label">Total XP</div>
+                                <div class="stat-value" id="totalXP">0</div>
+                            </div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-icon">👑</div>
+                            <div class="stat-info">
+                                <div class="stat-label">Completed</div>
+                                <div class="stat-value" id="completedCount">0</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="word-of-day" id="wordOfDay">
                         <h3>Word of the Day</h3>
                         <div class="loading">Loading...</div>
@@ -3308,7 +4146,405 @@
         }
         
         let currentCategory = 'reading';
-        
+
+        // View mode state (grid or list) per category
+        const viewModes = {
+            reading: 'grid',
+            writing: 'grid',
+            math: 'grid'
+        };
+
+        // Stored skills data for grid rendering
+        const skillsData = {
+            reading: { lessons: [], passages: [] },
+            writing: { lessons: [] },
+            math: { lessons: [] }
+        };
+
+        // Gamification stats
+        let userStats = {
+            streak: 0,
+            totalXP: 0,
+            completed: 0
+        };
+
+        /**
+         * Set the view mode for a category (grid or list)
+         */
+        function setViewMode(category, mode) {
+            console.log(`Setting ${category} view mode to ${mode}`);
+            viewModes[category] = mode;
+
+            // Update button states
+            const gridBtn = document.getElementById(`${category}-grid-btn`);
+            const listBtn = document.getElementById(`${category}-list-btn`);
+            if (gridBtn) gridBtn.classList.toggle('active', mode === 'grid');
+            if (listBtn) listBtn.classList.toggle('active', mode === 'list');
+
+            // Toggle visibility of sections
+            const gridSection = document.getElementById(`${category}GridSection`);
+            const lessonsListSection = document.getElementById(`${category}LessonsListSection`);
+            const passagesListSection = category === 'reading' ? document.getElementById('passagesListSection') : null;
+
+            if (mode === 'grid') {
+                if (gridSection) gridSection.style.display = 'block';
+                if (lessonsListSection) lessonsListSection.style.display = 'none';
+                if (passagesListSection) passagesListSection.style.display = 'none';
+                // Render the grid if we have data
+                renderSkillsGrid(category);
+            } else {
+                if (gridSection) gridSection.style.display = 'none';
+                if (lessonsListSection) lessonsListSection.style.display = 'block';
+                if (passagesListSection) passagesListSection.style.display = 'block';
+            }
+        }
+
+        /**
+         * Get color class based on icon_color or category
+         */
+        function getSkillColorClass(iconColor, category) {
+            if (iconColor) {
+                const colorMap = {
+                    'green': 'skill-bg-green',
+                    'purple': 'skill-bg-purple',
+                    'blue': 'skill-bg-blue',
+                    'orange': 'skill-bg-orange',
+                    'red': 'skill-bg-red',
+                    'yellow': 'skill-bg-yellow',
+                    'teal': 'skill-bg-teal',
+                    'pink': 'skill-bg-pink'
+                };
+                if (colorMap[iconColor.toLowerCase()]) {
+                    return colorMap[iconColor.toLowerCase()];
+                }
+                // If it's a hex color, return empty (will use inline style)
+                return '';
+            }
+            // Default colors by category
+            const categoryColors = {
+                'reading': 'skill-color-reading',
+                'writing': 'skill-color-writing',
+                'math': 'skill-color-math'
+            };
+            return categoryColors[category] || 'skill-color-reading';
+        }
+
+        /**
+         * Get inline background style if hex color provided
+         */
+        function getSkillColorStyle(iconColor) {
+            if (iconColor && iconColor.startsWith('#')) {
+                // Darken the color for gradient
+                const darkerColor = darkenHexColor(iconColor, 20);
+                return `background: linear-gradient(135deg, ${iconColor} 0%, ${darkerColor} 100%);`;
+            }
+            return '';
+        }
+
+        /**
+         * Darken a hex color by a percentage
+         */
+        function darkenHexColor(hex, percent) {
+            const num = parseInt(hex.replace('#', ''), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = Math.max((num >> 16) - amt, 0);
+            const G = Math.max((num >> 8 & 0x00FF) - amt, 0);
+            const B = Math.max((num & 0x0000FF) - amt, 0);
+            return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+        }
+
+        /**
+         * Create a progress ring SVG
+         */
+        function createProgressRing(progress, colorClass, iconColor) {
+            const radius = 44;
+            const circumference = 2 * Math.PI * radius;
+            const offset = circumference - (progress / 100) * circumference;
+            const strokeColor = iconColor && iconColor.startsWith('#') ? iconColor : 'var(--accent-color)';
+
+            return `
+                <div class="progress-ring-container">
+                    <svg class="progress-ring" viewBox="0 0 100 100">
+                        <circle class="progress-ring-bg" cx="50" cy="50" r="${radius}"/>
+                        <circle class="progress-ring-fill" cx="50" cy="50" r="${radius}"
+                            stroke="${strokeColor}"
+                            stroke-dasharray="${circumference}"
+                            stroke-dashoffset="${offset}"/>
+                    </svg>
+                </div>
+            `;
+        }
+
+        /**
+         * Create a skill node HTML element
+         */
+        function createSkillNode(item, category, type) {
+            const iconUrl = item.effective_icon_url;
+            const iconColor = item.effective_icon_color;
+            const isPremium = item.tier === 'premium';
+            const hasAccess = !isPremium || (currentUser && (currentUser.is_premium || currentUser.has_active_subscription));
+            const isLocked = isPremium && !hasAccess;
+
+            // Calculate progress (based on attempt data if available)
+            let progress = 0;
+            if (item.attempt_count && item.attempt_count > 0) {
+                // If there's an attempt, show at least some progress
+                progress = item.attempt_summary?.best_score || 25;
+            }
+            const isCompleted = progress >= 80;
+
+            // Get first letter for placeholder
+            const firstLetter = (item.title || 'K').charAt(0).toUpperCase();
+
+            // Build color class or style
+            const colorClass = getSkillColorClass(iconColor, category);
+            const colorStyle = getSkillColorStyle(iconColor);
+
+            // Icon content: image or letter placeholder
+            const iconContent = iconUrl
+                ? `<img src="${escapeHtml(iconUrl)}" alt="${escapeHtml(item.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                   <span class="skill-icon-letter" style="display: none;">${firstLetter}</span>`
+                : `<span class="skill-icon-letter">${firstLetter}</span>`;
+
+            // Badges
+            const crownBadge = isCompleted ? '<span class="skill-crown">👑</span>' : '';
+            const lockBadge = isLocked ? '<span class="skill-lock">🔒</span>' : '';
+
+            // Click handler based on type
+            const clickHandler = type === 'passage'
+                ? `openPassage('${item.id}')`
+                : `openLesson('${item.id}', '${escapeHtml(item.title).replace(/'/g, "\\'")}')`;
+
+            return `
+                <div class="skill-node ${isLocked ? 'locked' : ''}" onclick="${clickHandler}">
+                    <div class="skill-icon ${colorClass}" style="${colorStyle}">
+                        ${iconContent}
+                        ${createProgressRing(progress, colorClass, iconColor)}
+                        ${crownBadge}
+                        ${lockBadge}
+                    </div>
+                    <span class="skill-title">${escapeHtml(item.title)}</span>
+                </div>
+            `;
+        }
+
+        /**
+         * Render the skills grid for a category
+         */
+        function renderSkillsGrid(category) {
+            const gridContainer = document.getElementById(`${category}SkillsGrid`);
+            if (!gridContainer) return;
+
+            const data = skillsData[category];
+            if (!data) return;
+
+            let html = '';
+
+            // Render lessons grouped by header
+            if (data.lessons && data.lessons.length > 0) {
+                // Group lessons by header
+                const lessonsByHeader = {};
+                const lessonsWithoutHeader = [];
+
+                data.lessons.forEach(lesson => {
+                    if (lesson.header && lesson.header.id) {
+                        const headerId = lesson.header.id;
+                        if (!lessonsByHeader[headerId]) {
+                            lessonsByHeader[headerId] = {
+                                header: lesson.header,
+                                lessons: []
+                            };
+                        }
+                        lessonsByHeader[headerId].lessons.push(lesson);
+                    } else {
+                        lessonsWithoutHeader.push(lesson);
+                    }
+                });
+
+                // Sort headers by display_order
+                const sortedHeaders = Object.values(lessonsByHeader).sort((a, b) =>
+                    (b.header.display_order || 0) - (a.header.display_order || 0)
+                );
+
+                // Sort lessons within each header
+                sortedHeaders.forEach(headerGroup => {
+                    headerGroup.lessons.sort((a, b) =>
+                        (b.order_within_header || 0) - (a.order_within_header || 0)
+                    );
+                });
+
+                // Render each header group
+                sortedHeaders.forEach(headerGroup => {
+                    html += `<div class="skills-category-header"><h3>${escapeHtml(headerGroup.header.title)}</h3></div>`;
+                    headerGroup.lessons.forEach(lesson => {
+                        html += createSkillNode(lesson, category, 'lesson');
+                    });
+                });
+
+                // Render lessons without headers
+                if (lessonsWithoutHeader.length > 0) {
+                    if (sortedHeaders.length > 0) {
+                        html += `<div class="skills-category-header"><h3>Other Lessons</h3></div>`;
+                    }
+                    lessonsWithoutHeader.forEach(lesson => {
+                        html += createSkillNode(lesson, category, 'lesson');
+                    });
+                }
+            }
+
+            // Render passages (for reading category)
+            if (category === 'reading' && data.passages && data.passages.length > 0) {
+                html += `<div class="skills-category-header"><h3>Practice Passages</h3></div>`;
+
+                // Group passages by header
+                const passagesByHeader = {};
+                const passagesWithoutHeader = [];
+
+                data.passages.forEach(passage => {
+                    if (passage.header && passage.header.id) {
+                        const headerId = passage.header.id;
+                        if (!passagesByHeader[headerId]) {
+                            passagesByHeader[headerId] = {
+                                header: passage.header,
+                                passages: []
+                            };
+                        }
+                        passagesByHeader[headerId].passages.push(passage);
+                    } else {
+                        passagesWithoutHeader.push(passage);
+                    }
+                });
+
+                // Sort and render
+                const sortedPassageHeaders = Object.values(passagesByHeader).sort((a, b) =>
+                    (b.header.display_order || 0) - (a.header.display_order || 0)
+                );
+
+                sortedPassageHeaders.forEach(headerGroup => {
+                    headerGroup.passages.sort((a, b) =>
+                        (b.order_within_header || 0) - (a.order_within_header || 0)
+                    );
+                    headerGroup.passages.forEach(passage => {
+                        html += createSkillNode(passage, category, 'passage');
+                    });
+                });
+
+                passagesWithoutHeader.forEach(passage => {
+                    html += createSkillNode(passage, category, 'passage');
+                });
+            }
+
+            // Add CTA banner for non-logged-in users
+            if (!currentUser && data.lessons && data.lessons.length > 0) {
+                html += `
+                    <div style="width: 100%; background: linear-gradient(135deg, #3498DB 0%, #2980b9 100%); color: white; padding: 20px; border-radius: 12px; margin-top: 25px; text-align: center;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 18px;">Unlock all skills!</h4>
+                        <p style="margin: 0 0 15px 0; opacity: 0.9;">Create a free account to track your progress and get personalized recommendations.</p>
+                        <button onclick="showLoginModal()" style="background: white; color: #3498DB; border: none; padding: 10px 25px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">Sign Up Free</button>
+                    </div>
+                `;
+            }
+
+            if (html === '') {
+                html = '<p style="color: var(--text-secondary); text-align: center; padding: 40px;">No content available yet.</p>';
+            }
+
+            gridContainer.innerHTML = html;
+        }
+
+        /**
+         * Update gamification stats in sidebar
+         */
+        function updateGamificationStats() {
+            // Calculate stats from skillsData
+            let completed = 0;
+            let totalXP = 0;
+
+            Object.values(skillsData).forEach(categoryData => {
+                if (categoryData.lessons) {
+                    categoryData.lessons.forEach(lesson => {
+                        if (lesson.attempt_count && lesson.attempt_count > 0) {
+                            // XP based on best score
+                            const bestScore = lesson.attempt_summary?.best_score || 0;
+                            totalXP += Math.floor(bestScore * 10);
+                            if (bestScore >= 80) completed++;
+                        }
+                    });
+                }
+                if (categoryData.passages) {
+                    categoryData.passages.forEach(passage => {
+                        if (passage.attempt_count && passage.attempt_count > 0) {
+                            const bestScore = passage.attempt_summary?.best_score || 0;
+                            totalXP += Math.floor(bestScore * 10);
+                            if (bestScore >= 80) completed++;
+                        }
+                    });
+                }
+            });
+
+            userStats.totalXP = totalXP;
+            userStats.completed = completed;
+
+            // Update DOM
+            const streakEl = document.getElementById('streakCount');
+            const xpEl = document.getElementById('totalXP');
+            const completedEl = document.getElementById('completedCount');
+
+            if (streakEl) streakEl.textContent = userStats.streak;
+            if (xpEl) xpEl.textContent = userStats.totalXP.toLocaleString();
+            if (completedEl) completedEl.textContent = userStats.completed;
+
+            // Update streak flames
+            const flamesContainer = document.getElementById('streakFlames');
+            if (flamesContainer) {
+                const flames = flamesContainer.querySelectorAll('.streak-flame');
+                flames.forEach((flame, i) => {
+                    flame.classList.toggle('active', i < userStats.streak);
+                });
+            }
+        }
+
+        /**
+         * Load skills data for grid view
+         */
+        async function loadSkillsData(category) {
+            const headers = {};
+            if (authToken) {
+                headers['Authorization'] = `Bearer ${authToken}`;
+            }
+
+            try {
+                // Load lessons for this category
+                const lessonsResponse = await fetch(`${API_BASE}/lessons/?lesson_type=${category}&limit=200`, {headers});
+                const lessonsData = await lessonsResponse.json();
+                skillsData[category].lessons = lessonsData.results || [];
+
+                // Load passages for reading category
+                if (category === 'reading') {
+                    const passagesResponse = await fetch(`${API_BASE}/passages/`, {headers});
+                    const passagesData = await passagesResponse.json();
+                    let passages = Array.isArray(passagesData) ? passagesData : (passagesData.results || []);
+
+                    // Filter to intro passages if not logged in
+                    if (!currentUser) {
+                        passages = passages.filter(p => isIntroLesson(p.title));
+                    }
+                    skillsData[category].passages = passages;
+                }
+
+                // Render the grid
+                if (viewModes[category] === 'grid') {
+                    renderSkillsGrid(category);
+                }
+
+                // Update gamification stats
+                updateGamificationStats();
+
+            } catch (error) {
+                console.error(`Failed to load skills data for ${category}:`, error);
+            }
+        }
+
         function switchCategory(category, forceReload = false) {
             console.log('switchCategory called with:', category);
             currentCategory = category;
@@ -3352,59 +4588,60 @@
                 console.error('Category content not found:', `category-${category}`);
             }
             
-            // Show list sections for the selected category and hide others
-            const allListSections = [
-                'readingLessonsListSection',
-                'passagesListSection',
-                'writingLessonsListSection',
-                'mathLessonsListSection'
-                // COMMENTED OUT: Math sections removed, only showing lessons
-                // 'mathSectionsListSection'
+            // Show sections based on current view mode
+            const currentViewMode = viewModes[category] || 'grid';
+
+            // All sections to manage
+            const allSections = [
+                'readingGridSection', 'readingLessonsListSection', 'passagesListSection',
+                'writingGridSection', 'writingLessonsListSection',
+                'mathGridSection', 'mathLessonsListSection'
             ];
-            
-            // Hide all list sections first
-            allListSections.forEach(sectionId => {
+
+            // Hide all sections first
+            allSections.forEach(sectionId => {
                 const section = document.getElementById(sectionId);
                 if (section) {
                     section.style.display = 'none';
                 }
             });
-            
-            // Show list sections for the selected category
-            if (category === 'reading') {
-                const readingLessonsListSection = document.getElementById('readingLessonsListSection');
-                const passagesListSection = document.getElementById('passagesListSection');
-                if (readingLessonsListSection) {
-                    readingLessonsListSection.style.display = 'block';
-                    console.log('Reading lessons section shown');
+
+            // Show appropriate sections based on view mode
+            if (currentViewMode === 'grid') {
+                const gridSection = document.getElementById(`${category}GridSection`);
+                if (gridSection) {
+                    gridSection.style.display = 'block';
+                    console.log(`${category} grid section shown`);
                 }
-                if (passagesListSection) {
-                    passagesListSection.style.display = 'block';
-                    console.log('Passages section shown');
+            } else {
+                // List mode
+                if (category === 'reading') {
+                    const readingLessonsListSection = document.getElementById('readingLessonsListSection');
+                    const passagesListSection = document.getElementById('passagesListSection');
+                    if (readingLessonsListSection) readingLessonsListSection.style.display = 'block';
+                    if (passagesListSection) passagesListSection.style.display = 'block';
+                } else if (category === 'writing') {
+                    const writingLessonsListSection = document.getElementById('writingLessonsListSection');
+                    if (writingLessonsListSection) writingLessonsListSection.style.display = 'block';
+                } else if (category === 'math') {
+                    const mathLessonsListSection = document.getElementById('mathLessonsListSection');
+                    if (mathLessonsListSection) mathLessonsListSection.style.display = 'block';
                 }
-            } else if (category === 'writing') {
-                const writingLessonsListSection = document.getElementById('writingLessonsListSection');
-                if (writingLessonsListSection) {
-                    writingLessonsListSection.style.display = 'block';
-                    console.log('Writing lessons section shown');
-                }
-            } else if (category === 'math') {
-                const mathLessonsListSection = document.getElementById('mathLessonsListSection');
-                // COMMENTED OUT: Math sections removed, only showing lessons
-                // const mathSectionsListSection = document.getElementById('mathSectionsListSection');
-                if (mathLessonsListSection) {
-                    mathLessonsListSection.style.display = 'block';
-                    console.log('Math lessons section shown');
-                }
-                // if (mathSectionsListSection) {
-                //     mathSectionsListSection.style.display = 'block';
-                //     console.log('Math sections section shown');
-                // }
             }
-            
+
             // Load content for the selected category
             // Use setTimeout to ensure DOM is ready
             setTimeout(() => {
+                // Always load skills data for grid view
+                const skillsGridEl = document.getElementById(`${category}SkillsGrid`);
+                if (forceReload || !skillsGridEl || skillsGridEl.innerHTML === '') {
+                    loadSkillsData(category);
+                } else if (viewModes[category] === 'grid') {
+                    // Just re-render if we already have data
+                    renderSkillsGrid(category);
+                }
+
+                // Also load list data (for fallback)
                 if (category === 'reading') {
                     const readingLessonsEl = document.getElementById('readingLessonsList');
                     const passagesEl = document.getElementById('passagesList');
@@ -3416,19 +4653,11 @@
                     }
                 } else if (category === 'writing') {
                     const writingLessonsEl = document.getElementById('writingLessonsList');
-                    // COMMENTED OUT: Writing sections removed, only showing lessons
-                    // const writingSectionsEl = document.getElementById('writingSectionsList');
                     if (forceReload || !writingLessonsEl || writingLessonsEl.innerHTML === '') {
                         loadLessonsByType('writing', 'writingLessonsList');
                     }
-                    // COMMENTED OUT: Writing sections removed, only showing lessons
-                    // if (forceReload || !writingSectionsEl || writingSectionsEl.innerHTML === '') {
-                    //     loadWritingSections();
-                    // }
                 } else if (category === 'math') {
                     const mathLessonsEl = document.getElementById('mathLessonsList');
-                    // COMMENTED OUT: Math sections removed, only showing lessons
-                    // const mathSectionsEl = document.getElementById('mathSectionsList');
                     if (forceReload || !mathLessonsEl || mathLessonsEl.innerHTML === '') {
                         loadLessonsByType('math', 'mathLessonsList');
                     }
@@ -3442,6 +4671,7 @@
         
         // Make switchCategory globally accessible
         window.switchCategory = switchCategory;
+        window.setViewMode = setViewMode;
         
         async function loadLessonsByType(lessonType, listElementId) {
             try {
