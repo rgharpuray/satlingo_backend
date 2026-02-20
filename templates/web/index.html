@@ -3052,8 +3052,8 @@
                         <span class="sun-icon">&#9728;</span>
                         <span class="moon-icon">&#9790;</span>
                     </button>
-                    <button class="btn-nav btn-nav-ghost" onclick="showLoginModal()">Log In</button>
-                    <button class="btn-nav btn-nav-primary" onclick="showPassages()">Get Started</button>
+                    <button id="landingLoginBtn" class="btn-nav btn-nav-ghost" onclick="showLoginModal()">Log In</button>
+                    <button id="landingCtaBtn" class="btn-nav btn-nav-primary" onclick="showPassages()">Get Started</button>
                 </div>
             </nav>
 
@@ -9719,12 +9719,33 @@
                         if (promoSection) promoSection.style.display = 'block';
                     }
                 }
+                // Update landing nav for logged-in user
+                const landingLoginBtn = document.getElementById('landingLoginBtn');
+                const landingCtaBtn = document.getElementById('landingCtaBtn');
+                if (landingLoginBtn) {
+                    landingLoginBtn.textContent = currentUser.email.split('@')[0];
+                    landingLoginBtn.onclick = function() { showPassages(); };
+                }
+                if (landingCtaBtn) {
+                    landingCtaBtn.textContent = 'Continue';
+                }
             } else {
                 console.log('No user, showing login/register buttons');
                 const authSection = document.getElementById('authSection');
                 const userInfo = document.getElementById('userInfo');
                 if (authSection) authSection.classList.remove('hidden');
                 if (userInfo) userInfo.classList.add('hidden');
+
+                // Reset landing nav for logged-out user
+                const landingLoginBtn = document.getElementById('landingLoginBtn');
+                const landingCtaBtn = document.getElementById('landingCtaBtn');
+                if (landingLoginBtn) {
+                    landingLoginBtn.textContent = 'Log In';
+                    landingLoginBtn.onclick = showLoginModal;
+                }
+                if (landingCtaBtn) {
+                    landingCtaBtn.textContent = 'Get Started';
+                }
             }
         }
         
