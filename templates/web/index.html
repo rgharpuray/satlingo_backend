@@ -224,7 +224,7 @@
 
         .logo {
             text-decoration: none;
-            color: #58CC02;
+            color: #083242;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1727,6 +1727,10 @@
             filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15));
         }
 
+        body.dark-mode .hero-logo img {
+            filter: drop-shadow(0 8px 20px rgba(255, 255, 255, 0.2));
+        }
+
         @keyframes gentleBounce {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-12px); }
@@ -3028,8 +3032,7 @@
                 </div>
             </button>
             <a href="#" class="logo" onclick="showLanding(); return false;">
-                <img src="{% static 'web/images/keuvi_penguin_logo.png' %}" alt="Keuvi Logo">
-                
+                <span>Keuvi</span>
             </a>
             <div class="auth-section" id="authSection">
                 <button class="btn btn-primary" onclick="showLoginModal()">Login</button>
