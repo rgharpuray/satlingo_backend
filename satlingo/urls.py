@@ -54,6 +54,8 @@ urlpatterns = [
     # Web frontend routes
     path('', web_views.index, name='web-index'),
     path('web/', web_views.index, name='web-index'),
+    path('web/passages', web_views.index, name='web-passages'),
+    path('web/passages/', web_views.index, name='web-passages-slash'),
     path('web/subscription/success', web_views.subscription_success, name='subscription-success'),
     path('web/subscription/cancel', web_views.subscription_cancel, name='subscription-cancel'),
     # Legal and support (canonical URLs for app stores and links)
