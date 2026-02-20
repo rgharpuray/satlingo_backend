@@ -297,7 +297,7 @@ def password_reset_request(request):
             except User.DoesNotExist:
                 # Don't reveal if email exists - show success message anyway
                 messages.success(request, 'If an account exists with this email, password reset instructions have been sent.')
-                return redirect('web-index')
+                return render(request, 'accounts/password_reset_request.html', {'form': PasswordResetRequestForm()})
             except User.MultipleObjectsReturned:
                 messages.error(request, 'Multiple accounts found with this email address. Please contact support.')
                 return render(request, 'accounts/password_reset_request.html', {'form': form})
@@ -327,10 +327,11 @@ def password_reset_request(request):
 
             if email_sent:
                 messages.success(request, 'Password reset instructions have been sent to your email.')
-                return redirect('web-index')
             else:
                 messages.error(request, 'Unable to send password reset email. Please try again later.')
-                return render(request, 'accounts/password_reset_request.html', {'form': form})
+
+            # Stay on the same page to show the message
+            return render(request, 'accounts/password_reset_request.html', {'form': PasswordResetRequestForm()})
     else:
         form = PasswordResetRequestForm()
 
