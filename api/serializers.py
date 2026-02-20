@@ -53,9 +53,30 @@ class PassageAnnotationSerializer(serializers.ModelSerializer):
 
 class HeaderSerializer(serializers.ModelSerializer):
     """Serializer for headers"""
+    effective_icon_url = serializers.SerializerMethodField()
+    effective_background_color = serializers.SerializerMethodField()
+
     class Meta:
         model = Header
-        fields = ['id', 'title', 'category', 'display_order']
+        fields = [
+            'id', 'title', 'category', 'display_order',
+            'icon_url', 'background_color',
+            'effective_icon_url', 'effective_background_color'
+        ]
+
+    def get_effective_icon_url(self, obj):
+        """Return icon_url or category-based default"""
+        if obj.icon_url:
+            return obj.icon_url
+        from api.constants import DEFAULT_ICONS
+        return DEFAULT_ICONS.get(obj.category)
+
+    def get_effective_background_color(self, obj):
+        """Return background_color or category-based default"""
+        if obj.background_color:
+            return obj.background_color
+        from api.constants import DEFAULT_COLORS
+        return DEFAULT_COLORS.get(obj.category, '#1CB0F6')
 
 
 class PassageListSerializer(serializers.ModelSerializer):
@@ -63,11 +84,33 @@ class PassageListSerializer(serializers.ModelSerializer):
     question_count = serializers.SerializerMethodField()
     attempt_count = serializers.SerializerMethodField()
     attempt_summary = serializers.SerializerMethodField()
-    
+    effective_icon_url = serializers.SerializerMethodField()
+    effective_icon_color = serializers.SerializerMethodField()
+
     class Meta:
         model = Passage
-        fields = ['id', 'title', 'content', 'difficulty', 'tier', 'is_diagnostic', 'header', 'order_within_header', 'question_count', 'attempt_count', 'attempt_summary',
-                 'created_at', 'updated_at']
+        fields = [
+            'id', 'title', 'content', 'difficulty', 'tier', 'is_diagnostic',
+            'header', 'order_within_header',
+            'icon_url', 'icon_color',
+            'effective_icon_url', 'effective_icon_color',
+            'question_count', 'attempt_count', 'attempt_summary',
+            'created_at', 'updated_at'
+        ]
+
+    def get_effective_icon_url(self, obj):
+        """Return icon_url or category-based default"""
+        if obj.icon_url:
+            return obj.icon_url
+        from api.constants import DEFAULT_ICONS
+        return DEFAULT_ICONS.get('reading')
+
+    def get_effective_icon_color(self, obj):
+        """Return icon_color or category-based default"""
+        if obj.icon_color:
+            return obj.icon_color
+        from api.constants import DEFAULT_COLORS
+        return DEFAULT_COLORS.get('reading', '#1CB0F6')
     
     def get_question_count(self, obj):
         return obj.questions.count()
@@ -305,11 +348,33 @@ class LessonQuestionSerializer(serializers.ModelSerializer):
 class LessonListSerializer(serializers.ModelSerializer):
     question_count = serializers.SerializerMethodField()
     header = HeaderSerializer(read_only=True)
-    
+    effective_icon_url = serializers.SerializerMethodField()
+    effective_icon_color = serializers.SerializerMethodField()
+
     class Meta:
         model = Lesson
-        fields = ['id', 'lesson_id', 'title', 'difficulty', 'tier', 'lesson_type', 'is_diagnostic', 'question_count', 'header', 'order_within_header', 'created_at']
-    
+        fields = [
+            'id', 'lesson_id', 'title', 'difficulty', 'tier', 'lesson_type',
+            'is_diagnostic', 'question_count', 'header', 'order_within_header',
+            'icon_url', 'icon_color',
+            'effective_icon_url', 'effective_icon_color',
+            'created_at'
+        ]
+
+    def get_effective_icon_url(self, obj):
+        """Return icon_url or category-based default"""
+        if obj.icon_url:
+            return obj.icon_url
+        from api.constants import DEFAULT_ICONS
+        return DEFAULT_ICONS.get(obj.lesson_type)
+
+    def get_effective_icon_color(self, obj):
+        """Return icon_color or category-based default"""
+        if obj.icon_color:
+            return obj.icon_color
+        from api.constants import DEFAULT_COLORS
+        return DEFAULT_COLORS.get(obj.lesson_type, '#58CC02')
+
     def get_question_count(self, obj):
         return obj.questions.count()
 
@@ -350,11 +415,34 @@ class WritingSectionListSerializer(serializers.ModelSerializer):
     selection_count = serializers.SerializerMethodField()
     attempt_count = serializers.SerializerMethodField()
     attempt_summary = serializers.SerializerMethodField()
-    
+    effective_icon_url = serializers.SerializerMethodField()
+    effective_icon_color = serializers.SerializerMethodField()
+
     class Meta:
         model = WritingSection
-        fields = ['id', 'title', 'difficulty', 'tier', 'header', 'order_within_header', 'question_count', 'selection_count', 
-                 'attempt_count', 'attempt_summary', 'created_at']
+        fields = [
+            'id', 'title', 'difficulty', 'tier',
+            'header', 'order_within_header',
+            'icon_url', 'icon_color',
+            'effective_icon_url', 'effective_icon_color',
+            'question_count', 'selection_count',
+            'attempt_count', 'attempt_summary',
+            'created_at'
+        ]
+
+    def get_effective_icon_url(self, obj):
+        """Return icon_url or category-based default"""
+        if obj.icon_url:
+            return obj.icon_url
+        from api.constants import DEFAULT_ICONS
+        return DEFAULT_ICONS.get('writing')
+
+    def get_effective_icon_color(self, obj):
+        """Return icon_color or category-based default"""
+        if obj.icon_color:
+            return obj.icon_color
+        from api.constants import DEFAULT_COLORS
+        return DEFAULT_COLORS.get('writing', '#CE82FF')
     
     def get_question_count(self, obj):
         return obj.questions.count()
@@ -480,11 +568,34 @@ class MathSectionListSerializer(serializers.ModelSerializer):
     asset_count = serializers.SerializerMethodField()
     attempt_count = serializers.SerializerMethodField()
     attempt_summary = serializers.SerializerMethodField()
-    
+    effective_icon_url = serializers.SerializerMethodField()
+    effective_icon_color = serializers.SerializerMethodField()
+
     class Meta:
         model = MathSection
-        fields = ['id', 'section_id', 'title', 'difficulty', 'tier', 'header', 'order_within_header', 'question_count', 
-                 'asset_count', 'attempt_count', 'attempt_summary', 'created_at']
+        fields = [
+            'id', 'section_id', 'title', 'difficulty', 'tier',
+            'header', 'order_within_header',
+            'icon_url', 'icon_color',
+            'effective_icon_url', 'effective_icon_color',
+            'question_count', 'asset_count',
+            'attempt_count', 'attempt_summary',
+            'created_at'
+        ]
+
+    def get_effective_icon_url(self, obj):
+        """Return icon_url or category-based default"""
+        if obj.icon_url:
+            return obj.icon_url
+        from api.constants import DEFAULT_ICONS
+        return DEFAULT_ICONS.get('math')
+
+    def get_effective_icon_color(self, obj):
+        """Return icon_color or category-based default"""
+        if obj.icon_color:
+            return obj.icon_color
+        from api.constants import DEFAULT_COLORS
+        return DEFAULT_COLORS.get('math', '#FF9600')
     
     def get_question_count(self, obj):
         return obj.questions.count()

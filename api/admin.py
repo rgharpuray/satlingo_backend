@@ -248,6 +248,10 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
         ('Basic Information', {
             'fields': ('id', 'title', 'content', 'difficulty', 'tier', 'is_diagnostic')
         }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'icon_color'),
+            'description': 'Icon URL and accent color for mobile display'
+        }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
             'description': 'Assign passage to a header/section and set its order within that header. Only reading category headers will be shown.'
@@ -257,7 +261,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def move_up(self, request, queryset):
         """Move selected items up (increase display_order)"""
         for obj in queryset:
@@ -265,7 +269,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             obj.save()
         self.message_user(request, f"Moved {queryset.count()} item(s) up.")
     move_up.short_description = "Move up (increase order)"
-    
+
     def move_down(self, request, queryset):
         """Move selected items down (decrease display_order)"""
         for obj in queryset:
@@ -273,7 +277,7 @@ class PassageAdmin(nested_admin.NestedModelAdmin):
             obj.save()
         self.message_user(request, f"Moved {queryset.count()} item(s) down.")
     move_down.short_description = "Move down (decrease order)"
-    
+
     def question_count(self, obj):
         """Display number of questions for this passage"""
         if obj.pk:
@@ -1492,6 +1496,10 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
         ('Basic Information', {
             'fields': ('id', 'lesson_id', 'title', 'lesson_type', 'is_diagnostic', 'difficulty', 'tier')
         }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'icon_color'),
+            'description': 'Icon URL and accent color for mobile display'
+        }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
             'description': 'Assign lesson to a header/section and set its order within that header. Only headers matching the lesson type will be shown.'
@@ -1505,7 +1513,7 @@ class LessonAdmin(nested_admin.NestedModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def save_model(self, request, obj, form, change):
         """Ensure only one diagnostic per lesson_type"""
         if obj.is_diagnostic:
@@ -2147,7 +2155,7 @@ class WritingSectionAdmin(admin.ModelAdmin):
     search_fields = ['title', 'content']
     readonly_fields = ['id', 'created_at', 'updated_at']
     actions = ['move_up', 'move_down', 'move_up_in_header', 'move_down_in_header']
-    
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Filter headers by writing category and content_type when assigning to writing sections"""
         if db_field.name == 'header':
@@ -2158,10 +2166,14 @@ class WritingSectionAdmin(admin.ModelAdmin):
                 Q(content_type='section') | Q(content_type='both')
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'title', 'content', 'difficulty', 'tier')
+        }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'icon_color'),
+            'description': 'Icon URL and accent color for mobile display'
         }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
@@ -2682,7 +2694,7 @@ class MathSectionAdmin(nested_admin.NestedModelAdmin):
     readonly_fields = ['id', 'created_at', 'updated_at', 'question_count_display', 'asset_count_display']
     inlines = [MathAssetInline]
     actions = ['move_up', 'move_down', 'move_up_in_header', 'move_down_in_header']
-    
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Filter headers by math category and content_type when assigning to math sections"""
         if db_field.name == 'header':
@@ -2693,10 +2705,14 @@ class MathSectionAdmin(nested_admin.NestedModelAdmin):
                 Q(content_type='section') | Q(content_type='both')
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'section_id', 'title', 'difficulty', 'tier')
+        }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'icon_color'),
+            'description': 'Icon URL and accent color for mobile display'
         }),
         ('Organization', {
             'fields': ('header', 'order_within_header', 'display_order'),
@@ -2992,11 +3008,15 @@ class HeaderAdmin(admin.ModelAdmin):
     search_fields = ['title']
     readonly_fields = ['id', 'created_at', 'updated_at', 'lesson_count_display', 'passage_count_display', 'writing_section_count_display', 'math_section_count_display']
     actions = ['move_up', 'move_down']
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'title', 'category', 'content_type', 'display_order'),
             'description': 'content_type: "Lesson" for lessons only, "Section/Passage" for sections/passages only, "Both" for both types'
+        }),
+        ('Visual Settings', {
+            'fields': ('icon_url', 'background_color'),
+            'description': 'Icon URL and background/accent color for mobile display'
         }),
         ('Metadata', {
             'fields': ('lesson_count_display', 'passage_count_display', 'writing_section_count_display', 'math_section_count_display', 'created_at', 'updated_at'),
