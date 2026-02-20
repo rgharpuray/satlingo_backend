@@ -7,6 +7,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render
 from web import views as web_views
+from api.password_reset_views import password_reset_request, password_reset_confirm
 from api.models import Lesson, Passage, WritingSection, MathSection
 
 def reading_view(request):
@@ -63,6 +64,10 @@ urlpatterns = [
     path('privacy/', web_views.privacy, name='privacy'),
     path('support/', web_views.support, name='support'),
     path('delete-account/', web_views.delete_account, name='delete-account'),
+
+    # Password reset (web views for mobile apps to open)
+    path('accounts/password-reset/', password_reset_request, name='password-reset-request'),
+    path('accounts/password-reset-confirm/<str:token>/', password_reset_confirm, name='password-reset-confirm'),
 ]
 
 if settings.DEBUG:

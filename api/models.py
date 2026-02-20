@@ -1,6 +1,7 @@
 import uuid
 import logging
 import threading
+from datetime import timedelta
 from django.db import models
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
@@ -1564,4 +1565,64 @@ def deactivate_discount_code_in_stripe(sender, instance, **kwargs):
     except Exception as e:
         logger.error(f"Failed to deactivate discount code '{instance.code}' in Stripe: {str(e)}", exc_info=True)
         # Don't re-raise - allow deletion to proceed
+
+
+class PasswordResetToken(models.Model):
+    """
+    Token for password reset requests.
+
+    Location: api/models.py
+    Usage: Created when user requests password reset, validated when they confirm.
+    Related: Used by api/password_reset_views.py for reset flow.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    token = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'password_reset_tokens'
+        indexes = [
+            models.Index(fields=['token']),
+            models.Index(fields=['user']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        return f"Reset token for {self.user.email}"
+
+    def is_expired(self):
+        """Check if token has expired"""
+        return timezone.now() > self.expires_at
+
+    def is_valid(self):
+        """Check if token is still valid (not used and not expired)"""
+        return not self.is_used and not self.is_expired()
+
+    @classmethod
+    def create_token(cls, user, expires_in_hours=24):
+        """
+        Create a new password reset token for a user.
+        Deletes any existing unused tokens for this user.
+
+        Args:
+            user: User instance
+            expires_in_hours: Hours until token expires (default 24)
+
+        Returns:
+            PasswordResetToken instance
+        """
+        # Delete any existing unused tokens for this user
+        cls.objects.filter(user=user, is_used=False).delete()
+
+        # Create new token
+        token = str(uuid.uuid4())
+        expires_at = timezone.now() + timedelta(hours=expires_in_hours)
+
+        return cls.objects.create(
+            user=user,
+            token=token,
+            expires_at=expires_at
+        )
 

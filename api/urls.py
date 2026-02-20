@@ -13,6 +13,7 @@ from .views import (
     OnboardingDismissView, OnboardingWelcomeSeenView
 )
 from .auth_views import register, login, me, google_oauth_url, google_oauth_callback, google_oauth_token, apple_oauth_token, delete_account
+from .password_reset_views import api_password_reset_request, api_password_reset_confirm
 from .stripe_views import (
     create_checkout_session, create_portal_session,
     subscription_status, stripe_webhook, sync_subscription_from_stripe,
@@ -74,6 +75,8 @@ urlpatterns = [
     path('auth/google/token', google_oauth_token, name='google-oauth-token'),  # For iOS: verify ID token directly
     path('auth/apple/token', apple_oauth_token, name='apple-oauth-token'),  # Apple Sign In
     path('auth/delete-account', delete_account, name='delete-account'),  # Account deletion (App Store requirement)
+    path('auth/password-reset', api_password_reset_request, name='api-password-reset-request'),  # Request password reset
+    path('auth/password-reset-confirm', api_password_reset_confirm, name='api-password-reset-confirm'),  # Confirm password reset
     
     # Stripe/Payment endpoints (Web & Android)
     path('payments/checkout', create_checkout_session, name='create-checkout'),

@@ -11,7 +11,7 @@ import os
 import json
 import threading
 from django.conf import settings
-from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, LessonAttempt, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription, QuestionClassification, StudyPlan, DiscountCode
+from .models import Passage, Question, QuestionOption, User, UserSession, UserProgress, UserAnswer, PassageAnnotation, PassageIngestion, Lesson, LessonQuestion, LessonQuestionOption, LessonIngestion, LessonAsset, LessonAttempt, WritingSection, WritingSectionSelection, WritingSectionQuestion, WritingSectionQuestionOption, WritingSectionIngestion, MathSection, MathAsset, MathQuestion, MathQuestionOption, MathQuestionAsset, MathSectionIngestion, ReadingLesson, WritingLesson, MathLesson, Header, Header, Subscription, QuestionClassification, StudyPlan, DiscountCode, PasswordResetToken
 from .ingestion_utils import (
     extract_text_from_image, extract_text_from_pdf, extract_text_from_multiple_images,
     extract_text_from_docx, extract_text_from_txt, extract_text_from_document,
@@ -3367,4 +3367,29 @@ class DiscountCodeAdmin(admin.ModelAdmin):
                     )
 
         self.message_user(request, f"Synced usage stats for {synced_count} discount code(s)")
+
+
+@admin.register(PasswordResetToken)
+class PasswordResetTokenAdmin(admin.ModelAdmin):
+    """Admin interface for managing password reset tokens."""
+    list_display = ('user', 'token_preview', 'created_at', 'expires_at', 'is_used', 'status')
+    list_filter = ('is_used', 'created_at', 'expires_at')
+    search_fields = ('user__email', 'user__username', 'token')
+    readonly_fields = ('token', 'created_at')
+    ordering = ('-created_at',)
+
+    def token_preview(self, obj):
+        """Show truncated token for security."""
+        return f"{obj.token[:8]}..."
+    token_preview.short_description = 'Token'
+
+    def status(self, obj):
+        """Show token validity status."""
+        if obj.is_used:
+            return format_html('<span style="color: gray;">Used</span>')
+        elif obj.is_expired():
+            return format_html('<span style="color: red;">Expired</span>')
+        else:
+            return format_html('<span style="color: green;">Valid</span>')
+    status.short_description = 'Status'
 

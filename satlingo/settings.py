@@ -283,3 +283,15 @@ if POSTHOG_API_KEY:
 ARGOS_TOKEN = os.environ.get('ARGOS_TOKEN', '')
 SERVICE_NAME = os.environ.get('SERVICE_NAME', 'satlingo-backend')
 VERSION = os.environ.get('VERSION', '1.0.0')
+
+# Site URL (for password reset emails, etc.)
+SITE_URL = os.environ.get('SITE_URL', 'https://keuvi.com')
+
+# Email Settings
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Keuvi <noreply@keuvi.com>')
