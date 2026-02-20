@@ -6,6 +6,9 @@ Summary: Defines color palettes and default icon URLs for Duolingo-style visual 
 Usage: Imported by models.py for validators and serializers.py for effective_* computed properties.
 """
 
+# GCS bucket prefix for icon URLs (used in validation)
+GCS_ICON_URL_PREFIX = 'https://storage.googleapis.com/keuvi-app/icons/'
+
 # Duolingo-inspired color palette for icons
 ICON_COLOR_CHOICES = [
     ('#58CC02', 'Green - Primary'),       # Main Duolingo green
@@ -16,6 +19,9 @@ ICON_COLOR_CHOICES = [
     ('#FFD900', 'Yellow - Achievement'),  # Achievements/XP
 ]
 
+# Default fallback color when no category-specific default exists
+DEFAULT_FALLBACK_COLOR = '#58CC02'
+
 # Default colors by category
 DEFAULT_COLORS = {
     'reading': '#1CB0F6',   # Blue
@@ -24,9 +30,9 @@ DEFAULT_COLORS = {
 }
 
 # Default icon URLs by category
-# Placeholder URLs - will be updated when assets are created
+# Set to None until real assets are uploaded to GCS
 DEFAULT_ICONS = {
-    'reading': 'https://storage.googleapis.com/keuvi-app/icons/defaults/reading.webp',
-    'writing': 'https://storage.googleapis.com/keuvi-app/icons/defaults/writing.webp',
-    'math': 'https://storage.googleapis.com/keuvi-app/icons/defaults/math.webp',
+    'reading': None,
+    'writing': None,
+    'math': None,
 }

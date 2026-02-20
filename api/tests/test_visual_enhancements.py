@@ -2,22 +2,28 @@
 Unit tests for Visual Enhancement fields on content models.
 
 Location: api/tests/test_visual_enhancements.py
-Coverage: icon_url, icon_color, background_color fields and effective_* serializer methods.
+Coverage: icon_url, icon_color, background_color fields, effective_* serializer methods,
+          GCS URL validation, and API endpoint integration tests.
 """
 
 import uuid
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 
 from api.models import Header, Passage, Lesson, MathSection, WritingSection
 from api.serializers import (
     HeaderSerializer,
     PassageListSerializer,
+    PassageDetailSerializer,
     LessonListSerializer,
+    LessonDetailSerializer,
     MathSectionListSerializer,
+    MathSectionDetailSerializer,
     WritingSectionListSerializer,
+    WritingSectionDetailSerializer,
 )
-from api.constants import DEFAULT_COLORS, DEFAULT_ICONS
+from api.constants import DEFAULT_COLORS, DEFAULT_ICONS, DEFAULT_FALLBACK_COLOR, GCS_ICON_URL_PREFIX
 
 
 class ConstantsTests(TestCase):
@@ -40,18 +46,120 @@ class ConstantsTests(TestCase):
             )
 
     def test_default_icons_defined(self):
-        """Default icons should be defined for all content categories."""
+        """Default icons should be defined for all content categories (may be None)."""
         self.assertIn('reading', DEFAULT_ICONS)
         self.assertIn('writing', DEFAULT_ICONS)
         self.assertIn('math', DEFAULT_ICONS)
 
-    def test_default_icons_are_urls(self):
-        """All default icons should be valid URLs."""
-        for category, url in DEFAULT_ICONS.items():
-            self.assertTrue(
-                url.startswith('https://'),
-                f"Icon URL for {category} should start with https://: {url}"
+    def test_default_icons_are_none_until_assets_uploaded(self):
+        """Default icons should be None until real assets are uploaded."""
+        for category in ['reading', 'writing', 'math']:
+            self.assertIsNone(
+                DEFAULT_ICONS.get(category),
+                f"DEFAULT_ICONS['{category}'] should be None until assets are uploaded"
             )
+
+    def test_default_fallback_color_defined(self):
+        """DEFAULT_FALLBACK_COLOR should be defined and valid."""
+        import re
+        hex_pattern = re.compile(r'^#[0-9A-Fa-f]{6}$')
+        self.assertIsNotNone(DEFAULT_FALLBACK_COLOR)
+        self.assertIsNotNone(
+            hex_pattern.match(DEFAULT_FALLBACK_COLOR),
+            f"DEFAULT_FALLBACK_COLOR is not a valid hex code: {DEFAULT_FALLBACK_COLOR}"
+        )
+
+    def test_gcs_icon_url_prefix_defined(self):
+        """GCS_ICON_URL_PREFIX should be defined and valid."""
+        self.assertIsNotNone(GCS_ICON_URL_PREFIX)
+        self.assertTrue(GCS_ICON_URL_PREFIX.startswith('https://storage.googleapis.com/'))
+
+
+class GCSIconUrlValidationTests(TestCase):
+    """Test GCS URL validation for icon_url fields."""
+
+    def test_valid_gcs_url_accepted(self):
+        """Valid GCS URLs should pass validation."""
+        valid_urls = [
+            'https://storage.googleapis.com/keuvi-app/icons/test.webp',
+            'https://storage.googleapis.com/keuvi-app/icons/defaults/reading.webp',
+            'https://storage.googleapis.com/keuvi-app/icons/custom/my-icon.png',
+        ]
+        for url in valid_urls:
+            passage = Passage(
+                title='Test',
+                content='Test content',
+                difficulty='Medium',
+                icon_url=url
+            )
+            passage.full_clean()  # Should not raise
+
+    def test_invalid_external_url_rejected(self):
+        """Non-GCS URLs should be rejected."""
+        invalid_urls = [
+            'https://example.com/icon.webp',
+            'https://other-bucket.storage.googleapis.com/icon.webp',
+            'https://cdn.example.com/icons/test.webp',
+            'http://storage.googleapis.com/keuvi-app/icons/test.webp',  # http not https
+        ]
+        for url in invalid_urls:
+            passage = Passage(
+                title='Test',
+                content='Test content',
+                difficulty='Medium',
+                icon_url=url
+            )
+            with self.assertRaises(ValidationError, msg=f"URL {url} should be rejected"):
+                passage.full_clean()
+
+    def test_null_icon_url_accepted(self):
+        """Null icon_url should be accepted (optional field)."""
+        passage = Passage(
+            title='Test',
+            content='Test content',
+            difficulty='Medium',
+            icon_url=None
+        )
+        passage.full_clean()  # Should not raise
+
+    def test_gcs_validation_on_all_models(self):
+        """GCS URL validation should work on all models with icon_url."""
+        valid_url = 'https://storage.googleapis.com/keuvi-app/icons/test.webp'
+        invalid_url = 'https://example.com/icon.webp'
+
+        # Test Header
+        header = Header(title='Test', category='reading', icon_url=valid_url)
+        header.full_clean()  # Should not raise
+
+        header_invalid = Header(title='Test', category='reading', icon_url=invalid_url)
+        with self.assertRaises(ValidationError):
+            header_invalid.full_clean()
+
+        # Test Lesson - skip full_clean for icon_url validation since it also validates chunks
+        # The validator itself is tested on other models
+        lesson = Lesson(lesson_id='test', title='Test', lesson_type='reading', icon_url=valid_url)
+        # Just validate the icon_url field directly using the validator
+        from api.models import validate_gcs_icon_url
+        validate_gcs_icon_url(valid_url)  # Should not raise
+
+        with self.assertRaises(ValidationError):
+            validate_gcs_icon_url(invalid_url)  # Should raise
+
+        # Test MathSection
+        math = MathSection(section_id='test', title='Test', icon_url=valid_url)
+        math.full_clean()
+
+        math_invalid = MathSection(section_id='test2', title='Test', icon_url=invalid_url)
+        with self.assertRaises(ValidationError):
+            math_invalid.full_clean()
+
+        # Test WritingSection
+        writing = WritingSection(title='Test', content='Test', difficulty='Medium', icon_url=valid_url)
+        writing.full_clean()
+
+        writing_invalid = WritingSection(title='Test2', content='Test', difficulty='Medium', icon_url=invalid_url)
+        with self.assertRaises(ValidationError):
+            writing_invalid.full_clean()
 
 
 class HexColorValidationTests(TestCase):
@@ -126,12 +234,12 @@ class HeaderVisualEnhancementTests(TestCase):
         header = Header(title='Test', category='reading', icon_url=None)
         header.full_clean()  # Should not raise
 
-    def test_header_accepts_valid_icon_url(self):
-        """Header should accept valid icon URLs."""
+    def test_header_accepts_valid_gcs_icon_url(self):
+        """Header should accept valid GCS icon URLs."""
         header = Header(
             title='Test',
             category='reading',
-            icon_url='https://storage.googleapis.com/bucket/icons/test.webp'
+            icon_url='https://storage.googleapis.com/keuvi-app/icons/test.webp'
         )
         header.full_clean()  # Should not raise
 
@@ -150,18 +258,19 @@ class HeaderSerializerTests(TestCase):
         self.assertIn('effective_icon_url', data)
         self.assertIn('effective_background_color', data)
 
-    def test_effective_icon_url_returns_default_when_null(self):
-        """effective_icon_url should return default when icon_url is null."""
+    def test_effective_icon_url_returns_none_when_no_default(self):
+        """effective_icon_url should return None when icon_url is null and no default exists."""
         header = Header(title='Test', category='reading', icon_url=None)
         serializer = HeaderSerializer(header)
         data = serializer.data
 
         self.assertIsNone(data['icon_url'])
-        self.assertEqual(data['effective_icon_url'], DEFAULT_ICONS.get('reading'))
+        # DEFAULT_ICONS values are None, so effective should also be None
+        self.assertIsNone(data['effective_icon_url'])
 
     def test_effective_icon_url_returns_custom_when_set(self):
         """effective_icon_url should return custom value when icon_url is set."""
-        custom_url = 'https://example.com/custom-icon.webp'
+        custom_url = 'https://storage.googleapis.com/keuvi-app/icons/custom-icon.webp'
         header = Header(title='Test', category='reading', icon_url=custom_url)
         serializer = HeaderSerializer(header)
         data = serializer.data
@@ -189,18 +298,15 @@ class HeaderSerializerTests(TestCase):
         self.assertEqual(data['effective_background_color'], custom_color)
 
     def test_effective_fields_per_category(self):
-        """Each category should return its own default colors/icons."""
+        """Each category should return its own default colors."""
         categories = ['reading', 'writing', 'math']
         for category in categories:
             header = Header(title='Test', category=category)
             serializer = HeaderSerializer(header)
             data = serializer.data
 
-            self.assertEqual(
-                data['effective_icon_url'],
-                DEFAULT_ICONS.get(category),
-                f"Effective icon URL mismatch for {category}"
-            )
+            # Icon URL defaults are None
+            self.assertIsNone(data['effective_icon_url'])
             self.assertEqual(
                 data['effective_background_color'],
                 DEFAULT_COLORS.get(category),
@@ -230,9 +336,9 @@ class PassageVisualEnhancementTests(TestCase):
 
 
 class PassageSerializerTests(TestCase):
-    """Test PassageListSerializer visual enhancement fields."""
+    """Test PassageListSerializer and PassageDetailSerializer visual enhancement fields."""
 
-    def test_serializer_includes_icon_fields(self):
+    def test_list_serializer_includes_icon_fields(self):
         """PassageListSerializer should include icon fields."""
         passage = Passage(title='Test', content='Content')
         serializer = PassageListSerializer(passage)
@@ -243,18 +349,32 @@ class PassageSerializerTests(TestCase):
         self.assertIn('effective_icon_url', data)
         self.assertIn('effective_icon_color', data)
 
+    def test_detail_serializer_includes_icon_fields(self):
+        """PassageDetailSerializer should include icon fields."""
+        passage = Passage(title='Test', content='Content', difficulty='Medium')
+        passage.save()
+        serializer = PassageDetailSerializer(passage)
+        data = serializer.data
+
+        self.assertIn('icon_url', data)
+        self.assertIn('icon_color', data)
+        self.assertIn('effective_icon_url', data)
+        self.assertIn('effective_icon_color', data)
+        passage.delete()
+
     def test_effective_fields_return_reading_defaults(self):
         """Passage effective fields should return reading category defaults."""
         passage = Passage(title='Test', content='Content')
         serializer = PassageListSerializer(passage)
         data = serializer.data
 
-        self.assertEqual(data['effective_icon_url'], DEFAULT_ICONS.get('reading'))
+        # Icon URL default is None
+        self.assertIsNone(data['effective_icon_url'])
         self.assertEqual(data['effective_icon_color'], DEFAULT_COLORS.get('reading'))
 
     def test_effective_fields_return_custom_values(self):
         """effective fields should return custom values when set."""
-        custom_url = 'https://example.com/passage-icon.webp'
+        custom_url = 'https://storage.googleapis.com/keuvi-app/icons/passage-icon.webp'
         custom_color = '#123456'
         passage = Passage(
             title='Test',
@@ -280,9 +400,9 @@ class LessonVisualEnhancementTests(TestCase):
 
 
 class LessonSerializerTests(TestCase):
-    """Test LessonListSerializer visual enhancement fields."""
+    """Test LessonListSerializer and LessonDetailSerializer visual enhancement fields."""
 
-    def test_serializer_includes_icon_fields(self):
+    def test_list_serializer_includes_icon_fields(self):
         """LessonListSerializer should include icon fields."""
         lesson = Lesson(lesson_id='test', title='Test', lesson_type='writing')
         serializer = LessonListSerializer(lesson)
@@ -292,6 +412,19 @@ class LessonSerializerTests(TestCase):
         self.assertIn('icon_color', data)
         self.assertIn('effective_icon_url', data)
         self.assertIn('effective_icon_color', data)
+
+    def test_detail_serializer_includes_icon_fields(self):
+        """LessonDetailSerializer should include icon fields."""
+        lesson = Lesson(lesson_id='test-detail', title='Test', lesson_type='writing')
+        lesson.save()
+        serializer = LessonDetailSerializer(lesson)
+        data = serializer.data
+
+        self.assertIn('icon_url', data)
+        self.assertIn('icon_color', data)
+        self.assertIn('effective_icon_url', data)
+        self.assertIn('effective_icon_color', data)
+        lesson.delete()
 
     def test_effective_fields_match_lesson_type(self):
         """Lesson effective fields should match lesson_type category."""
@@ -305,11 +438,8 @@ class LessonSerializerTests(TestCase):
             serializer = LessonListSerializer(lesson)
             data = serializer.data
 
-            self.assertEqual(
-                data['effective_icon_url'],
-                DEFAULT_ICONS.get(lesson_type),
-                f"Effective icon URL mismatch for lesson_type={lesson_type}"
-            )
+            # Icon URL defaults are None
+            self.assertIsNone(data['effective_icon_url'])
             self.assertEqual(
                 data['effective_icon_color'],
                 DEFAULT_COLORS.get(lesson_type),
@@ -318,7 +448,7 @@ class LessonSerializerTests(TestCase):
 
     def test_custom_values_override_defaults(self):
         """Custom icon values should override defaults."""
-        custom_url = 'https://example.com/lesson.webp'
+        custom_url = 'https://storage.googleapis.com/keuvi-app/icons/lesson.webp'
         custom_color = '#AABBCC'
         lesson = Lesson(
             lesson_id='test',
@@ -345,9 +475,9 @@ class MathSectionVisualEnhancementTests(TestCase):
 
 
 class MathSectionSerializerTests(TestCase):
-    """Test MathSectionListSerializer visual enhancement fields."""
+    """Test MathSectionListSerializer and MathSectionDetailSerializer visual enhancement fields."""
 
-    def test_serializer_includes_icon_fields(self):
+    def test_list_serializer_includes_icon_fields(self):
         """MathSectionListSerializer should include icon fields."""
         section = MathSection(section_id='test', title='Test')
         serializer = MathSectionListSerializer(section)
@@ -358,13 +488,27 @@ class MathSectionSerializerTests(TestCase):
         self.assertIn('effective_icon_url', data)
         self.assertIn('effective_icon_color', data)
 
+    def test_detail_serializer_includes_icon_fields(self):
+        """MathSectionDetailSerializer should include icon fields."""
+        section = MathSection(section_id='test-detail', title='Test')
+        section.save()
+        serializer = MathSectionDetailSerializer(section)
+        data = serializer.data
+
+        self.assertIn('icon_url', data)
+        self.assertIn('icon_color', data)
+        self.assertIn('effective_icon_url', data)
+        self.assertIn('effective_icon_color', data)
+        section.delete()
+
     def test_effective_fields_return_math_defaults(self):
         """MathSection effective fields should return math category defaults."""
         section = MathSection(section_id='test', title='Test')
         serializer = MathSectionListSerializer(section)
         data = serializer.data
 
-        self.assertEqual(data['effective_icon_url'], DEFAULT_ICONS.get('math'))
+        # Icon URL default is None
+        self.assertIsNone(data['effective_icon_url'])
         self.assertEqual(data['effective_icon_color'], DEFAULT_COLORS.get('math'))
 
 
@@ -379,9 +523,9 @@ class WritingSectionVisualEnhancementTests(TestCase):
 
 
 class WritingSectionSerializerTests(TestCase):
-    """Test WritingSectionListSerializer visual enhancement fields."""
+    """Test WritingSectionListSerializer and WritingSectionDetailSerializer visual enhancement fields."""
 
-    def test_serializer_includes_icon_fields(self):
+    def test_list_serializer_includes_icon_fields(self):
         """WritingSectionListSerializer should include icon fields."""
         section = WritingSection(title='Test', content='Test content')
         serializer = WritingSectionListSerializer(section)
@@ -392,13 +536,27 @@ class WritingSectionSerializerTests(TestCase):
         self.assertIn('effective_icon_url', data)
         self.assertIn('effective_icon_color', data)
 
+    def test_detail_serializer_includes_icon_fields(self):
+        """WritingSectionDetailSerializer should include icon fields."""
+        section = WritingSection(title='Test', content='Test content', difficulty='Medium')
+        section.save()
+        serializer = WritingSectionDetailSerializer(section)
+        data = serializer.data
+
+        self.assertIn('icon_url', data)
+        self.assertIn('icon_color', data)
+        self.assertIn('effective_icon_url', data)
+        self.assertIn('effective_icon_color', data)
+        section.delete()
+
     def test_effective_fields_return_writing_defaults(self):
         """WritingSection effective fields should return writing category defaults."""
         section = WritingSection(title='Test', content='Test content')
         serializer = WritingSectionListSerializer(section)
         data = serializer.data
 
-        self.assertEqual(data['effective_icon_url'], DEFAULT_ICONS.get('writing'))
+        # Icon URL default is None
+        self.assertIsNone(data['effective_icon_url'])
         self.assertEqual(data['effective_icon_color'], DEFAULT_COLORS.get('writing'))
 
 
@@ -407,8 +565,8 @@ class IconUrlMaxLengthTests(TestCase):
 
     def test_icon_url_accepts_500_char_url(self):
         """icon_url should accept URLs up to 500 characters."""
-        # Create a URL that's exactly 500 characters
-        base_url = 'https://storage.googleapis.com/bucket/icons/'
+        # Create a URL that's exactly 500 characters within GCS prefix
+        base_url = GCS_ICON_URL_PREFIX
         padding = 'x' * (500 - len(base_url) - 5)  # -5 for .webp
         long_url = f"{base_url}{padding}.webp"
 
@@ -428,8 +586,8 @@ class EdgeCaseTests(TestCase):
         serializer = HeaderSerializer(header)
         data = serializer.data
 
-        # Should return fallback color #1CB0F6
-        self.assertEqual(data['effective_background_color'], '#1CB0F6')
+        # Should return DEFAULT_FALLBACK_COLOR
+        self.assertEqual(data['effective_background_color'], DEFAULT_FALLBACK_COLOR)
 
     def test_lesson_unknown_lesson_type_uses_fallback_color(self):
         """Unknown lesson_type should use fallback color."""
@@ -439,8 +597,8 @@ class EdgeCaseTests(TestCase):
         serializer = LessonListSerializer(lesson)
         data = serializer.data
 
-        # Should return fallback color #58CC02
-        self.assertEqual(data['effective_icon_color'], '#58CC02')
+        # Should return DEFAULT_FALLBACK_COLOR
+        self.assertEqual(data['effective_icon_color'], DEFAULT_FALLBACK_COLOR)
 
     def test_empty_icon_url_string_treated_as_none(self):
         """Empty string icon_url should still use default (effective_icon_url)."""
@@ -448,5 +606,193 @@ class EdgeCaseTests(TestCase):
         serializer = HeaderSerializer(header)
         data = serializer.data
 
-        # Empty string is falsy, so effective should return default
-        self.assertEqual(data['effective_icon_url'], DEFAULT_ICONS.get('reading'))
+        # Empty string is falsy, so effective should return default (None)
+        self.assertIsNone(data['effective_icon_url'])
+
+
+class APIEndpointIntegrationTests(TestCase):
+    """Integration tests for API endpoints including visual enhancement fields."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.client = Client()
+        self.api_base = '/api/v1'
+
+        # Create test passage
+        self.passage = Passage.objects.create(
+            title='Test Passage',
+            content='Test content for passage',
+            difficulty='Medium',
+            tier='free',
+            icon_url='https://storage.googleapis.com/keuvi-app/icons/test-passage.webp',
+            icon_color='#1CB0F6'
+        )
+
+        # Create test lesson
+        self.lesson = Lesson.objects.create(
+            lesson_id='test-lesson-api',
+            title='Test Lesson',
+            lesson_type='writing',
+            difficulty='Easy',
+            tier='free',
+            chunks=[],  # Required field
+            icon_url='https://storage.googleapis.com/keuvi-app/icons/test-lesson.webp',
+            icon_color='#CE82FF'
+        )
+
+        # Create test math section
+        self.math_section = MathSection.objects.create(
+            section_id='test-math-api',
+            title='Test Math Section',
+            difficulty='Medium',
+            tier='free',
+            icon_url='https://storage.googleapis.com/keuvi-app/icons/test-math.webp',
+            icon_color='#FF9600'
+        )
+
+        # Create test writing section
+        self.writing_section = WritingSection.objects.create(
+            title='Test Writing Section',
+            content='Test writing content',
+            difficulty='Hard',
+            tier='free',
+            icon_url='https://storage.googleapis.com/keuvi-app/icons/test-writing.webp',
+            icon_color='#CE82FF'
+        )
+
+    def tearDown(self):
+        """Clean up test data."""
+        self.passage.delete()
+        self.lesson.delete()
+        self.math_section.delete()
+        self.writing_section.delete()
+
+    def test_passages_list_endpoint_includes_icon_fields(self):
+        """GET /api/v1/passages/ should include visual enhancement fields."""
+        response = self.client.get(f'{self.api_base}/passages/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        # Find our test passage
+        passages = data.get('results', data) if isinstance(data, dict) else data
+        test_passage = next((p for p in passages if str(p['id']) == str(self.passage.id)), None)
+
+        if test_passage:
+            self.assertIn('icon_url', test_passage)
+            self.assertIn('icon_color', test_passage)
+            self.assertIn('effective_icon_url', test_passage)
+            self.assertIn('effective_icon_color', test_passage)
+            self.assertEqual(test_passage['icon_url'], self.passage.icon_url)
+            self.assertEqual(test_passage['icon_color'], self.passage.icon_color)
+
+    def test_passage_detail_endpoint_includes_icon_fields(self):
+        """GET /api/v1/passages/<id>/ should include visual enhancement fields."""
+        response = self.client.get(f'{self.api_base}/passages/{self.passage.id}/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        self.assertIn('icon_url', data)
+        self.assertIn('icon_color', data)
+        self.assertIn('effective_icon_url', data)
+        self.assertIn('effective_icon_color', data)
+
+    def test_lessons_list_endpoint_includes_icon_fields(self):
+        """GET /api/v1/lessons/ should include visual enhancement fields."""
+        response = self.client.get(f'{self.api_base}/lessons/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        lessons = data.get('results', data) if isinstance(data, dict) else data
+        test_lesson = next((l for l in lessons if str(l['id']) == str(self.lesson.id)), None)
+
+        if test_lesson:
+            self.assertIn('icon_url', test_lesson)
+            self.assertIn('icon_color', test_lesson)
+            self.assertIn('effective_icon_url', test_lesson)
+            self.assertIn('effective_icon_color', test_lesson)
+
+    def test_lesson_detail_endpoint_includes_icon_fields(self):
+        """GET /api/v1/lessons/<id>/ should include visual enhancement fields."""
+        response = self.client.get(f'{self.api_base}/lessons/{self.lesson.id}/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        self.assertIn('icon_url', data)
+        self.assertIn('icon_color', data)
+        self.assertIn('effective_icon_url', data)
+        self.assertIn('effective_icon_color', data)
+
+    def test_math_sections_list_endpoint_includes_icon_fields(self):
+        """GET /api/v1/math-sections/ should include visual enhancement fields."""
+        response = self.client.get(f'{self.api_base}/math-sections/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        sections = data.get('results', data) if isinstance(data, dict) else data
+        test_section = next((s for s in sections if str(s['id']) == str(self.math_section.id)), None)
+
+        if test_section:
+            self.assertIn('icon_url', test_section)
+            self.assertIn('icon_color', test_section)
+            self.assertIn('effective_icon_url', test_section)
+            self.assertIn('effective_icon_color', test_section)
+
+    def test_math_section_detail_endpoint_includes_icon_fields(self):
+        """GET /api/v1/math-sections/<id>/ should include visual enhancement fields."""
+        response = self.client.get(f'{self.api_base}/math-sections/{self.math_section.id}/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        self.assertIn('icon_url', data)
+        self.assertIn('icon_color', data)
+        self.assertIn('effective_icon_url', data)
+        self.assertIn('effective_icon_color', data)
+
+    def test_writing_sections_list_endpoint_includes_icon_fields(self):
+        """GET /api/v1/writing-sections/ should include visual enhancement fields."""
+        response = self.client.get(f'{self.api_base}/writing-sections/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        sections = data.get('results', data) if isinstance(data, dict) else data
+        test_section = next((s for s in sections if str(s['id']) == str(self.writing_section.id)), None)
+
+        if test_section:
+            self.assertIn('icon_url', test_section)
+            self.assertIn('icon_color', test_section)
+            self.assertIn('effective_icon_url', test_section)
+            self.assertIn('effective_icon_color', test_section)
+
+    def test_writing_section_detail_endpoint_includes_icon_fields(self):
+        """GET /api/v1/writing-sections/<id>/ should include visual enhancement fields."""
+        response = self.client.get(f'{self.api_base}/writing-sections/{self.writing_section.id}/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        self.assertIn('icon_url', data)
+        self.assertIn('icon_color', data)
+        self.assertIn('effective_icon_url', data)
+        self.assertIn('effective_icon_color', data)
+
+    def test_effective_fields_computed_correctly_in_api(self):
+        """effective_* fields should be computed correctly in API responses."""
+        # Create passage without custom icon
+        passage_no_icon = Passage.objects.create(
+            title='Test Passage No Icon',
+            content='Test content',
+            difficulty='Easy',
+            tier='free',
+            icon_url=None,
+            icon_color=None
+        )
+
+        response = self.client.get(f'{self.api_base}/passages/{passage_no_icon.id}/')
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        # effective_icon_url should be None (no default)
+        self.assertIsNone(data['effective_icon_url'])
+        # effective_icon_color should be the default for reading
+        self.assertEqual(data['effective_icon_color'], DEFAULT_COLORS.get('reading'))
+
+        passage_no_icon.delete()

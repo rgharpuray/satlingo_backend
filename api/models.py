@@ -5,10 +5,24 @@ from django.db import models
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator, URLValidator
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def validate_gcs_icon_url(value):
+    """
+    Validator that ensures icon URLs are hosted on the approved GCS bucket.
+    This prevents arbitrary external URLs from being used for icons.
+    """
+    from api.constants import GCS_ICON_URL_PREFIX
+    if value and not value.startswith(GCS_ICON_URL_PREFIX):
+        raise DjangoValidationError(
+            f'Icon URL must start with {GCS_ICON_URL_PREFIX}',
+            code='invalid_icon_url'
+        )
 
 
 class Passage(models.Model):
@@ -37,7 +51,8 @@ class Passage(models.Model):
         max_length=500,
         null=True,
         blank=True,
-        help_text="URL to passage icon image (256x256 WebP recommended)"
+        validators=[validate_gcs_icon_url],
+        help_text="URL to passage icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
     )
     icon_color = models.CharField(
         max_length=7,
@@ -485,7 +500,8 @@ class Lesson(models.Model):
         max_length=500,
         null=True,
         blank=True,
-        help_text="URL to lesson icon image (256x256 WebP recommended)"
+        validators=[validate_gcs_icon_url],
+        help_text="URL to lesson icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
     )
     icon_color = models.CharField(
         max_length=7,
@@ -541,7 +557,8 @@ class Header(models.Model):
         max_length=500,
         null=True,
         blank=True,
-        help_text="URL to header/unit icon image (256x256 WebP recommended)"
+        validators=[validate_gcs_icon_url],
+        help_text="URL to header/unit icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
     )
     background_color = models.CharField(
         max_length=7,
@@ -770,7 +787,8 @@ class WritingSection(models.Model):
         max_length=500,
         null=True,
         blank=True,
-        help_text="URL to writing section icon image (256x256 WebP recommended)"
+        validators=[validate_gcs_icon_url],
+        help_text="URL to writing section icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
     )
     icon_color = models.CharField(
         max_length=7,
@@ -1069,7 +1087,8 @@ class MathSection(models.Model):
         max_length=500,
         null=True,
         blank=True,
-        help_text="URL to math section icon image (256x256 WebP recommended)"
+        validators=[validate_gcs_icon_url],
+        help_text="URL to math section icon image (256x256 WebP recommended). Must be hosted on GCS bucket."
     )
     icon_color = models.CharField(
         max_length=7,
