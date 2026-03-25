@@ -6329,39 +6329,14 @@
             // Show submit section for lessons (questions are inline but can be answered)
             document.getElementById('questionsContainer').innerHTML = '';
             
-            // Check if there are questions on the CURRENT page (not just anywhere in the lesson)
+            // Check if there are questions on the CURRENT page
+            // Direct check: look for 'question' type chunks on current page
             let hasQuestionsOnCurrentPage = false;
-            if (lesson.questions && lesson.questions.length > 0 && pages && pages.length > 0 && pageIndex >= 0 && pageIndex < pages.length) {
+            if (pages && pages.length > 0 && pageIndex >= 0 && pageIndex < pages.length) {
                 const currentPage = pages[pageIndex];
-                const currentPageChunkIndices = new Set();
-                currentPage.forEach(({chunkIdx}) => {
-                    currentPageChunkIndices.add(chunkIdx);
-                });
-
-                // Check if any question's chunk_index is on the current page
-                hasQuestionsOnCurrentPage = lesson.questions.some(q =>
-                    q.chunk_index !== undefined && q.chunk_index !== null && currentPageChunkIndices.has(q.chunk_index)
-                );
-
-                // Debug logging
-                console.log('Submit button visibility check:', {
-                    pageIndex,
-                    currentPageChunkIndices: Array.from(currentPageChunkIndices),
-                    questionChunkIndices: lesson.questions.map(q => q.chunk_index),
-                    hasQuestionsOnCurrentPage
-                });
-
-                // Fallback: if lesson has questions but none matched current page,
-                // check if the current page has any 'question' type chunks
-                if (!hasQuestionsOnCurrentPage) {
-                    const hasQuestionChunksOnPage = currentPage.some(({chunk}) => chunk.type === 'question');
-                    if (hasQuestionChunksOnPage) {
-                        hasQuestionsOnCurrentPage = true;
-                        console.log('Fallback: found question chunks on page');
-                    }
-                }
+                hasQuestionsOnCurrentPage = currentPage.some(({chunk}) => chunk.type === 'question');
             }
-            
+
             if (hasQuestionsOnCurrentPage) {
                 document.getElementById('submitSection').style.display = 'block';
             } else {
@@ -8053,7 +8028,7 @@
                 // Append to grid - CSS handles the 2-column layout
                 questionsGrid.appendChild(questionCard);
             });
-
+            
             // Only show submit section if there are questions
             const submitSection = document.getElementById('submitSection');
             const resultsSection = document.getElementById('resultsSection');
@@ -8612,38 +8587,29 @@
             const currentPageIndex = lessonData.currentPageIndex || 0;
             const pages = lessonData.pages || [];
             
-            // Get chunk indices from current page
-            const currentPageChunkIndices = new Set();
+            // Check if current page has question chunks
+            let hasQuestionChunksOnPage = false;
             if (currentPageIndex >= 0 && currentPageIndex < pages.length) {
                 const currentPage = pages[currentPageIndex];
-                currentPage.forEach(({chunkIdx}) => {
-                    currentPageChunkIndices.add(chunkIdx);
-                });
+                hasQuestionChunksOnPage = currentPage.some(({chunk}) => chunk.type === 'question');
             }
-            
-            // Filter questions to only those on current page (match by chunk_index)
+
             // For diagnostics, use ALL questions
+            // For regular lessons, use questions that user has answered (if on a page with questions)
             let currentPageQuestions;
             if (isDiagnostic) {
                 currentPageQuestions = lessonData.questions;
-            } else {
-                currentPageQuestions = lessonData.questions.filter(q => {
-                    // Check if question's chunk_index is in the current page
-                    return q.chunk_index !== undefined && q.chunk_index !== null && currentPageChunkIndices.has(q.chunk_index);
-                });
-
-                // Fallback: if no questions matched by chunk_index, check if current page has question chunks
-                if (currentPageQuestions.length === 0 && currentPageIndex >= 0 && currentPageIndex < pages.length) {
-                    const currentPage = pages[currentPageIndex];
-                    const hasQuestionChunksOnPage = currentPage.some(({chunk}) => chunk.type === 'question');
-                    if (hasQuestionChunksOnPage) {
-                        // Use all questions that have answers (user answered on this page)
-                        currentPageQuestions = lessonData.questions.filter(q =>
-                            userAnswers[q.id] !== undefined && userAnswers[q.id] !== null
-                        );
-                        console.log('Fallback: using answered questions', currentPageQuestions.length);
-                    }
+            } else if (hasQuestionChunksOnPage) {
+                // Use questions that have been answered
+                currentPageQuestions = lessonData.questions.filter(q =>
+                    userAnswers[q.id] !== undefined && userAnswers[q.id] !== null
+                );
+                // If no answered questions but page has question chunks, use all questions
+                if (currentPageQuestions.length === 0) {
+                    currentPageQuestions = lessonData.questions;
                 }
+            } else {
+                currentPageQuestions = [];
             }
 
             if (currentPageQuestions.length === 0) {
