@@ -6339,9 +6339,21 @@
                 });
                 
                 // Check if any question's chunk_index is on the current page
-                hasQuestionsOnCurrentPage = lesson.questions.some(q => 
-                    q.chunk_index !== undefined && currentPageChunkIndices.has(q.chunk_index)
+                // Note: chunk_index can be 0, so use !== undefined && !== null explicitly
+                hasQuestionsOnCurrentPage = lesson.questions.some(q =>
+                    q.chunk_index !== undefined && q.chunk_index !== null && currentPageChunkIndices.has(q.chunk_index)
                 );
+
+                // Fallback: if lesson has questions but none have valid chunk_index mapping,
+                // show submit button (better to show than hide when questions exist)
+                if (!hasQuestionsOnCurrentPage && lesson.questions && lesson.questions.length > 0) {
+                    const anyHasValidChunkIndex = lesson.questions.some(q =>
+                        q.chunk_index !== undefined && q.chunk_index !== null
+                    );
+                    if (!anyHasValidChunkIndex) {
+                        hasQuestionsOnCurrentPage = true;
+                    }
+                }
             }
             
             if (hasQuestionsOnCurrentPage) {
@@ -8035,14 +8047,15 @@
                 // Append to grid - CSS handles the 2-column layout
                 questionsGrid.appendChild(questionCard);
             });
-            
-            // Show submit section
+
+            // Only show submit section if there are questions
             const submitSection = document.getElementById('submitSection');
             const resultsSection = document.getElementById('resultsSection');
-            if (submitSection) submitSection.style.display = 'block';
+            const hasQuestions = questionsList && questionsList.length > 0;
+            if (submitSection) submitSection.style.display = hasQuestions ? 'block' : 'none';
             if (resultsSection) resultsSection.style.display = 'none';
         }
-        
+
         function displayMathSectionPreview(mathSection) {
             // Hide all list sections, show detail view
             document.getElementById('passagesListSection').style.display = 'none';
