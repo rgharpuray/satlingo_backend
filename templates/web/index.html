@@ -6337,21 +6337,27 @@
                 currentPage.forEach(({chunkIdx}) => {
                     currentPageChunkIndices.add(chunkIdx);
                 });
-                
+
                 // Check if any question's chunk_index is on the current page
-                // Note: chunk_index can be 0, so use !== undefined && !== null explicitly
                 hasQuestionsOnCurrentPage = lesson.questions.some(q =>
                     q.chunk_index !== undefined && q.chunk_index !== null && currentPageChunkIndices.has(q.chunk_index)
                 );
 
-                // Fallback: if lesson has questions but none have valid chunk_index mapping,
-                // show submit button (better to show than hide when questions exist)
-                if (!hasQuestionsOnCurrentPage && lesson.questions && lesson.questions.length > 0) {
-                    const anyHasValidChunkIndex = lesson.questions.some(q =>
-                        q.chunk_index !== undefined && q.chunk_index !== null
-                    );
-                    if (!anyHasValidChunkIndex) {
+                // Debug logging
+                console.log('Submit button visibility check:', {
+                    pageIndex,
+                    currentPageChunkIndices: Array.from(currentPageChunkIndices),
+                    questionChunkIndices: lesson.questions.map(q => q.chunk_index),
+                    hasQuestionsOnCurrentPage
+                });
+
+                // Fallback: if lesson has questions but none matched current page,
+                // check if the current page has any 'question' type chunks
+                if (!hasQuestionsOnCurrentPage) {
+                    const hasQuestionChunksOnPage = currentPage.some(({chunk}) => chunk.type === 'question');
+                    if (hasQuestionChunksOnPage) {
                         hasQuestionsOnCurrentPage = true;
+                        console.log('Fallback: found question chunks on page');
                     }
                 }
             }
