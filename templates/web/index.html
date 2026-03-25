@@ -8628,11 +8628,24 @@
                 currentPageQuestions = lessonData.questions;
             } else {
                 currentPageQuestions = lessonData.questions.filter(q => {
-                // Check if question's chunk_index is in the current page
-                return q.chunk_index !== undefined && currentPageChunkIndices.has(q.chunk_index);
-            });
+                    // Check if question's chunk_index is in the current page
+                    return q.chunk_index !== undefined && q.chunk_index !== null && currentPageChunkIndices.has(q.chunk_index);
+                });
+
+                // Fallback: if no questions matched by chunk_index, check if current page has question chunks
+                if (currentPageQuestions.length === 0 && currentPageIndex >= 0 && currentPageIndex < pages.length) {
+                    const currentPage = pages[currentPageIndex];
+                    const hasQuestionChunksOnPage = currentPage.some(({chunk}) => chunk.type === 'question');
+                    if (hasQuestionChunksOnPage) {
+                        // Use all questions that have answers (user answered on this page)
+                        currentPageQuestions = lessonData.questions.filter(q =>
+                            userAnswers[q.id] !== undefined && userAnswers[q.id] !== null
+                        );
+                        console.log('Fallback: using answered questions', currentPageQuestions.length);
+                    }
+                }
             }
-            
+
             if (currentPageQuestions.length === 0) {
                 resultsSection.innerHTML = '<p style="padding: 20px; color: #666;">No questions on this page. Navigate to a page with questions to submit answers.</p>';
                 return;
