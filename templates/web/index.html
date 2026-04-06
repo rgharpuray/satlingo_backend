@@ -4817,8 +4817,6 @@
 
             // Render passages (for reading category)
             if (category === 'reading' && data.passages && data.passages.length > 0) {
-                html += `<div class="skills-category-header"><h3>Practice Passages</h3></div>`;
-
                 // Group passages by header
                 const passagesByHeader = {};
                 const passagesWithoutHeader = [];
@@ -4838,23 +4836,35 @@
                     }
                 });
 
-                // Sort and render
+                // Sort headers by display_order
                 const sortedPassageHeaders = Object.values(passagesByHeader).sort((a, b) =>
                     (b.header.display_order || 0) - (a.header.display_order || 0)
                 );
 
+                // Sort passages within each header
                 sortedPassageHeaders.forEach(headerGroup => {
                     headerGroup.passages.sort((a, b) =>
                         (b.order_within_header || 0) - (a.order_within_header || 0)
                     );
+                });
+
+                // Render each header group with section header
+                sortedPassageHeaders.forEach(headerGroup => {
+                    html += `<div class="skills-category-header"><h3>${escapeHtml(headerGroup.header.title)}</h3></div>`;
                     headerGroup.passages.forEach(passage => {
                         html += createSkillNode(passage, category, 'passage');
                     });
                 });
 
-                passagesWithoutHeader.forEach(passage => {
-                    html += createSkillNode(passage, category, 'passage');
-                });
+                // Render passages without headers
+                if (passagesWithoutHeader.length > 0) {
+                    if (sortedPassageHeaders.length > 0) {
+                        html += `<div class="skills-category-header"><h3>Other Passages</h3></div>`;
+                    }
+                    passagesWithoutHeader.forEach(passage => {
+                        html += createSkillNode(passage, category, 'passage');
+                    });
+                }
             }
 
             // Add CTA banner for non-logged-in users
