@@ -3145,7 +3145,7 @@
                         Double the practice questions, exclusive content drops every week, and zero ads.
                     </p>
                     <div class="premium-promo-price">
-                        <span class="premium-price-amount">$5</span>
+                        <span class="premium-price-amount">$50</span>
                         <span class="premium-price-period">/month</span>
                     </div>
                     <button class="btn-premium" onclick="upgradeToPremium()">Try Premium Free</button>
@@ -3325,7 +3325,7 @@
                             <strong>Subscription:</strong><br>
                             <span id="subscriptionStatus">Free</span><br>
                             <button class="btn btn-success" id="subscriptionButton" onclick="upgradeToPremium()" style="margin-top: 10px; width: 100%;">
-                                Upgrade to Premium ($5/month)
+                                Upgrade to Premium ($50/month)
                             </button>
                             <button class="btn btn-secondary" onclick="refreshUserData()" style="margin-top: 5px; width: 100%; font-size: 12px; padding: 6px;">
                                 🔄 Refresh Status
@@ -6421,13 +6421,13 @@
                 <div class="premium-upgrade-prompt">
                     <h3>🔒 Premium Content</h3>
                     <p>This lesson is part of our premium collection. Upgrade to unlock full access to all lessons, passages, and writing sections.</p>
-                    ${authToken ? 
-                        `<button class="btn" onclick="upgradeToPremium()">Upgrade to Premium - $5/month</button>` :
+                    ${authToken ?
+                        `<button class="btn" onclick="upgradeToPremium()">Upgrade to Premium - $50/month</button>` :
                         `<button class="btn" onclick="showRegisterModal()">Sign Up to Upgrade</button>`
                     }
                 </div>
             `;
-            
+
             document.getElementById('passageContent').innerHTML = contentHTML;
             document.getElementById('questionsContainer').innerHTML = '';
             document.getElementById('submitSection').style.display = 'none';
@@ -6459,8 +6459,8 @@
                 <div class="premium-upgrade-prompt">
                     <h3>🔒 Premium Content</h3>
                     <p>This passage is part of our premium collection. Upgrade to unlock full access to all passages, lessons, and writing sections.</p>
-                    ${authToken ? 
-                        `<button class="btn" onclick="upgradeToPremium()">Upgrade to Premium - $5/month</button>` :
+                    ${authToken ?
+                        `<button class="btn" onclick="upgradeToPremium()">Upgrade to Premium - $50/month</button>` :
                         `<button class="btn" onclick="showRegisterModal()">Sign Up to Upgrade</button>`
                     }
                 </div>
@@ -6497,8 +6497,8 @@
                 <div class="premium-upgrade-prompt">
                     <h3>🔒 Premium Content</h3>
                     <p>This writing section is part of our premium collection. Upgrade to unlock full access to all writing sections, passages, and lessons.</p>
-                    ${authToken ? 
-                        `<button class="btn" onclick="upgradeToPremium()">Upgrade to Premium - $5/month</button>` :
+                    ${authToken ?
+                        `<button class="btn" onclick="upgradeToPremium()">Upgrade to Premium - $50/month</button>` :
                         `<button class="btn" onclick="showRegisterModal()">Sign Up to Upgrade</button>`
                     }
                 </div>
@@ -8067,7 +8067,7 @@
                     <h3 style="color: #3498DB; margin-bottom: 15px;">Upgrade to Premium</h3>
                     <p style="color: #666; margin-bottom: 20px;">Get access to all premium math sections with detailed explanations and diagrams.</p>
                     <button class="btn btn-primary" onclick="showUpgradeModal()" style="font-size: 16px; padding: 12px 30px;">
-                        Upgrade Now ($5/month)
+                        Upgrade Now ($50/month)
                     </button>
                 </div>
             `;
@@ -9496,16 +9496,16 @@
                 <div class="modal-content" style="max-width: 500px;">
                     <h2>🔒 Premium Content</h2>
                     <p style="margin-bottom: 20px; color: #666;">
-                        This is part of our premium content. Upgrade to Keuvi Premium for $5/month to get:                    </p>
+                        This is part of our premium content. Upgrade to Keuvi Premium for $50/month to get:                    </p>
                     <div style="background: #083242; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
                         <ul style="text-align: left; margin: 0; padding-left: 20px;">
                             <li>Twice the practice questions</li>
                             <li>New material (that's exclusive to Premium) added every week</li>
                         </ul>
                     </div>
-                    ${authToken ? 
+                    ${authToken ?
                         `<button class="btn btn-primary" onclick="upgradeToPremium(); this.closest('.modal').remove();" style="width: 100%; font-size: 16px; padding: 12px;">
-                            Upgrade to Premium - $5/month
+                            Upgrade to Premium - $50/month
                         </button>` :
                         `<button class="btn btn-primary" onclick="showRegisterModal(); this.closest('.modal').remove();" style="width: 100%; font-size: 16px; padding: 12px; margin-bottom: 10px;">
                             Sign Up to Upgrade
@@ -9720,7 +9720,7 @@
                         if (statusEl) statusEl.textContent = 'Free';
                         const btn = document.getElementById('subscriptionButton');
                         if (btn) {
-                            btn.textContent = 'Upgrade to Premium ($5/month)';
+                            btn.textContent = 'Upgrade to Premium ($50/month)';
                             btn.onclick = upgradeToPremium;
                             btn.classList.remove('btn-secondary');
                             btn.classList.add('btn-success');

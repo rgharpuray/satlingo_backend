@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Script to create a $5/month subscription price in Stripe.
+Script to create a $50/month subscription price in Stripe.
 Run this once to set up your subscription product.
 
 Usage:
@@ -24,7 +24,7 @@ if not STRIPE_SECRET_KEY:
 stripe.api_key = STRIPE_SECRET_KEY
 
 def create_subscription_product():
-    """Create a $5/month subscription product and price"""
+    """Create a $50/month subscription product and price"""
     print("Creating Stripe product and price...")
     print("-" * 60)
     
@@ -37,10 +37,10 @@ def create_subscription_product():
         print(f"✓ Product created: {product.id}")
         print(f"  Name: {product.name}")
         
-        # Create price: $5/month
+        # Create price: $50/month
         price = stripe.Price.create(
             product=product.id,
-            unit_amount=500,  # $5.00 in cents
+            unit_amount=5000,  # $50.00 in cents
             currency='usd',
             recurring={
                 'interval': 'month',

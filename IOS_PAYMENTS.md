@@ -7,7 +7,7 @@ Your product ID in App Store Connect:
 ```
 keuvipremiumbase
 ```
-Price: Set in App Store Connect (e.g., $4.99/month)
+Price: Set in App Store Connect (e.g., $49.99/month)
 
 ## Endpoints
 
@@ -473,7 +473,7 @@ struct BenefitRow: View {
    - Click "+" → Auto-Renewable Subscription
    - Reference Name: "Premium Monthly"
    - Product ID: `keuvipremiumbase`
-   - Price: $4.99 (or your choice)
+   - Price: $49.99 (or your choice)
 
 2. **Configure Server Notifications**
    - Go to App Store Connect → Your App → App Information

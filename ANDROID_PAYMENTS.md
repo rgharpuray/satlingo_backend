@@ -278,10 +278,10 @@ fun SubscriptionScreen(
         }
         
         Spacer(modifier = Modifier.weight(1f))
-        
+
         // Price
         Text(
-            text = "$4.99",
+            text = "$49.99",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
@@ -645,10 +645,10 @@ fun SubscriptionManagementScreen(
         }
         
         Spacer(modifier = Modifier.weight(1f))
-        
+
         // Price
         Text(
-            text = "$4.99",
+            text = "$49.99",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )

@@ -213,7 +213,7 @@ STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_PRICE_ID = os.environ.get('STRIPE_PRICE_ID', '')  # Monthly subscription price ID
 
 # Premium Settings
-PREMIUM_MONTHLY_PRICE = 5.00  # $5 per month
+PREMIUM_MONTHLY_PRICE = 50.00  # $50 per month
 
 # OpenAI Settings
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
