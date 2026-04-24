@@ -3273,22 +3273,6 @@
                     <!-- Gamification Stats -->
                     <div class="gamification-stats" id="gamificationStats">
                         <div class="stat-row">
-                            <div class="stat-icon">🔥</div>
-                            <div class="stat-info">
-                                <div class="stat-label">Day Streak</div>
-                                <div class="stat-value" id="streakCount">0</div>
-                                <div class="streak-flames" id="streakFlames">
-                                    <span class="streak-flame">🔥</span>
-                                    <span class="streak-flame">🔥</span>
-                                    <span class="streak-flame">🔥</span>
-                                    <span class="streak-flame">🔥</span>
-                                    <span class="streak-flame">🔥</span>
-                                    <span class="streak-flame">🔥</span>
-                                    <span class="streak-flame">🔥</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="stat-row">
                             <div class="stat-icon">⚡</div>
                             <div class="stat-info">
                                 <div class="stat-label">Total XP</div>
@@ -3304,10 +3288,6 @@
                         </div>
                     </div>
 
-                    <div class="word-of-day" id="wordOfDay">
-                        <h3>Word of the Day</h3>
-                        <div class="loading">Loading...</div>
-                    </div>
                     
                     <div id="questionExplanation" class="hidden" style="display: none; background: var(--bg-secondary); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; box-shadow: 0 2px 4px var(--shadow); border-left: 3px solid var(--accent-color);">
                         <h3 style="color: var(--accent-color); margin-bottom: 8px; font-size: 16px; margin-left: 0;">Explanation</h3>
@@ -4189,8 +4169,6 @@
             checkAuth();
         }
         
-        // Load word of the day
-        loadWordOfDay();
         
         function showLanding() {
             document.getElementById('landingPage').style.display = 'block';
@@ -10061,49 +10039,6 @@
             document.getElementById(modalId).classList.remove('active');
         }
         
-        async function loadWordOfDay() {
-            try {
-                const response = await fetch(`${API_BASE}/word-of-the-day`);
-                if (response.ok) {
-                    const data = await response.json();
-                    displayWordOfDay(data);
-                } else {
-                    document.getElementById('wordOfDay').innerHTML = `
-                        <h3>Word of the Day</h3>
-                        <div class="loading">Unable to load word of the day</div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Failed to load word of day:', error);
-                document.getElementById('wordOfDay').innerHTML = `
-                    <h3>Word of the Day</h3>
-                    <div class="loading">Unable to load word of the day</div>
-                `;
-            }
-        }
-        
-        function displayWordOfDay(data) {
-            const synonyms = data.synonyms || [];
-            const synonymTags = synonyms.map(syn => 
-                `<span class="synonym-tag">${syn}</span>`
-            ).join('');
-            
-            document.getElementById('wordOfDay').innerHTML = `
-                <h3>Word of the Day</h3>
-                <div class="word">${data.word}</div>
-                <div class="definition">${data.definition}</div>
-                ${synonyms.length > 0 ? `
-                    <div class="synonyms">
-                        <div class="synonyms-label">Synonyms:</div>
-                        <div class="synonym-tags">${synonymTags}</div>
-                    </div>
-                ` : ''}
-                <div class="example">
-                    <div class="example-label">Example:</div>
-                    <div class="example-sentence">"${data.example_sentence}"</div>
-                </div>
-            `;
-        }
         
         // Close modal on outside click
         document.querySelectorAll('.modal').forEach(modal => {
